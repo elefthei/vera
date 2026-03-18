@@ -573,6 +573,12 @@ fn hash_exp<H: Hasher>(state: &mut H, exp: &Exp) {
         FuelConst(i) => {
             dohash!(19, i);
         }
+        Temporal(op, e1, e2) => {
+            dohash!(20, op; hash_exp(e1));
+            if let Some(e2) = e2 {
+                hash_exp(state, e2);
+            }
+        }
     }
 }
 
@@ -1852,6 +1858,7 @@ fn eval_expr_internal(ctx: &Ctx, state: &mut State, exp: &Exp) -> Result<Exp, Vi
         VarAt(..) | VarLoc(..) | Loc(..) | Old(..) | StaticVar(..) => ok,
         ExecFnByName(_) => ok,
         FuelConst(_) => ok,
+        Temporal(..) => ok,
     };
     let res = r?;
     state.depth -= 1;

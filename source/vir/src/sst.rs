@@ -117,6 +117,8 @@ pub enum ExpX {
     Interp(InterpExp),
     /// Fuel constant for controlling recursive function unrolling depth
     FuelConst(usize),
+    /// CTL temporal operator (unary: AG/EG with None; binary: AU/AN/EU/EN with Some)
+    Temporal(crate::ast::TemporalOp, Exp, Option<Exp>),
 }
 
 #[derive(Debug, Clone, Copy, ToDebugSNode)]

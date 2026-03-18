@@ -259,6 +259,11 @@ fn subst_exp_rec(ctxt: &SubstCtxt, state: &mut SubstState, exp: &Exp) -> Exp {
         ExpX::Interp(_) => {
             panic!("Found an interpreter expression {:?} outside the interpreter", exp)
         }
+        ExpX::Temporal(op, e1, e2) => {
+            let e1 = subst_exp_rec(ctxt, state, e1);
+            let e2 = e2.as_ref().map(|e| subst_exp_rec(ctxt, state, e));
+            mk_exp(ExpX::Temporal(*op, e1, e2))
+        }
     }
 }
 
@@ -731,7 +736,7 @@ impl ExpX {
                 }
             }
             FuelConst(i) => (format!("fuel({i:})"), 99),
-            Old(..) | WithTriggers(..) => ("".to_string(), 99), // We don't show the user these internal expressions
+            Old(..) | WithTriggers(..) | Temporal(..) => ("".to_string(), 99), // We don't show the user these internal expressions
         };
         if precedence <= inner_precedence { s } else { format!("({})", s) }
     }
