@@ -435,6 +435,11 @@ fn req_ens_to_air(
             exprs.push(e.clone());
         }
         for (default_ensures, exp) in specs.iter() {
+            // Skip temporal postconditions — they are handled by temporal VCGen,
+            // not as standard function axioms
+            if matches!(&exp.x, crate::sst::ExpX::Temporal(..)) {
+                continue;
+            }
             let expr_ctxt = if is_singular {
                 ExprCtxt::new_mode_singular(ExprMode::Spec, true)
             } else {

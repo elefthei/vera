@@ -3117,13 +3117,29 @@ pub(crate) fn body_stm_to_air(
 
     let initial_sid = Arc::new("0_entry".to_string());
 
+    // Separate temporal postconditions from standard ensures.
+    // Temporal ensures (ExpX::Temporal) populate TemporalContext and are not
+    // passed to exp_to_expr (which would panic on temporal nodes).
     let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
+    let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
     for ens in post_condition.ens_exps.iter() {
-        let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
-        let note = sst_exp_get_proof_note(ens);
-        let e = exp_to_expr(ctx, &ens, expr_ctxt)?;
-        ens_exprs.push((ens.span.clone(), e, note));
+        match &ens.x {
+            ExpX::Temporal(op, prop, path_prop) => {
+                temporal_obligations.push(TemporalObligation {
+                    op: op.clone(),
+                    property: prop.clone(),
+                    path_property: path_prop.clone(),
+                });
+            }
+            _ => {
+                let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+                let note = sst_exp_get_proof_note(ens);
+                let e = exp_to_expr(ctx, &ens, expr_ctxt)?;
+                ens_exprs.push((ens.span.clone(), e, note));
+            }
+        }
     }
+    let temporal_context = TemporalContext { obligations: temporal_obligations };
 
     let unwind_air = match unwind {
         UnwindSst::MayUnwind => UnwindAir::MayUnwind,
@@ -3159,7 +3175,7 @@ pub(crate) fn body_stm_to_air(
         },
         loop_infos: Vec::new(),
         static_prelude: mk_static_prelude(ctx, statics),
-        temporal_context: TemporalContext::default(),
+        temporal_context,
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
