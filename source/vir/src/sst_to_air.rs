@@ -1876,6 +1876,38 @@ fn assume_other_fields_unchanged_inner(
 //     let expr_ctxt = ExprCtxt { mode: ExprMode::Body, is_bit_vector: false };
 //     let result = match &stm.x {
 
+/// Generate AIR assertions for AG obligations at observable state transitions.
+/// Per TICL aul_cprog_assgn: after each assignment, assert φ holds at the new state.
+fn temporal_ag_assertions(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+) -> Result<Vec<Stmt>, VirErr> {
+    let mut stmts = Vec::new();
+    let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+    for obligation in &state.temporal_context.obligations {
+        match obligation.op {
+            crate::ast::TemporalOp::AG => {
+                let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
+                let error = error(span, "temporal AG property violated at observable state");
+                stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+            }
+            crate::ast::TemporalOp::AU => {
+                // AU(φ, ψ): assert φ holds along the path (before ψ is established)
+                if let Some(path_prop) = &obligation.path_property {
+                    let phi = exp_to_expr(ctx, path_prop, expr_ctxt)?;
+                    let error = error(span, "temporal AU path property violated at observable state");
+                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+                }
+            }
+            _ => {
+                // Other temporal operators not yet supported for VCGen
+            }
+        }
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2452,6 +2484,11 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 }
             }
 
+            // TICL rule: aul_cprog_assgn — after assignment, assert temporal properties
+            if !state.temporal_context.is_empty() {
+                stmts.extend(temporal_ag_assertions(ctx, state, &stm.span)?);
+            }
+
             stmts
         }
         StmX::DeadEnd(s) => {
@@ -2600,6 +2637,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             };
             let mut invs_entry: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
             let mut invs_exit: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
+            let mut temporal_invs: Vec<(Span, Expr)> = Vec::new();
             let mut hint_message = None;
             let modified_vars = modified_vars.as_ref().unwrap();
             for inv in invs.iter() {
@@ -2610,6 +2648,11 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 );
                 let msg_opt = exp_get_custom_err(&inv_exp);
                 let expr = exp_to_expr(ctx, &inv_exp, expr_ctxt)?;
+                if inv.temporal {
+                    // Temporal invariants are handled separately for TICL structural rules
+                    temporal_invs.push((inv.inv.span.clone(), expr));
+                    continue;
+                }
                 if cond.is_some() {
                     assert!(inv.at_entry);
                     assert!(inv.at_exit);
@@ -2740,6 +2783,14 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             for (_, inv, _, _) in invs_entry.iter() {
                 air_body.push(Arc::new(StmtX::Assume(inv.clone())));
             }
+            // TICL rule: ag_cprog_while — assume temporal invariant R after havoc
+            for (_, r_expr) in temporal_invs.iter() {
+                air_body.push(Arc::new(StmtX::Assume(r_expr.clone())));
+            }
+            // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
+            if !temporal_invs.is_empty() && !state.temporal_context.is_empty() {
+                air_body.extend(temporal_ag_assertions(ctx, state, &stm.span)?);
+            }
             for dec in decrease_init.iter() {
                 air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
             }
@@ -2791,6 +2842,12 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     let dec_stmt = StmtX::Assert(None, error, None, expr);
                     air_body.push(Arc::new(dec_stmt));
                 }
+                // TICL rule: ag_cprog_while — assert temporal invariant R preserved after body
+                for (span, r_expr) in temporal_invs.iter() {
+                    let error = error(span, "temporal invariant not preserved by loop body");
+                    let inv_stmt = StmtX::Assert(None, error, None, r_expr.clone());
+                    air_body.push(Arc::new(inv_stmt));
+                }
             }
             if !loop_isolation {
                 let loop_end = StmtX::Assume(air::ast_util::mk_false());
@@ -2840,6 +2897,12 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         error = error.secondary_label(span, &**msg);
                     }
                     let inv_stmt = StmtX::Assert(None, error, None, inv.clone());
+                    stmts.push(Arc::new(inv_stmt));
+                }
+                // TICL rule: ag_cprog_while — assert temporal invariant R at loop entry
+                for (span, r_expr) in temporal_invs.iter() {
+                    let error = error(span, "temporal invariant not established at loop entry");
+                    let inv_stmt = StmtX::Assert(None, error, None, r_expr.clone());
                     stmts.push(Arc::new(inv_stmt));
                 }
             }

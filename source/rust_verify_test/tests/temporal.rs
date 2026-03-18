@@ -147,6 +147,56 @@ test_verify_one_file! {
     } => Ok(())
 }
 
+// === TICL VCGen Rule Tests ===
+
+// TICL rule: ag_cprog_while — temporal invariant established at entry and preserved by body
+test_verify_one_file! {
+    #[test] test_temporal_invariant_preserved verus_code! {
+        fn test_loop_invariant_preserved() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases 10 - x,
+            {
+                x = x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+// TICL rule: ag_cprog_while — temporal invariant violated at entry should fail
+test_verify_one_file! {
+    #[test] test_temporal_invariant_entry_fail verus_code! {
+        fn test_loop_invariant_entry_fail() {
+            let mut x: u64 = 100;
+            while x < 10
+                invariant x <= 10, // FAILS
+                temporal_invariant x <= 10, // FAILS
+                decreases 10 - x,
+            {
+                x = x + 1;
+            }
+        }
+    } => Err(err) => assert_fails(err, 2)
+}
+
+// TICL rule: ag_cprog_while — temporal invariant not preserved by body should fail
+test_verify_one_file! {
+    #[test] test_temporal_invariant_body_fail verus_code! {
+        fn test_loop_invariant_body_fail() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 10,
+                temporal_invariant x <= 5,
+                decreases 10 - x,
+            {
+                x = x + 1;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal invariant not preserved by loop body")
+}
+
 test_verify_one_file! {
     #[test] test_temporal_invariant_while_parses verus_code! {
         fn test_loop() {
