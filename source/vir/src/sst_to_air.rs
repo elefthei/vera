@@ -54,6 +54,9 @@ pub struct TemporalObligation {
     pub property: Exp,
     /// The path property for binary operators (φ in AU(φ, ψ))
     pub path_property: Option<Exp>,
+    /// True when this obligation was nested inside an AG (coinductive invariance).
+    /// When true, temporal_invariant R is required on the enclosing loop.
+    pub requires_invariance: bool,
 }
 
 /// Temporal verification context threaded through VCGen.
@@ -1602,6 +1605,8 @@ struct LoopInfo {
     invs_entry: Arc<Vec<(Span, Expr, Option<Arc<String>>, bool)>>,
     invs_exit: Arc<Vec<(Span, Expr, Option<Arc<String>>, bool)>>,
     decrease: crate::sst::Exps,
+    /// Temporal invariants (TICL R) — needed at continue to check preservation
+    temporal_invs: Vec<(Span, Expr)>,
 }
 
 enum ReasonForNoUnwind {
@@ -2600,6 +2605,17 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     }
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, inv.clone())));
                 }
+                // TICL: assert temporal invariant R preserved at continue
+                if !is_break {
+                    for (span, r_expr) in loop_info.temporal_invs.iter() {
+                        let error = error_with_label(
+                            &stm.span,
+                            "temporal invariant not preserved",
+                            "at this continue",
+                        ).secondary_label(span, "failed this temporal invariant");
+                        stmts.push(Arc::new(StmtX::Assert(None, error, None, r_expr.clone())));
+                    }
+                }
                 let decrease = &loop_info.decrease;
                 if !is_break && decrease.len() > 0 {
                     for info in state.loop_infos.iter().rev() {
@@ -2619,10 +2635,27 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         decrease,
                         decrease.len(),
                     )?;
-                    let expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
-                    let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_CONTINUE);
-                    let dec_stmt = StmtX::Assert(None, error, None, expr);
-                    stmts.push(Arc::new(dec_stmt));
+                    let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
+
+                    // TICL: weaken decreases at continue for AU obligations (ψ ∨ m decreased)
+                    let au_goals: Vec<_> = state.temporal_context.obligations.iter()
+                        .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                        .collect();
+                    if !au_goals.is_empty() {
+                        let mut disjuncts = vec![dec_expr.clone()];
+                        for au in &au_goals {
+                            let psi = exp_to_expr(ctx, &au.property, expr_ctxt)?;
+                            disjuncts.push(psi);
+                        }
+                        let weakened = mk_or(&disjuncts);
+                        let error = error(&stm.span, "temporal AU: goal not reached and no progress at continue");
+                        let dec_stmt = StmtX::Assert(None, error, None, weakened);
+                        stmts.push(Arc::new(dec_stmt));
+                    } else {
+                        let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_CONTINUE);
+                        let dec_stmt = StmtX::Assert(None, error, None, dec_expr);
+                        stmts.push(Arc::new(dec_stmt));
+                    }
                 }
             }
             if is_air_break {
@@ -2731,6 +2764,20 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
             let invs_entry = Arc::new(invs_entry);
             let invs_exit = Arc::new(invs_exit);
+
+            // R6: Error when AG postcondition requires temporal_invariant but none provided.
+            // The TICL invariance rule for AG requires a coinductive witness R.
+            if !state.temporal_context.is_empty() && temporal_invs.is_empty() {
+                let needs_invariance = state.temporal_context.obligations.iter()
+                    .any(|o| o.requires_invariance);
+                if needs_invariance {
+                    return Err(error(
+                        &stm.span,
+                        "loop has temporal postcondition AG(...) but no temporal_invariant; \
+                         the TICL invariance rule requires temporal_invariant(R) to discharge AG",
+                    ));
+                }
+            }
 
             let (_, decrease_init) =
                 crate::recursion::mk_decreases_at_entry(ctx, &stm.span, Some(*id), &decrease)?;
@@ -2879,6 +2926,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 invs_entry: invs_entry.clone(),
                 invs_exit: invs_exit.clone(),
                 decrease: decrease.clone(),
+                temporal_invs: temporal_invs.clone(),
             };
             state.loop_infos.push(loop_info);
             air_body.append(&mut stm_to_stmts(ctx, state, body)?);
@@ -2908,10 +2956,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
                         .collect();
                     if !au_goals.is_empty() {
-                        let body_expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
                         let mut disjuncts = vec![dec_expr.clone()];
                         for au in &au_goals {
-                            let psi = exp_to_expr(ctx, &au.property, body_expr_ctxt)?;
+                            let psi = exp_to_expr(ctx, &au.property, expr_ctxt)?;
                             disjuncts.push(psi);
                         }
                         let weakened = mk_or(&disjuncts);
@@ -3268,19 +3315,23 @@ pub(crate) fn body_stm_to_air(
         op: &crate::ast::TemporalOp,
         prop: &Exp,
         path_prop: &Option<Exp>,
+        inside_ag: bool,
         obligations: &mut Vec<TemporalObligation>,
     ) {
+        // Track whether we're nested inside an AG (coinductive invariance needed)
+        let inside_ag = inside_ag || matches!(op, crate::ast::TemporalOp::AG);
         match &prop.x {
             ExpX::Temporal(inner_op, inner_prop, inner_path) => {
                 // Outer operator (e.g., AG) is structural — recurse into inner.
                 // Only leaf (non-temporal property) obligations become AIR assertions.
-                decompose_temporal(inner_op, inner_prop, inner_path, obligations);
+                decompose_temporal(inner_op, inner_prop, inner_path, inside_ag, obligations);
             }
             _ => {
                 obligations.push(TemporalObligation {
                     op: op.clone(),
                     property: prop.clone(),
                     path_property: path_prop.clone(),
+                    requires_invariance: inside_ag,
                 });
             }
         }
@@ -3289,7 +3340,7 @@ pub(crate) fn body_stm_to_air(
     for ens in post_condition.ens_exps.iter() {
         match &ens.x {
             ExpX::Temporal(op, prop, path_prop) => {
-                decompose_temporal(op, prop, path_prop, &mut temporal_obligations);
+                decompose_temporal(op, prop, path_prop, false, &mut temporal_obligations);
             }
             _ => {
                 let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
