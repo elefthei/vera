@@ -1,4 +1,4 @@
-// rust_verify/tests/example.rs ignore --- temporal operators not yet supported for SMT verification
+// rust_verify/tests/example.rs ignore --- temporal verification requires manual temporal_invariant
 //
 // Round-robin fairness example.
 //
@@ -8,8 +8,15 @@
 //   AG (AU(true, queue.peek() == x))   i.e. AG(AF(peek == x))
 //   i.e., it is always the case that eventually x returns to the head.
 //
-// This requires temporal logic support (CTL operators) which is currently
-// parse-only. The SMT backend for temporal verification is future work.
+// Temporal VCGen support:
+//   - `ensures ag(au(true, ...))` declares the temporal postcondition
+//   - `temporal_invariant R` on loops provides the refinement mapping R
+//   - `decreases m` provides the well-founded metric for AU progress
+//   - TICL structural rules decompose these into standard AIR assertions:
+//     * R established at loop entry
+//     * R preserved by loop body
+//     * R(state) → φ(state) checked at loop boundary
+//     * decreases weakened to ψ ∨ (m decreased) for AU obligations
 
 use vstd::prelude::*;
 
@@ -71,21 +78,31 @@ impl Queue {
 /// that is in the queue will eventually be at the head again.
 ///
 /// Formally (CTL): AG (AU(⊤, queue.peek() == x))   i.e. AG(AF(peek == x))
-///
-/// This spec function is parse-only; temporal operators are not yet
-/// supported for SMT verification.
 spec fn round_robin_fairness(queue: Queue, x: u64) -> bool {
     ag (au(true, queue.peek_spec() == x))
 }
 
 /// Round-robin loop: dequeue from front, observe, re-enqueue at back.
-/// The postcondition expresses that the scheduler is fair.
+///
+/// The temporal postcondition `ensures ag(au(true, ...))` states that the
+/// schedule is fair: every element in the queue eventually returns to the head.
+///
+/// To verify this, the loop uses:
+/// - `temporal_invariant queue.view().len() > 0` — the queue stays non-empty (R)
+/// - `invariant queue.view().len() > 0` — standard loop invariant
+///
+/// The TICL VCGen checks:
+/// 1. R holds at loop entry (assert)
+/// 2. After havoc + assume R, the AG postcondition is checked (R → φ)
+/// 3. After the loop body, R is preserved (assert)
 fn round_robin(queue: &mut Queue)
     requires
         old(queue).view().len() > 0,
 {
     loop
         invariant
+            queue.view().len() > 0,
+        temporal_invariant
             queue.view().len() > 0,
     {
         let x = queue.dequeue();

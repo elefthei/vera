@@ -1876,27 +1876,27 @@ fn assume_other_fields_unchanged_inner(
 //     let expr_ctxt = ExprCtxt { mode: ExprMode::Body, is_bit_vector: false };
 //     let result = match &stm.x {
 
-/// Generate AIR assertions for AG obligations at observable state transitions.
-/// Per TICL aul_cprog_assgn: after each assignment, assert φ holds at the new state.
-fn temporal_ag_assertions(
+/// Generate AIR assertions for temporal obligations at loop boundaries.
+/// Per TICL ag_cprog_while: after assuming R, assert that R implies φ for each AG obligation.
+fn temporal_loop_assertions(
     ctx: &Ctx,
     state: &State,
     span: &Span,
+    expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
-    let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
     for obligation in &state.temporal_context.obligations {
         match obligation.op {
             crate::ast::TemporalOp::AG => {
                 let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
-                let error = error(span, "temporal AG property violated at observable state");
+                let error = error(span, "temporal AG property violated: temporal invariant does not imply postcondition");
                 stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
             }
             crate::ast::TemporalOp::AU => {
                 // AU(φ, ψ): assert φ holds along the path (before ψ is established)
                 if let Some(path_prop) = &obligation.path_property {
                     let phi = exp_to_expr(ctx, path_prop, expr_ctxt)?;
-                    let error = error(span, "temporal AU path property violated at observable state");
+                    let error = error(span, "temporal AU path property violated at loop iteration");
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
                 }
             }
@@ -2484,11 +2484,6 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 }
             }
 
-            // TICL rule: aul_cprog_assgn — after assignment, assert temporal properties
-            if !state.temporal_context.is_empty() {
-                stmts.extend(temporal_ag_assertions(ctx, state, &stm.span)?);
-            }
-
             stmts
         }
         StmX::DeadEnd(s) => {
@@ -2789,7 +2784,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
             if !temporal_invs.is_empty() && !state.temporal_context.is_empty() {
-                air_body.extend(temporal_ag_assertions(ctx, state, &stm.span)?);
+                air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt)?);
             }
             for dec in decrease_init.iter() {
                 air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
@@ -2935,6 +2930,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 for (_, inv, _, _) in invs_exit.iter() {
                     let inv_stmt = StmtX::Assume(inv.clone());
                     stmts.push(Arc::new(inv_stmt));
+                }
+                // Temporal invariants hold after loop exit (preserved by every iteration)
+                for (_, r_expr) in temporal_invs.iter() {
+                    stmts.push(Arc::new(StmtX::Assume(r_expr.clone())));
                 }
             }
             if let Some(cond_stmts) = &cond_stmts {
@@ -3204,30 +3203,21 @@ pub(crate) fn body_stm_to_air(
     let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
 
-    /// Recursively decompose nested temporal expressions into flat obligations.
-    /// E.g., AG(AU(φ,ψ)) → AG obligation + AU obligation.
+    /// Recursively decompose nested temporal expressions into flat leaf obligations.
+    /// E.g., AG(AU(φ,ψ)) → only the innermost AU(φ,ψ) obligation.
+    /// Outer operators like AG are structural — they are handled by temporal_invariant
+    /// on loops, not by direct AIR assertions.
     fn decompose_temporal(
         op: &crate::ast::TemporalOp,
         prop: &Exp,
         path_prop: &Option<Exp>,
         obligations: &mut Vec<TemporalObligation>,
     ) {
-        // If the inner property is itself temporal, decompose recursively
         match &prop.x {
             ExpX::Temporal(inner_op, inner_prop, inner_path) => {
-                // Outer operator (e.g., AG) becomes an obligation with the inner temporal as property
-                // but since we can't convert temporal to AIR, we mark it as a "wrapper" —
-                // the inner obligations handle the actual assertions.
-                // For AG(AU(φ,ψ)): AG wrapper (no direct property assertion) + AU(φ,ψ)
+                // Outer operator (e.g., AG) is structural — recurse into inner.
+                // Only leaf (non-temporal property) obligations become AIR assertions.
                 decompose_temporal(inner_op, inner_prop, inner_path, obligations);
-                // Also add the outer obligation — for AG, this means the loop invariant mechanism
-                // ensures the inner AU property is re-established each iteration
-                obligations.push(TemporalObligation {
-                    op: op.clone(),
-                    // Use a trivial property (handled by temporal_invariant instead)
-                    property: prop.clone(),
-                    path_property: path_prop.clone(),
-                });
             }
             _ => {
                 obligations.push(TemporalObligation {
@@ -3252,11 +3242,6 @@ pub(crate) fn body_stm_to_air(
             }
         }
     }
-    // Filter out AG obligations whose property is itself temporal (wrapper obligations).
-    // These are handled structurally by temporal_invariant, not by direct assertion.
-    let temporal_obligations: Vec<_> = temporal_obligations.into_iter().filter(|o| {
-        !matches!(&o.property.x, ExpX::Temporal(..))
-    }).collect();
     let temporal_context = TemporalContext { obligations: temporal_obligations };
 
     let unwind_air = match unwind {
