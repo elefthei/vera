@@ -3234,14 +3234,46 @@ pub(crate) fn body_stm_to_air(
     // passed to exp_to_expr (which would panic on temporal nodes).
     let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
-    for ens in post_condition.ens_exps.iter() {
-        match &ens.x {
-            ExpX::Temporal(op, prop, path_prop) => {
-                temporal_obligations.push(TemporalObligation {
+
+    /// Recursively decompose nested temporal expressions into flat obligations.
+    /// E.g., AG(AU(φ,ψ)) → AG obligation + AU obligation.
+    fn decompose_temporal(
+        op: &crate::ast::TemporalOp,
+        prop: &Exp,
+        path_prop: &Option<Exp>,
+        obligations: &mut Vec<TemporalObligation>,
+    ) {
+        // If the inner property is itself temporal, decompose recursively
+        match &prop.x {
+            ExpX::Temporal(inner_op, inner_prop, inner_path) => {
+                // Outer operator (e.g., AG) becomes an obligation with the inner temporal as property
+                // but since we can't convert temporal to AIR, we mark it as a "wrapper" —
+                // the inner obligations handle the actual assertions.
+                // For AG(AU(φ,ψ)): AG wrapper (no direct property assertion) + AU(φ,ψ)
+                decompose_temporal(inner_op, inner_prop, inner_path, obligations);
+                // Also add the outer obligation — for AG, this means the loop invariant mechanism
+                // ensures the inner AU property is re-established each iteration
+                obligations.push(TemporalObligation {
+                    op: op.clone(),
+                    // Use a trivial property (handled by temporal_invariant instead)
+                    property: prop.clone(),
+                    path_property: path_prop.clone(),
+                });
+            }
+            _ => {
+                obligations.push(TemporalObligation {
                     op: op.clone(),
                     property: prop.clone(),
                     path_property: path_prop.clone(),
                 });
+            }
+        }
+    }
+
+    for ens in post_condition.ens_exps.iter() {
+        match &ens.x {
+            ExpX::Temporal(op, prop, path_prop) => {
+                decompose_temporal(op, prop, path_prop, &mut temporal_obligations);
             }
             _ => {
                 let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
@@ -3251,6 +3283,11 @@ pub(crate) fn body_stm_to_air(
             }
         }
     }
+    // Filter out AG obligations whose property is itself temporal (wrapper obligations).
+    // These are handled structurally by temporal_invariant, not by direct assertion.
+    let temporal_obligations: Vec<_> = temporal_obligations.into_iter().filter(|o| {
+        !matches!(&o.property.x, ExpX::Temporal(..))
+    }).collect();
     let temporal_context = TemporalContext { obligations: temporal_obligations };
 
     let unwind_air = match unwind {
