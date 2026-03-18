@@ -325,3 +325,151 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === I4: Function calls inside loops with temporal_invariant ===
+
+// Function call preserving temporal_invariant — caught by loop-end R check
+test_verify_one_file! {
+    #[test] test_call_in_loop_preserves_temporal_inv verus_code! {
+        fn increment(x: &mut u64)
+            requires *old(x) < 10,
+            ensures *x == *old(x) + 1,
+        {
+            *x = *x + 1;
+        }
+
+        fn test_call_preserves() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases 10 - x,
+            {
+                if x < 10 {
+                    increment(&mut x);
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// Function call breaking temporal_invariant — detected at loop-end assert R
+test_verify_one_file! {
+    #[test] test_call_in_loop_breaks_temporal_inv verus_code! {
+        fn add_five(x: &mut u64)
+            requires *old(x) <= 10,
+            ensures *x == *old(x) + 5,
+        {
+            *x = *x + 5;
+        }
+
+        fn test_call_breaks() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 15,
+                temporal_invariant x <= 5, // FAILS
+                decreases 15 - x,
+            {
+                add_five(&mut x);
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal invariant not preserved by loop body")
+}
+
+// === I7: Explicit R → φ implication tests ===
+
+// temporal_invariant R does not imply AG postcondition φ — should fail
+test_verify_one_file! {
+    #[test] test_temporal_invariant_does_not_imply_postcondition verus_code! {
+        fn test_r_not_implies_phi(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x > 100),
+        {
+            while *x < 10
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+                decreases 10 - *x,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal invariant does not imply AG postcondition property")
+}
+
+// temporal_invariant R implies AG postcondition φ (R ⊆ φ) — should pass
+test_verify_one_file! {
+    #[test] test_temporal_invariant_implies_postcondition verus_code! {
+        fn test_r_implies_phi(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            while *x < 10
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+                decreases 10 - *x,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+// === I5: AU path property tests ===
+
+// AF(ψ) = AU(true, ψ): path property is trivially true, only decreases matters.
+// Models: while(len > 0) { pop(); } with ensures af(len == 0), decreases len
+test_verify_one_file! {
+    #[test] test_af_drain_loop verus_code! {
+        fn drain(len: &mut u64)
+            requires *old(len) > 0,
+            ensures af(*len == 0),
+        {
+            while *len > 0
+                invariant true,
+                temporal_invariant true,
+                decreases *len,
+            {
+                *len = (*len - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// AU(φ, ψ) with non-trivial path: φ = (x > 0), ψ = (x == 0).
+// "x stays positive UNTIL it reaches zero"
+// At the loop boundary: assert ψ ∨ φ = (x == 0) ∨ (x > 0), which holds for x >= 0.
+test_verify_one_file! {
+    #[test] test_au_nontrivial_path verus_code! {
+        fn count_down(x: &mut u64)
+            requires *old(x) > 0 && *old(x) <= 1000,
+            ensures au(*x > 0, *x == 0),
+        {
+            while *x > 0
+                invariant *x <= 1000,
+                temporal_invariant *x <= 1000,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// AU(false, ψ): path property is `false` — should fail because before ψ holds,
+// we need `ψ ∨ false` = `ψ`, which doesn't hold at the start.
+test_verify_one_file! {
+    #[test] test_au_false_path_fails verus_code! {
+        fn impossible_path(x: &mut u64)
+            requires *old(x) > 0 && *old(x) <= 1000,
+            ensures au(false, *x == 0),
+        {
+            while *x > 0
+                invariant *x <= 1000,
+                temporal_invariant *x <= 1000,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal AU: path property violated before goal reached")
+}

@@ -1877,27 +1877,49 @@ fn assume_other_fields_unchanged_inner(
 //     let result = match &stm.x {
 
 /// Generate AIR assertions for temporal obligations at loop boundaries.
-/// Per TICL ag_cprog_while: after assuming R, assert that R implies φ for each AG obligation.
+/// For AG obligations: assert (R₁ ∧ ... ∧ Rₙ) → φ  (explicit implication).
+/// For AU obligations: assert ψ ∨ φ  (path property holds until goal reached).
+/// `temporal_inv_exprs` are the AIR expressions for temporal_invariant annotations.
 fn temporal_loop_assertions(
     ctx: &Ctx,
     state: &State,
     span: &Span,
     expr_ctxt: &ExprCtxt,
+    temporal_inv_exprs: &[(Span, Expr)],
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
+
+    // Build conjunction of all temporal invariants: R₁ ∧ R₂ ∧ ...
+    let r_conjunction = if temporal_inv_exprs.is_empty() {
+        None
+    } else {
+        let r_exprs: Vec<Expr> = temporal_inv_exprs.iter().map(|(_, e)| e.clone()).collect();
+        Some(mk_and(&r_exprs))
+    };
+
     for obligation in &state.temporal_context.obligations {
         match obligation.op {
             crate::ast::TemporalOp::AG => {
                 let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
-                let error = error(span, "temporal AG property violated: temporal invariant does not imply postcondition");
-                stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+                if let Some(r_conj) = &r_conjunction {
+                    // Explicit implication: assert R → φ
+                    let implication = mk_implies(&r_conj, &phi);
+                    let error = error(span, "temporal invariant does not imply AG postcondition property");
+                    stmts.push(Arc::new(StmtX::Assert(None, error, None, implication)));
+                } else {
+                    // No temporal invariant — assert φ directly (likely unprovable)
+                    let error = error(span, "temporal AG property: no temporal_invariant to establish it");
+                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+                }
             }
             crate::ast::TemporalOp::AU => {
-                // AU(φ, ψ): assert φ holds along the path (before ψ is established)
+                // AU(φ, ψ): assert ψ ∨ φ — path property holds until goal reached
                 if let Some(path_prop) = &obligation.path_property {
                     let phi = exp_to_expr(ctx, path_prop, expr_ctxt)?;
-                    let error = error(span, "temporal AU path property violated at loop iteration");
-                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+                    let psi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
+                    let phi_until_psi = mk_or(&vec![psi, phi]);
+                    let error = error(span, "temporal AU: path property violated before goal reached");
+                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
                 }
             }
             _ => {
@@ -2182,6 +2204,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let generic_ens_expr = exp_to_expr(ctx, &generic_ens_exp, expr_ctxt)?;
                 stmts.push(Arc::new(StmtX::Assume(generic_ens_expr)));
             }
+            // Note: No per-call temporal assertions needed here. Function calls inside loops
+            // are covered by the loop-end temporal_invariant preservation check (TICL rule).
+            // If a callee breaks the temporal invariant R, the `assert R` at the end of the
+            // loop iteration will catch it. Only loop boundaries are observation points.
             vec![Arc::new(StmtX::Block(Arc::new(stmts)))] // wrap in block for readability
         }
         StmX::Assert(assert_id, error, expr) => {
@@ -2783,8 +2809,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 air_body.push(Arc::new(StmtX::Assume(r_expr.clone())));
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
-            if !temporal_invs.is_empty() && !state.temporal_context.is_empty() {
-                air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            if !state.temporal_context.is_empty() {
+                air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt, &temporal_invs)?);
             }
             for dec in decrease_init.iter() {
                 air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
