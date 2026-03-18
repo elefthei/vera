@@ -398,7 +398,6 @@ test_verify_one_file! {
 // AG requires an infinite loop (TICL ag_cprog_while: condition always true)
 test_verify_one_file! {
     #[test] test_temporal_invariant_implies_postcondition verus_code! {
-        #[verifier::exec_allows_no_decreases_clause]
         fn test_r_implies_phi(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 10),
@@ -484,7 +483,6 @@ test_verify_one_file! {
 // Uses infinite loop (AG requires non-termination).
 test_verify_one_file! {
     #[test] test_continue_breaks_temporal_invariant verus_code! {
-        #[verifier::exec_allows_no_decreases_clause]
         fn test_continue(x: &mut u64)
             ensures ag(*x <= 10),
         {
@@ -512,7 +510,6 @@ test_verify_one_file! {
 // Continue that violates temporal invariant should fail.
 test_verify_one_file! {
     #[test] test_continue_violates_temporal_invariant verus_code! {
-        #[verifier::exec_allows_no_decreases_clause]
         fn test_continue_bad(x: &mut u64)
             ensures ag(*x <= 10),
         {
@@ -576,7 +573,6 @@ test_verify_one_file! {
 // AG with infinite loop — passes (no exit path)
 test_verify_one_file! {
     #[test] test_ag_infinite_loop_pass verus_code! {
-        #[verifier::exec_allows_no_decreases_clause]
         fn test_ag_inf(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 10),
@@ -618,7 +614,6 @@ test_verify_one_file! {
 // Function with utility loop + temporal infinite loop — utility loop has no temporal_invariant
 test_verify_one_file! {
     #[test] test_utility_loop_with_temporal_loop verus_code! {
-        #[verifier::exec_allows_no_decreases_clause]
         fn test_multi_loop(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 20),
@@ -644,4 +639,60 @@ test_verify_one_file! {
             }
         }
     } => Ok(())
+}
+
+// === Temporal operators drive decreases requirements ===
+
+// AG loop without decreases — passes (infinite loop, no termination needed)
+test_verify_one_file! {
+    #[test] test_ag_no_decreases_pass verus_code! {
+        fn test_ag_no_dec(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+            {
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// AU loop without decreases — fails (AU needs decreases for progress)
+test_verify_one_file! {
+    #[test] test_au_no_decreases_fail verus_code! {
+        fn test_au_no_dec(x: &mut u64)
+            requires *old(x) == 5,
+            ensures af(*x == 0),
+        {
+            loop
+                invariant *x <= 5,
+                temporal_invariant *x <= 5,
+            {
+                if *x > 0 {
+                    *x = *x - 1;
+                }
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "AU temporal property requires a decreases clause")
+}
+
+// Regular loop without decreases — still fails with standard error
+test_verify_one_file! {
+    #[test] test_regular_no_decreases_fail verus_code! {
+        fn test_no_dec(x: &mut u64) {
+            let mut i: u64 = 0;
+            while i < 10
+                invariant i <= 10,
+            {
+                i = i + 1;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "loop must have a decreases clause")
 }

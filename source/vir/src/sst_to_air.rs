@@ -2752,6 +2752,19 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 state.temporal_discharged = true;
             }
 
+            // TICL: AU obligations require a decreases clause for progress.
+            // A loop with temporal_invariant but no decreases implies AG (infinite loop).
+            // If the temporal context has AU obligations, decreases is mandatory.
+            if !temporal_invs.is_empty() && decrease.len() == 0 {
+                let has_au = state.temporal_context.obligations.iter()
+                    .any(|o| matches!(o.op, crate::ast::TemporalOp::AU));
+                if has_au {
+                    return Err(error(&stm.span,
+                        "AU temporal property requires a decreases clause to prove progress toward the goal")
+                        .help("add a `decreases` clause to this loop, or use AG if the loop is intentionally infinite"));
+                }
+            }
+
             let (_, decrease_init) =
                 crate::recursion::mk_decreases_at_entry(ctx, &stm.span, Some(*id), &decrease)?;
 
