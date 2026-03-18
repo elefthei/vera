@@ -761,11 +761,28 @@ fn check_one_expr<Emit: EmitError>(
             ).help("You can dereference the mutable reference normally to get the \"current\"/\"old\" value"));
         }
         ExprX::Temporal(op, _, _) => {
-            // Allow temporal operators in postconditions (ensures clauses)
-            // for temporal verification. Reject everywhere else.
+            // Allow universal temporal operators in postconditions (ensures clauses)
+            // for temporal verification. Reject existential operators and
+            // reject temporal operators everywhere else.
             match area {
                 Area::PostState => {
-                    // Allowed — will be processed by temporal VCGen
+                    match op {
+                        TemporalOp::AG | TemporalOp::AU | TemporalOp::AN => {
+                            // Allowed — will be processed by temporal VCGen
+                        }
+                        TemporalOp::EG | TemporalOp::EU | TemporalOp::EN => {
+                            let op_name = match op {
+                                TemporalOp::EG => "eg",
+                                TemporalOp::EU => "eu",
+                                TemporalOp::EN => "en",
+                                _ => unreachable!(),
+                            };
+                            return Err(error(
+                                &expr.span,
+                                &format!("existential temporal operator `{op_name}` is not yet supported for verification"),
+                            ));
+                        }
+                    }
                 }
                 _ => {
                     let op_name = match op {

@@ -258,3 +258,70 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === Existential operator rejection tests ===
+
+test_verify_one_file! {
+    #[test] test_temporal_eg_in_ensures_rejected verus_code! {
+        fn test_eg(x: u64)
+            ensures eg(x > 0),
+        {
+        }
+    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eg` is not yet supported for verification")
+}
+
+test_verify_one_file! {
+    #[test] test_temporal_eu_in_ensures_rejected verus_code! {
+        fn test_eu(x: u64)
+            ensures eu(x > 0, x == 0),
+        {
+        }
+    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eu` is not yet supported for verification")
+}
+
+test_verify_one_file! {
+    #[test] test_temporal_ef_sugar_in_ensures_rejected verus_code! {
+        fn test_ef(x: u64)
+            ensures ef(x == 0),
+        {
+        }
+    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eu` is not yet supported for verification")
+}
+
+// === Additional VCGen coverage ===
+
+// Multiple temporal ensures clauses
+test_verify_one_file! {
+    #[test] test_multiple_temporal_ensures verus_code! {
+        fn test_multi(x: u64, y: u64)
+            ensures ag(x > 0), ag(y > 0),
+        {
+        }
+    } => Ok(())
+}
+
+// Loop with temporal_invariant but no temporal ensures — should verify normally
+test_verify_one_file! {
+    #[test] test_temporal_invariant_no_temporal_ensures verus_code! {
+        fn test_no_temporal_ensures() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases 10 - x,
+            {
+                x = x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+// Nested AG(AG(φ)) — should flatten to single AG obligation
+test_verify_one_file! {
+    #[test] test_nested_ag_ag_in_ensures verus_code! {
+        fn test_nested_ag(x: u64)
+            ensures ag(ag(x > 0)),
+        {
+        }
+    } => Ok(())
+}
