@@ -530,6 +530,15 @@ fn gather_terms(ctxt: &mut Ctxt, ctx: &Ctx, exp: &Exp, depth: u64) -> (bool, Ter
         ExpX::FuelConst(_) => {
             panic!("Found a FuelConst expression in trigger selection")
         }
+        ExpX::Temporal(_, e1, e2) => {
+            let (is_pure1, term1) = gather_terms(ctxt, ctx, e1, depth + 1);
+            if let Some(e2) = e2 {
+                let (is_pure2, term2) = gather_terms(ctxt, ctx, e2, depth + 1);
+                (is_pure1 && is_pure2, Arc::new(TermX::App(ctxt.other(), Arc::new(vec![term1, term2]))))
+            } else {
+                (is_pure1, term1)
+            }
+        }
     };
     if let TermX::Var(..) = *term {
         return (is_pure, term);

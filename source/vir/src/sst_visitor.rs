@@ -389,6 +389,14 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
                 R::ret(|| exp_new(ExpX::ArrayLiteral(R::get_vec_a(es))))
             }
             ExpX::Interp(_) => R::ret(|| exp_new(exp.x.clone())),
+            ExpX::Temporal(op, e1, e2) => {
+                let e1 = self.visit_exp(e1)?;
+                let e2 = match e2 {
+                    Some(e) => Some(self.visit_exp(e)?),
+                    None => None,
+                };
+                R::ret(|| exp_new(ExpX::Temporal(*op, R::get(e1), e2.map(|e| R::get(e)))))
+            }
         }
     }
 
