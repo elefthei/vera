@@ -794,6 +794,17 @@ define_keywords! {
     "broadcast"   pub struct Broadcast
     "group"       pub struct BroadcastGroup
     "assume_specification" pub struct AssumeSpecification
+    // verus temporal (CTL)
+    "ag"          pub struct Ag
+    "af"          pub struct Af
+    "ax"          pub struct Ax
+    "eg"          pub struct Eg
+    "ex"          pub struct Ex
+    "ef"          pub struct Ef
+    "au"          pub struct Au
+    "an"          pub struct An
+    "eu"          pub struct Eu
+    "en"          pub struct En
 }
 
 define_punctuation! {
@@ -1084,6 +1095,17 @@ macro_rules! Token {
     [SpecFn]      => { $crate::token::SpecFn };
     [proof_fn]    => { $crate::token::ProofFn };
     [assume_specification]   => { $crate::token::AssumeSpecification };
+    // verus temporal (CTL)
+    [ag]          => { $crate::token::Ag };
+    [af]          => { $crate::token::Af };
+    [ax]          => { $crate::token::Ax };
+    [eg]          => { $crate::token::Eg };
+    [ex]          => { $crate::token::Ex };
+    [ef]          => { $crate::token::Ef };
+    [au]          => { $crate::token::Au };
+    [an]          => { $crate::token::An };
+    [eu]          => { $crate::token::Eu };
+    [en]          => { $crate::token::En };
     [&&&]         => { $crate::token::BigAnd };
     [|||]         => { $crate::token::BigOr };
     [<==>]        => { $crate::token::Equiv };

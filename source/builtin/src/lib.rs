@@ -213,6 +213,50 @@ pub fn exists<A>(_a: A) -> bool {
     unimplemented!();
 }
 
+// CTL temporal operators — unary (globally)
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::ag"]
+#[verifier::spec]
+pub fn ag(_a: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::eg"]
+#[verifier::spec]
+pub fn eg(_a: bool) -> bool {
+    unimplemented!();
+}
+
+// CTL temporal operators — binary (until, next)
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::au"]
+#[verifier::spec]
+pub fn au(_a: bool, _b: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::an"]
+#[verifier::spec]
+pub fn an(_a: bool, _b: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::eu"]
+#[verifier::spec]
+pub fn eu(_a: bool, _b: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::en"]
+#[verifier::spec]
+pub fn en(_a: bool, _b: bool) -> bool {
+    unimplemented!();
+}
+
 // choose(|x: t| P(x))
 #[cfg(verus_keep_ghost)]
 #[rustc_diagnostic_item = "verus::verus_builtin::choose"]

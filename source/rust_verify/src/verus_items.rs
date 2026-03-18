@@ -117,6 +117,16 @@ pub(crate) enum QuantItem {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
+pub(crate) enum TemporalItem {
+    Ag,
+    Eg,
+    Au,
+    An,
+    Eu,
+    En,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
 pub(crate) enum DirectiveItem {
     ExtraDependency,
     RevealHide,
@@ -416,6 +426,7 @@ pub(crate) enum ExternalItem {
 pub(crate) enum VerusItem {
     Spec(SpecItem),
     Quant(QuantItem),
+    Temporal(TemporalItem),
     Directive(DirectiveItem),
     Expr(ExprItem),
     CompilableOpr(CompilableOprItem),
@@ -481,6 +492,13 @@ fn verus_items_map() -> Vec<(&'static str, VerusItem)> {
 
         ("verus::verus_builtin::forall",                  VerusItem::Quant(QuantItem::Forall)),
         ("verus::verus_builtin::exists",                  VerusItem::Quant(QuantItem::Exists)),
+
+        ("verus::verus_builtin::ag",                      VerusItem::Temporal(TemporalItem::Ag)),
+        ("verus::verus_builtin::eg",                      VerusItem::Temporal(TemporalItem::Eg)),
+        ("verus::verus_builtin::au",                      VerusItem::Temporal(TemporalItem::Au)),
+        ("verus::verus_builtin::an",                      VerusItem::Temporal(TemporalItem::An)),
+        ("verus::verus_builtin::eu",                      VerusItem::Temporal(TemporalItem::Eu)),
+        ("verus::verus_builtin::en",                      VerusItem::Temporal(TemporalItem::En)),
 
         ("verus::verus_builtin::extra_dependency",        VerusItem::Directive(DirectiveItem::ExtraDependency)),
         ("verus::verus_builtin::reveal_hide",             VerusItem::Directive(DirectiveItem::RevealHide)),

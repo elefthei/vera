@@ -2912,6 +2912,9 @@ pub(crate) fn expr_to_stm_opt(
             Ok((stms, Maybe::Some(Value::Exp(exp1))))
         }
         ExprX::Old(e) => expr_to_stm_opt(ctx, state, e),
+        ExprX::Temporal(_op, _e1, _e2) => {
+            panic!("internal error: Temporal should have been rejected by well_formed")
+        }
     }
 }
 

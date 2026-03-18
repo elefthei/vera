@@ -1,8 +1,8 @@
 use crate::ast::{
     BodyVisibility, CallTarget, CallTargetKind, Constant, Datatype, DatatypeTransparency, Dt, Expr,
     ExprX, FieldOpr, Fun, Function, FunctionKind, Krate, MaskSpec, Mode, MultiOp, Opaqueness, Path,
-    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, Trait, Typ, TypX, UnaryOp, UnaryOpr, UnwindSpec,
-    VarIdent, VirErr, VirErrAs, Visibility,
+    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, TemporalOp, Trait, Typ, TypX, UnaryOp,
+    UnaryOpr, UnwindSpec, VarIdent, VirErr, VirErrAs, Visibility,
 };
 use crate::ast_util::{
     ast_expr_get_proof_note, dt_as_friendly_rust_name, fun_as_friendly_rust_name,
@@ -759,6 +759,20 @@ fn check_one_expr<Emit: EmitError>(
                 &expr.span,
                 "`old` is meaningless in spec functions",
             ).help("You can dereference the mutable reference normally to get the \"current\"/\"old\" value"));
+        }
+        ExprX::Temporal(op, _, _) => {
+            let op_name = match op {
+                TemporalOp::AG => "ag",
+                TemporalOp::EG => "eg",
+                TemporalOp::AU => "au",
+                TemporalOp::AN => "an",
+                TemporalOp::EU => "eu",
+                TemporalOp::EN => "en",
+            };
+            return Err(error(
+                &expr.span,
+                &format!("temporal operator `{op_name}` is not yet supported for SMT verification"),
+            ));
         }
         _ => {}
     }

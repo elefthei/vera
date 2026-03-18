@@ -3646,6 +3646,36 @@ impl Hash for crate::UnOp {
             crate::UnOp::Choose(_) => {
                 state.write_u8(6u8);
             }
+            crate::UnOp::Ag(_) => {
+                state.write_u8(7u8);
+            }
+            crate::UnOp::Af(_) => {
+                state.write_u8(8u8);
+            }
+            crate::UnOp::Ax(_) => {
+                state.write_u8(9u8);
+            }
+            crate::UnOp::Eg(_) => {
+                state.write_u8(10u8);
+            }
+            crate::UnOp::Ex(_) => {
+                state.write_u8(11u8);
+            }
+            crate::UnOp::Ef(_) => {
+                state.write_u8(12u8);
+            }
+            crate::UnOp::Au(_) => {
+                state.write_u8(13u8);
+            }
+            crate::UnOp::An(_) => {
+                state.write_u8(14u8);
+            }
+            crate::UnOp::Eu(_) => {
+                state.write_u8(15u8);
+            }
+            crate::UnOp::En(_) => {
+                state.write_u8(16u8);
+            }
         }
     }
 }

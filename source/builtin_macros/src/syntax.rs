@@ -2069,7 +2069,7 @@ fn chain_count(expr: &Expr) -> u32 {
     }
 }
 
-const ILLEGAL_CALLEES: &[&str] = &["forall", "exists", "choose"];
+const ILLEGAL_CALLEES: &[&str] = &["forall", "exists", "choose", "ag", "af", "ax", "eg", "ex", "ef", "au", "an", "eu", "en"];
 
 impl Visitor {
     fn chain_operators(&mut self, expr: &mut Expr) -> bool {
@@ -2254,6 +2254,104 @@ impl Visitor {
                 }
             }
             _ => panic!("unary"),
+        }
+
+        true
+    }
+
+    /// Turn temporal keyword expressions into builtin function calls.
+    ///
+    /// Unary: `ag expr` → `#verus_builtin::ag(expr)`, `eg expr` → `#verus_builtin::eg(expr)`
+    /// Binary: `au(p, q)` → `#verus_builtin::au(p, q)` (parsed as UnOp applied to tuple)
+    /// Sugar: `af expr` → `#verus_builtin::au(true, expr)` (AF = AU(⊤, ·))
+    ///        `ax expr` → `#verus_builtin::an(true, expr)` (AX = AN(⊤, ·))
+    ///        `ef expr` → `#verus_builtin::eu(true, expr)` (EF = EU(⊤, ·))
+    ///        `ex expr` → `#verus_builtin::en(true, expr)` (EX = EN(⊤, ·))
+    fn temporal_operators(&mut self, expr: &mut Expr) -> bool {
+        let unary = match expr {
+            Expr::Unary(u @ ExprUnary { op: UnOp::Ag(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Af(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Ax(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Eg(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Ex(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Ef(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Au(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::An(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Eu(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::En(..), .. }) => u,
+            _ => return false,
+        };
+
+        visit_expr_mut(self, &mut unary.expr);
+
+        let span = unary.span();
+        let attrs = std::mem::take(&mut unary.attrs);
+        let arg = &*unary.expr;
+
+        match unary.op {
+            // Unary temporal operators (globally)
+            UnOp::Ag(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::ag(#arg));
+            }
+            UnOp::Eg(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eg(#arg));
+            }
+            // Sugar: AF p = AU(true, p), AX p = AN(true, p), etc.
+            UnOp::Af(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(true, #arg));
+            }
+            UnOp::Ax(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(true, #arg));
+            }
+            UnOp::Ef(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(true, #arg));
+            }
+            UnOp::Ex(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(true, #arg));
+            }
+            // Binary temporal operators: au(p, q), an(p, q), eu(p, q), en(p, q)
+            // These are parsed as UnOp applied to a parenthesized tuple: au (p, q)
+            UnOp::Au(..) | UnOp::An(..) | UnOp::Eu(..) | UnOp::En(..) => {
+                // Extract the two arguments from the tuple expression
+                let (arg1, arg2) = match arg {
+                    Expr::Tuple(tuple) if tuple.elems.len() == 2 => {
+                        (&tuple.elems[0], &tuple.elems[1])
+                    }
+                    _ => {
+                        let op_name = match unary.op {
+                            UnOp::Au(..) => "au",
+                            UnOp::An(..) => "an",
+                            UnOp::Eu(..) => "eu",
+                            UnOp::En(..) => "en",
+                            _ => unreachable!(),
+                        };
+                        let err = format!(
+                            "temporal operator `{}` requires exactly two arguments: `{}(p, q)`",
+                            op_name, op_name,
+                        );
+                        *expr = Expr::Verbatim(
+                            quote_spanned!(span => compile_error!(#err)),
+                        );
+                        return true;
+                    }
+                };
+                match unary.op {
+                    UnOp::Au(..) => {
+                        *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(#arg1, #arg2));
+                    }
+                    UnOp::An(..) => {
+                        *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(#arg1, #arg2));
+                    }
+                    UnOp::Eu(..) => {
+                        *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(#arg1, #arg2));
+                    }
+                    UnOp::En(..) => {
+                        *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(#arg1, #arg2));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => panic!("temporal"),
         }
 
         true
@@ -3744,6 +3842,7 @@ impl VisitMut for Visitor {
 
         if self.chain_operators(expr)
             || self.closure_quant_operators(expr)
+            || self.temporal_operators(expr)
             || self.handle_binary_ops(expr)
             || self.handle_assume(expr)
             || self.handle_assert(expr)
