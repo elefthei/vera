@@ -1639,6 +1639,8 @@ struct State {
     static_prelude: Vec<Stmt>,
     /// Temporal obligations from ensures clauses, threaded through VCGen
     temporal_context: TemporalContext,
+    /// Set to true when any loop has temporal_invariant (discharges AG coinduction)
+    temporal_discharged: bool,
 }
 
 impl State {
@@ -2638,9 +2640,14 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
 
                     // TICL: weaken decreases at continue for AU obligations (ψ ∨ m decreased)
-                    let au_goals: Vec<_> = state.temporal_context.obligations.iter()
-                        .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
-                        .collect();
+                    // Only weaken for loops with temporal_invariant
+                    let au_goals: Vec<_> = if !loop_info.temporal_invs.is_empty() {
+                        state.temporal_context.obligations.iter()
+                            .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
                         for au in &au_goals {
@@ -2765,18 +2772,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let invs_entry = Arc::new(invs_entry);
             let invs_exit = Arc::new(invs_exit);
 
-            // R6: Error when AG postcondition requires temporal_invariant but none provided.
-            // The TICL invariance rule for AG requires a coinductive witness R.
-            if !state.temporal_context.is_empty() && temporal_invs.is_empty() {
-                let needs_invariance = state.temporal_context.obligations.iter()
-                    .any(|o| o.requires_invariance);
-                if needs_invariance {
-                    return Err(error(
-                        &stm.span,
-                        "loop has temporal postcondition AG(...) but no temporal_invariant; \
-                         the TICL invariance rule requires temporal_invariant(R) to discharge AG",
-                    ));
-                }
+            // Track that this loop discharges temporal obligations (has temporal_invariant).
+            if !temporal_invs.is_empty() && !state.temporal_context.is_empty() {
+                state.temporal_discharged = true;
             }
 
             let (_, decrease_init) =
@@ -2899,7 +2897,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 air_body.push(Arc::new(StmtX::Assume(r_expr.clone())));
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
-            if !state.temporal_context.is_empty() {
+            // Only fire for loops with temporal_invariant (utility loops skip this)
+            if !state.temporal_context.is_empty() && !temporal_invs.is_empty() {
                 air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt, &temporal_invs)?);
             }
             for dec in decrease_init.iter() {
@@ -2952,9 +2951,14 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
 
                     // TICL rule: aul_cprog_while — for AU(φ,ψ), weaken decreases to ψ ∨ (m decreased)
-                    let au_goals: Vec<_> = state.temporal_context.obligations.iter()
-                        .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
-                        .collect();
+                    // Only weaken for loops with temporal_invariant (utility loops use strict decreases)
+                    let au_goals: Vec<_> = if !temporal_invs.is_empty() {
+                        state.temporal_context.obligations.iter()
+                            .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                            .collect()
+                    } else {
+                        vec![]
+                    };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
                         for au in &au_goals {
@@ -3308,9 +3312,10 @@ pub(crate) fn body_stm_to_air(
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
 
     /// Recursively decompose nested temporal expressions into flat leaf obligations.
-    /// E.g., AG(AU(φ,ψ)) → only the innermost AU(φ,ψ) obligation.
+    /// E.g., AG(AU(φ,ψ)) → innermost AU(φ,ψ) obligation with `requires_invariance = true`.
     /// Outer operators like AG are structural — they are handled by temporal_invariant
-    /// on loops, not by direct AIR assertions.
+    /// on loops, not by direct AIR assertions. The `inside_ag` flag tracks AG nesting
+    /// to enforce the TICL invariance rule.
     fn decompose_temporal(
         op: &crate::ast::TemporalOp,
         prop: &Exp,
@@ -3387,11 +3392,47 @@ pub(crate) fn body_stm_to_air(
         loop_infos: Vec::new(),
         static_prelude: mk_static_prelude(ctx, statics),
         temporal_context,
+        temporal_discharged: false,
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;
+
+    // S1: Temporal base-case assertion at function exit.
+    // AG(φ): at termination, φ must hold at the terminal state (no successors, AG reduces to φ).
+    // AU obligations are NOT checked at exit — the loop's progress checks (weakened decreases)
+    // ensure ψ is reached during execution. AU is about reachability along the trace, not
+    // about the final state.
+    if !state.temporal_context.is_empty() {
+        let expr_ctxt = &ExprCtxt::new();
+        for obligation in &state.temporal_context.obligations {
+            match obligation.op {
+                crate::ast::TemporalOp::AG => {
+                    // AG(φ): at termination, φ must hold
+                    let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
+                    let error = error(func_span, "temporal AG postcondition not satisfied at function exit");
+                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // S2: Deferred R6 check — AG obligations require at least one loop with temporal_invariant.
+    // Unlike the old per-loop check, this fires once at function level, allowing utility loops
+    // without temporal_invariant to coexist with the main temporal loop.
+    if !state.temporal_context.is_empty() && !state.temporal_discharged {
+        let needs_invariance = state.temporal_context.obligations.iter()
+            .any(|o| o.requires_invariance);
+        if needs_invariance {
+            return Err(error(
+                func_span,
+                "temporal postcondition AG(...) requires at least one loop with \
+                 temporal_invariant to discharge the TICL invariance rule",
+            ));
+        }
+    }
 
     stmts.insert(0, Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_PRE))));
     if state.static_prelude.len() > 0 {
