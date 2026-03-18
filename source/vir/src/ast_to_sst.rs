@@ -2530,7 +2530,12 @@ pub(crate) fn expr_to_stm_opt(
             } else {
                 None
             };
+            // Loops with temporal_invariant don't require decreases:
+            // - AG semantics: loop is infinite, no termination proof needed
+            // - AU semantics: decreases is still expected (checked later in sst_to_air)
+            let has_temporal_invariant = invs.iter().any(|inv| inv.kind == LoopInvariantKind::TemporalInvariant);
             if decrease.len() == 0
+                && !has_temporal_invariant
                 && !ctx
                     .fun
                     .as_ref()
