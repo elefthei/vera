@@ -4779,6 +4779,36 @@ where
         crate::UnOp::Choose(_binding_0) => {
             skip!(_binding_0);
         }
+        crate::UnOp::Ag(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Af(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Ax(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Eg(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Ex(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Ef(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Au(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::An(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Eu(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::En(_binding_0) => {
+            skip!(_binding_0);
+        }
     }
 }
 pub fn visit_uninterp_mut<V>(v: &mut V, node: &mut crate::Uninterp)

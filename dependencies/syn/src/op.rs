@@ -90,6 +90,18 @@ ast_enum! {
         Forall(Token![forall]),
         Exists(Token![exists]),
         Choose(Token![choose]),
+
+        // verus temporal (CTL)
+        Ag(Token![ag]),
+        Af(Token![af]),
+        Ax(Token![ax]),
+        Eg(Token![eg]),
+        Ex(Token![ex]),
+        Ef(Token![ef]),
+        Au(Token![au]),
+        An(Token![an]),
+        Eu(Token![eu]),
+        En(Token![en]),
     }
 }
 
@@ -200,6 +212,26 @@ pub(crate) mod parsing {
                 input.parse().map(UnOp::Exists)
             } else if lookahead.peek(Token![choose]) {
                 input.parse().map(UnOp::Choose)
+            } else if lookahead.peek(Token![ag]) {
+                input.parse().map(UnOp::Ag)
+            } else if lookahead.peek(Token![af]) {
+                input.parse().map(UnOp::Af)
+            } else if lookahead.peek(Token![ax]) {
+                input.parse().map(UnOp::Ax)
+            } else if lookahead.peek(Token![eg]) {
+                input.parse().map(UnOp::Eg)
+            } else if lookahead.peek(Token![ex]) {
+                input.parse().map(UnOp::Ex)
+            } else if lookahead.peek(Token![ef]) {
+                input.parse().map(UnOp::Ef)
+            } else if lookahead.peek(Token![au]) {
+                input.parse().map(UnOp::Au)
+            } else if lookahead.peek(Token![an]) {
+                input.parse().map(UnOp::An)
+            } else if lookahead.peek(Token![eu]) {
+                input.parse().map(UnOp::Eu)
+            } else if lookahead.peek(Token![en]) {
+                input.parse().map(UnOp::En)
             } else {
                 Err(lookahead.error())
             }
@@ -273,6 +305,18 @@ mod printing {
                 UnOp::Forall(t) => t.to_tokens(tokens),
                 UnOp::Exists(t) => t.to_tokens(tokens),
                 UnOp::Choose(t) => t.to_tokens(tokens),
+
+                // verus temporal (CTL)
+                UnOp::Ag(t) => t.to_tokens(tokens),
+                UnOp::Af(t) => t.to_tokens(tokens),
+                UnOp::Ax(t) => t.to_tokens(tokens),
+                UnOp::Eg(t) => t.to_tokens(tokens),
+                UnOp::Ex(t) => t.to_tokens(tokens),
+                UnOp::Ef(t) => t.to_tokens(tokens),
+                UnOp::Au(t) => t.to_tokens(tokens),
+                UnOp::An(t) => t.to_tokens(tokens),
+                UnOp::Eu(t) => t.to_tokens(tokens),
+                UnOp::En(t) => t.to_tokens(tokens),
             }
         }
     }

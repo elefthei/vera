@@ -17,7 +17,8 @@ use crate::util::{err_span, vec_map, vec_map_result, vir_err_span_str};
 use crate::verus_items::{
     self, ArithItem, AssertItem, BinaryOpItem, BuiltinDerefItem, BuiltinFunctionItem, ChainedItem,
     CompilableOprItem, DirectiveItem, EqualityItem, ExprItem, QuantItem, RustItem, SpecArithItem,
-    SpecGhostTrackedItem, SpecItem, SpecLiteralItem, SpecOrdItem, UnaryOpItem, VerusItem,
+    SpecGhostTrackedItem, SpecItem, SpecLiteralItem, SpecOrdItem, TemporalItem, UnaryOpItem,
+    VerusItem,
 };
 use crate::{unsupported_err, unsupported_err_unless};
 use air::ast_util::str_ident;
@@ -731,6 +732,46 @@ fn verus_item_to_vir<'tcx, 'a>(
             };
             let quant = Quant { quant };
             extract_quant(bctx, expr.span, quant, args[0])
+        }
+        VerusItem::Temporal(temporal_item) => {
+            record_spec_fn_pure_args_only(bctx, expr);
+            match temporal_item {
+                // Unary: ag(expr), eg(expr)
+                TemporalItem::Ag | TemporalItem::Eg => {
+                    unsupported_err_unless!(
+                        args_len == 1,
+                        expr.span,
+                        "expected temporal operator with one argument",
+                        &args
+                    );
+                    let op = match temporal_item {
+                        TemporalItem::Ag => vir::ast::TemporalOp::AG,
+                        TemporalItem::Eg => vir::ast::TemporalOp::EG,
+                        _ => unreachable!(),
+                    };
+                    let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?.expect_expr();
+                    mk_expr(ExprX::Temporal(op, vir_arg, None))
+                }
+                // Binary: au(p, q), an(p, q), eu(p, q), en(p, q)
+                TemporalItem::Au | TemporalItem::An | TemporalItem::Eu | TemporalItem::En => {
+                    unsupported_err_unless!(
+                        args_len == 2,
+                        expr.span,
+                        "expected temporal operator with two arguments",
+                        &args
+                    );
+                    let op = match temporal_item {
+                        TemporalItem::Au => vir::ast::TemporalOp::AU,
+                        TemporalItem::An => vir::ast::TemporalOp::AN,
+                        TemporalItem::Eu => vir::ast::TemporalOp::EU,
+                        TemporalItem::En => vir::ast::TemporalOp::EN,
+                        _ => unreachable!(),
+                    };
+                    let vir_arg1 = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?.expect_expr();
+                    let vir_arg2 = expr_to_vir(bctx, &args[1], ExprModifier::REGULAR)?.expect_expr();
+                    mk_expr(ExprX::Temporal(op, vir_arg1, Some(vir_arg2)))
+                }
+            }
         }
         VerusItem::Directive(directive_item) => match directive_item {
             DirectiveItem::ExtraDependency => {

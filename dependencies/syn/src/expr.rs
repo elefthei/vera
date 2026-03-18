@@ -1708,6 +1708,18 @@ pub(crate) mod parsing {
                 || input.peek(Token![choose]))
         {
             expr_unary(input, attrs, allow_struct).map(Expr::Unary)
+        } else if input.peek(Token![ag])
+            || input.peek(Token![af])
+            || input.peek(Token![ax])
+            || input.peek(Token![eg])
+            || input.peek(Token![ex])
+            || input.peek(Token![ef])
+            || input.peek(Token![au])
+            || input.peek(Token![an])
+            || input.peek(Token![eu])
+            || input.peek(Token![en])
+        {
+            expr_unary(input, attrs, allow_struct).map(Expr::Unary)
         } else {
             trailer_expr(begin, attrs, input, allow_struct)
         }

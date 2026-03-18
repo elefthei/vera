@@ -938,6 +938,23 @@ pub struct Quant {
     pub quant: air::ast::Quant,
 }
 
+/// CTL temporal operators
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, ToDebugSNode)]
+pub enum TemporalOp {
+    /// AG: on all paths, globally (unary)
+    AG,
+    /// EG: exists a path, globally (unary)
+    EG,
+    /// AU: on all paths, φ until ψ (binary)
+    AU,
+    /// AN: on all paths, φ now and ψ next (binary)
+    AN,
+    /// EU: exists a path, φ until ψ (binary)
+    EU,
+    /// EN: exists a path, φ now and ψ next (binary)
+    EN,
+}
+
 /// Computation mode for assert_by_compute
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, ToDebugSNode)]
 pub enum ComputeMode {
@@ -1017,6 +1034,10 @@ pub enum ExprX {
     Multi(MultiOp, Exprs),
     /// Quantifier (forall/exists), binding the variables in Binders, with body Expr
     Quant(Quant, VarBinders<Typ>, Expr),
+    /// CTL temporal operator applied to boolean expression(s)
+    /// Unary: AG(φ), EG(φ) — second Expr is None
+    /// Binary: AU(φ,ψ), AN(φ,ψ), EU(φ,ψ), EN(φ,ψ) — second Expr is Some
+    Temporal(TemporalOp, Expr, Option<Expr>),
     /// Specification closure
     Closure(VarBinders<Typ>, Expr),
     /// Executable closure

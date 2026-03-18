@@ -4079,6 +4079,56 @@ impl Debug for crate::UnOp {
                 formatter.field(v0);
                 formatter.finish()
             }
+            crate::UnOp::Ag(v0) => {
+                let mut formatter = formatter.debug_tuple("Ag");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Af(v0) => {
+                let mut formatter = formatter.debug_tuple("Af");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Ax(v0) => {
+                let mut formatter = formatter.debug_tuple("Ax");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Eg(v0) => {
+                let mut formatter = formatter.debug_tuple("Eg");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Ex(v0) => {
+                let mut formatter = formatter.debug_tuple("Ex");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Ef(v0) => {
+                let mut formatter = formatter.debug_tuple("Ef");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Au(v0) => {
+                let mut formatter = formatter.debug_tuple("Au");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::An(v0) => {
+                let mut formatter = formatter.debug_tuple("An");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Eu(v0) => {
+                let mut formatter = formatter.debug_tuple("Eu");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::En(v0) => {
+                let mut formatter = formatter.debug_tuple("En");
+                formatter.field(v0);
+                formatter.finish()
+            }
         }
     }
 }

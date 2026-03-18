@@ -2873,6 +2873,16 @@ impl PartialEq for crate::UnOp {
             (crate::UnOp::Forall(_), crate::UnOp::Forall(_)) => true,
             (crate::UnOp::Exists(_), crate::UnOp::Exists(_)) => true,
             (crate::UnOp::Choose(_), crate::UnOp::Choose(_)) => true,
+            (crate::UnOp::Ag(_), crate::UnOp::Ag(_)) => true,
+            (crate::UnOp::Af(_), crate::UnOp::Af(_)) => true,
+            (crate::UnOp::Ax(_), crate::UnOp::Ax(_)) => true,
+            (crate::UnOp::Eg(_), crate::UnOp::Eg(_)) => true,
+            (crate::UnOp::Ex(_), crate::UnOp::Ex(_)) => true,
+            (crate::UnOp::Ef(_), crate::UnOp::Ef(_)) => true,
+            (crate::UnOp::Au(_), crate::UnOp::Au(_)) => true,
+            (crate::UnOp::An(_), crate::UnOp::An(_)) => true,
+            (crate::UnOp::Eu(_), crate::UnOp::Eu(_)) => true,
+            (crate::UnOp::En(_), crate::UnOp::En(_)) => true,
             _ => false,
         }
     }

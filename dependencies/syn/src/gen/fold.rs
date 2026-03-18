@@ -4921,6 +4921,16 @@ where
         crate::UnOp::Forall(_binding_0) => crate::UnOp::Forall(_binding_0),
         crate::UnOp::Exists(_binding_0) => crate::UnOp::Exists(_binding_0),
         crate::UnOp::Choose(_binding_0) => crate::UnOp::Choose(_binding_0),
+        crate::UnOp::Ag(_binding_0) => crate::UnOp::Ag(_binding_0),
+        crate::UnOp::Af(_binding_0) => crate::UnOp::Af(_binding_0),
+        crate::UnOp::Ax(_binding_0) => crate::UnOp::Ax(_binding_0),
+        crate::UnOp::Eg(_binding_0) => crate::UnOp::Eg(_binding_0),
+        crate::UnOp::Ex(_binding_0) => crate::UnOp::Ex(_binding_0),
+        crate::UnOp::Ef(_binding_0) => crate::UnOp::Ef(_binding_0),
+        crate::UnOp::Au(_binding_0) => crate::UnOp::Au(_binding_0),
+        crate::UnOp::An(_binding_0) => crate::UnOp::An(_binding_0),
+        crate::UnOp::Eu(_binding_0) => crate::UnOp::Eu(_binding_0),
+        crate::UnOp::En(_binding_0) => crate::UnOp::En(_binding_0),
     }
 }
 pub fn fold_uninterp<F>(f: &mut F, node: crate::Uninterp) -> crate::Uninterp
