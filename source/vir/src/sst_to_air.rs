@@ -2880,10 +2880,28 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         decrease,
                         decrease.len(),
                     )?;
-                    let expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
-                    let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_END);
-                    let dec_stmt = StmtX::Assert(None, error, None, expr);
-                    air_body.push(Arc::new(dec_stmt));
+                    let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
+
+                    // TICL rule: aul_cprog_while — for AU(φ,ψ), weaken decreases to ψ ∨ (m decreased)
+                    let au_goals: Vec<_> = state.temporal_context.obligations.iter()
+                        .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                        .collect();
+                    if !au_goals.is_empty() {
+                        let body_expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+                        let mut disjuncts = vec![dec_expr.clone()];
+                        for au in &au_goals {
+                            let psi = exp_to_expr(ctx, &au.property, body_expr_ctxt)?;
+                            disjuncts.push(psi);
+                        }
+                        let weakened = mk_or(&disjuncts);
+                        let error = error(&stm.span, "temporal AU: goal not reached and no progress (decreases not satisfied)");
+                        let dec_stmt = StmtX::Assert(None, error, None, weakened);
+                        air_body.push(Arc::new(dec_stmt));
+                    } else {
+                        let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_END);
+                        let dec_stmt = StmtX::Assert(None, error, None, dec_expr);
+                        air_body.push(Arc::new(dec_stmt));
+                    }
                 }
                 // TICL rule: ag_cprog_while — assert temporal invariant R preserved after body
                 for (span, r_expr) in temporal_invs.iter() {
