@@ -197,6 +197,37 @@ test_verify_one_file! {
     } => Err(err) => assert_vir_error_msg(err, "temporal invariant not preserved by loop body")
 }
 
+// === AG(AU) Composition Tests ===
+
+// AG(AU(true, φ)): always-eventually — the fairness property.
+// Ensures the nested temporal decomposition works: AG wrapper is filtered,
+// AU obligation drives the weakened decreases check.
+test_verify_one_file! {
+    #[test] test_ag_au_composition_ensures verus_code! {
+        fn test_ag_au(x: u64)
+            ensures ag(au(true, x == 0)),
+        {
+        }
+    } => Ok(())
+}
+
+// AG(AU) with a loop: temporal_invariant R + decreases m
+// The loop maintains invariant R and makes progress toward AU goal via decreases.
+test_verify_one_file! {
+    #[test] test_ag_au_loop_with_temporal_invariant verus_code! {
+        fn test_ag_au_loop() {
+            let mut x: u64 = 10;
+            while x > 0
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases x,
+            {
+                x = x - 1;
+            }
+        }
+    } => Ok(())
+}
+
 test_verify_one_file! {
     #[test] test_temporal_invariant_while_parses verus_code! {
         fn test_loop() {
