@@ -766,6 +766,7 @@ define_keywords! {
     "no_unwind"   pub struct NoUnwind
     "invariant"   pub struct Invariant
     "invariant_ensures"   pub struct InvariantEnsures
+    "temporal_invariant"  pub struct TemporalInvariant
     "assert"      pub struct Assert
     "assume"      pub struct Assume
     "reveal"      pub struct Reveal
@@ -1067,6 +1068,7 @@ macro_rules! Token {
     [no_unwind]   => { $crate::token::NoUnwind };
     [invariant]   => { $crate::token::Invariant };
     [invariant_ensures]   => { $crate::token::InvariantEnsures };
+    [temporal_invariant]  => { $crate::token::TemporalInvariant };
     [assert]      => { $crate::token::Assert };
     [assume]      => { $crate::token::Assume };
     [reveal]      => { $crate::token::Reveal };

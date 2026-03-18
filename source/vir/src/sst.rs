@@ -152,8 +152,10 @@ pub struct LoopInv {
     // "invariant_except_break": at_entry = true, at_exit = false
     // "invariant": at_entry = true, at_exit = true
     // "ensures": at_entry = false, at_exit = true
+    // "temporal_invariant": temporal = true (TICL structural rule R)
     pub at_entry: bool,
     pub at_exit: bool,
+    pub temporal: bool,
     pub inv: Exp,
 }
 

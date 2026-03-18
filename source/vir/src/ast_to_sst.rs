@@ -2430,6 +2430,7 @@ pub(crate) fn expr_to_stm_opt(
                             LoopInvariantKind::InvariantExceptBreak => Some(inv.clone()),
                             LoopInvariantKind::InvariantAndEnsures => Some(inv.clone()),
                             LoopInvariantKind::Ensures => None,
+                            LoopInvariantKind::TemporalInvariant => Some(inv.clone()),
                         })
                         .collect(),
                 )
@@ -2514,10 +2515,12 @@ pub(crate) fn expr_to_stm_opt(
                         LoopInvariantKind::InvariantExceptBreak => (true, false),
                         LoopInvariantKind::InvariantAndEnsures => (true, true),
                         LoopInvariantKind::Ensures => (false, true),
+                        LoopInvariantKind::TemporalInvariant => (true, false),
                     }
                 };
 
-                let inv1 = crate::sst::LoopInv { inv: exp, at_entry, at_exit };
+                let temporal = inv.kind == LoopInvariantKind::TemporalInvariant;
+                let inv1 = crate::sst::LoopInv { inv: exp, at_entry, at_exit, temporal };
                 invs1.push(inv1);
             }
             let mut decrease1: Vec<Exp> = Vec::new();

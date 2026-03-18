@@ -171,7 +171,7 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
 
     fn visit_loop_inv(&mut self, inv: &LoopInv) -> Result<R::Ret<LoopInv>, Err> {
         let e = self.visit_exp(&inv.inv)?;
-        R::ret(|| LoopInv { at_entry: inv.at_entry, at_exit: inv.at_exit, inv: R::get(e) })
+        R::ret(|| LoopInv { at_entry: inv.at_entry, at_exit: inv.at_exit, temporal: inv.temporal, inv: R::get(e) })
     }
 
     fn visit_typ_inv_vars(

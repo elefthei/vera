@@ -123,3 +123,36 @@ test_verify_one_file! {
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported for SMT verification")
 }
+
+// === temporal_invariant loop annotation ===
+
+test_verify_one_file! {
+    #[test] test_temporal_invariant_while_parses verus_code! {
+        fn test_loop() {
+            let mut x: u64 = 0;
+            while x < 10
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases 10 - x,
+            {
+                x = x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] test_temporal_invariant_loop_parses verus_code! {
+        fn test_loop_expr() {
+            let mut x: u64 = 0;
+            loop
+                invariant x <= 10,
+                temporal_invariant x <= 10,
+                decreases 10 - x,
+            {
+                if x >= 10 { break; }
+                x = x + 1;
+            }
+        }
+    } => Ok(())
+}
