@@ -2575,6 +2575,24 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         stmts.push(Arc::new(StmtX::Assert(None, error, None, r_expr.clone())));
                     }
                 }
+                // TICL ag_cprog_while condition 2: AG loops must never exit.
+                // The condition must always evaluate to true (loop is infinite).
+                // Assert false at break to require the break path is unreachable.
+                if *is_break && !loop_info.temporal_invs.is_empty() {
+                    let has_ag = state.temporal_context.obligations.iter()
+                        .any(|o| matches!(o.op, crate::ast::TemporalOp::AG) || o.requires_invariance);
+                    if has_ag {
+                        let error = error_with_label(
+                            &stm.span,
+                            "AG temporal property requires the loop to never exit \
+                             (TICL ag_cprog_while: condition must always be true)",
+                            "loop must not exit here",
+                        );
+                        stmts.push(Arc::new(StmtX::Assert(
+                            None, error, None, air::ast_util::mk_false(),
+                        )));
+                    }
+                }
                 let decrease = &loop_info.decrease;
                 if !is_break && decrease.len() > 0 {
                     for info in state.loop_infos.iter().rev() {
@@ -3368,25 +3386,10 @@ pub(crate) fn body_stm_to_air(
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;
 
-    // S1: Temporal base-case assertion at function exit.
-    // AG(φ): at termination, φ must hold at the terminal state (no successors, AG reduces to φ).
-    // AU obligations are NOT checked at exit — the loop's progress checks (weakened decreases)
-    // ensure ψ is reached during execution. AU is about reachability along the trace, not
-    // about the final state.
-    if !state.temporal_context.is_empty() {
-        let expr_ctxt = &ExprCtxt::new();
-        for obligation in &state.temporal_context.obligations {
-            match obligation.op {
-                crate::ast::TemporalOp::AG => {
-                    // AG(φ): at termination, φ must hold
-                    let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
-                    let error = error(func_span, "temporal AG postcondition not satisfied at function exit");
-                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
-                }
-                _ => {}
-            }
-        }
-    }
+    // TICL ag_cprog_while: AG loops are infinite — the function never returns past the loop.
+    // No AG base-case assertion at function exit: the non-exit check at break (assert false)
+    // ensures the loop never terminates, so function exit after an AG loop is unreachable.
+    // AU obligations are also not checked at exit — loop progress checks are sufficient.
 
     // S2: Deferred R6 check — AG obligations require at least one loop with temporal_invariant.
     // Unlike the old per-loop check, this fires once at function level, allowing utility loops
