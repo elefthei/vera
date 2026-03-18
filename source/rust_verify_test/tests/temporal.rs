@@ -473,3 +473,87 @@ test_verify_one_file! {
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal AU: path property violated before goal reached")
 }
+
+// === R3: continue must check temporal invariant ===
+
+// Continue skips end-of-body; temporal_invariant must be preserved at continue too.
+test_verify_one_file! {
+    #[test] test_continue_breaks_temporal_invariant verus_code! {
+        fn test_continue(x: &mut u64)
+            ensures ag(au(true, *x == 0)),
+        {
+            *x = 10;
+            while *x > 0
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+                decreases *x,
+            {
+                if *x == 5 {
+                    // This continue path must still satisfy temporal_invariant.
+                    // Since *x == 5 and *x <= 10, it does, so this should pass.
+                    *x = (*x - 1) as u64;
+                    continue;
+                }
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// Continue that violates temporal invariant should fail.
+test_verify_one_file! {
+    #[test] test_continue_violates_temporal_invariant verus_code! {
+        fn test_continue_bad(x: &mut u64)
+            ensures ag(au(true, *x == 0)),
+        {
+            *x = 5;
+            while *x > 0
+                invariant *x <= 100,
+                temporal_invariant *x <= 10,
+                decreases *x,
+            {
+                if *x == 3 {
+                    *x = 50;  // Satisfies invariant *x <= 100 but breaks temporal_invariant *x <= 10
+                    continue;
+                }
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal invariant not preserved")
+}
+
+// === R2: AG nesting requires temporal_invariant ===
+
+// ag(au(true, φ)) without temporal_invariant → error (TICL invariance rule requires R)
+test_verify_one_file! {
+    #[test] test_ag_au_without_temporal_invariant verus_code! {
+        fn test_ag_no_inv(x: &mut u64)
+            ensures ag(au(true, *x == 0)),
+        {
+            *x = 10;
+            while *x > 0
+                invariant *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "loop has temporal postcondition AG(...) but no temporal_invariant")
+}
+
+// Plain au(true, φ) without temporal_invariant should still work (no AG invariance needed)
+test_verify_one_file! {
+    #[test] test_plain_au_without_temporal_invariant verus_code! {
+        fn test_au_no_inv(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(true, *x == 0),
+        {
+            while *x > 0
+                invariant *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
