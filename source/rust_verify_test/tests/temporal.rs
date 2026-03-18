@@ -126,16 +126,15 @@ test_verify_one_file! {
 
 // === temporal_invariant loop annotation ===
 
-// Test that temporal operators are allowed in function ensures clauses.
-// Currently, temporal postconditions are extracted into TemporalContext
-// but VCGen for them is not yet implemented, so the function verifies.
+// Test that temporal operators in function ensures clauses are properly verified.
+// AG postconditions require temporal_invariant on a loop — empty bodies get R6 error.
 test_verify_one_file! {
     #[test] test_temporal_ag_in_fn_ensures verus_code! {
         fn test_temporal_ensures(x: u64)
             ensures ag(x > 0),
         {
         }
-    } => Ok(())
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with temporal_invariant")
 }
 
 test_verify_one_file! {
@@ -144,7 +143,7 @@ test_verify_one_file! {
             ensures au(x > 0, x == 42),
         {
         }
-    } => Ok(())
+    } => Ok(()) // AU without AG doesn't require temporal_invariant; no loop = no checks
 }
 
 // === TICL VCGen Rule Tests ===
@@ -199,16 +198,15 @@ test_verify_one_file! {
 
 // === AG(AU) Composition Tests ===
 
-// AG(AU(true, φ)): always-eventually — the fairness property.
-// Ensures the nested temporal decomposition works: AG wrapper is filtered,
-// AU obligation drives the weakened decreases check.
+// AG(AU(true, φ)): always-eventually — requires temporal_invariant on a loop.
+// Empty body with AG nesting gets R6 error.
 test_verify_one_file! {
     #[test] test_ag_au_composition_ensures verus_code! {
         fn test_ag_au(x: u64)
             ensures ag(au(true, x == 0)),
         {
         }
-    } => Ok(())
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with temporal_invariant")
 }
 
 // AG(AU) with a loop: temporal_invariant R + decreases m
@@ -290,14 +288,14 @@ test_verify_one_file! {
 
 // === Additional VCGen coverage ===
 
-// Multiple temporal ensures clauses
+// Multiple temporal ensures clauses — AG requires temporal_invariant
 test_verify_one_file! {
     #[test] test_multiple_temporal_ensures verus_code! {
         fn test_multi(x: u64, y: u64)
             ensures ag(x > 0), ag(y > 0),
         {
         }
-    } => Ok(())
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with temporal_invariant")
 }
 
 // Loop with temporal_invariant but no temporal ensures — should verify normally
@@ -316,14 +314,14 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// Nested AG(AG(φ)) — should flatten to single AG obligation
+// Nested AG(AG(φ)) — should flatten to single AG obligation, still requires temporal_invariant
 test_verify_one_file! {
     #[test] test_nested_ag_ag_in_ensures verus_code! {
         fn test_nested_ag(x: u64)
             ensures ag(ag(x > 0)),
         {
         }
-    } => Ok(())
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with temporal_invariant")
 }
 
 // === I4: Function calls inside loops with temporal_invariant ===
@@ -393,7 +391,7 @@ test_verify_one_file! {
                 *x = *x + 1;
             }
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal invariant does not imply AG postcondition property")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal invariant does not imply AG postcondition property")
 }
 
 // temporal_invariant R implies AG postcondition φ (R ⊆ φ) — should pass
@@ -471,7 +469,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal AU: path property violated before goal reached")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal AU: path property violated before goal reached")
 }
 
 // === R3: continue must check temporal invariant ===
@@ -538,7 +536,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_vir_error_msg(err, "loop has temporal postcondition AG(...) but no temporal_invariant")
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with temporal_invariant")
 }
 
 // Plain au(true, φ) without temporal_invariant should still work (no AG invariance needed)
@@ -553,6 +551,73 @@ test_verify_one_file! {
                 decreases *x,
             {
                 *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// === S1: AG base-case assertion at function exit ===
+
+// AG(φ) property must hold at the terminal state — loop invariant implies it after exit
+test_verify_one_file! {
+    #[test] test_ag_exit_base_case_pass verus_code! {
+        fn test_ag_exit(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            while *x < 5
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+                decreases 10 - *x,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+// AG(φ) where φ doesn't hold at exit — exit invariant doesn't cover postcondition
+test_verify_one_file! {
+    #[test] test_ag_exit_base_case_fail verus_code! {
+        fn test_ag_exit_bad(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x == 0),
+        {
+            while *x < 5
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+                decreases 10 - *x,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal AG postcondition not satisfied at function exit")
+}
+
+// === S2: Deferred R6 — utility loops coexist with temporal loops ===
+
+// Function with utility loop + temporal loop — utility loop has no temporal_invariant
+test_verify_one_file! {
+    #[test] test_utility_loop_with_temporal_loop verus_code! {
+        fn test_multi_loop(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            // Utility loop — no temporal_invariant needed
+            let mut setup: u64 = 5;
+            while setup > 0
+                invariant setup <= 5,
+                decreases setup,
+            {
+                setup = setup - 1;
+            }
+            // Main temporal loop
+            while *x < 10
+                invariant *x <= 20,
+                temporal_invariant *x <= 20,
+                decreases 20 - *x,
+            {
+                *x = *x + 1;
             }
         }
     } => Ok(())
