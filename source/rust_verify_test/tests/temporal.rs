@@ -395,18 +395,24 @@ test_verify_one_file! {
 }
 
 // temporal_invariant R implies AG postcondition φ (R ⊆ φ) — should pass
+// AG requires an infinite loop (TICL ag_cprog_while: condition always true)
 test_verify_one_file! {
     #[test] test_temporal_invariant_implies_postcondition verus_code! {
+        #[verifier::exec_allows_no_decreases_clause]
         fn test_r_implies_phi(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 10),
         {
-            while *x < 10
+            loop
                 invariant *x <= 10,
                 temporal_invariant *x <= 10,
-                decreases 10 - *x,
             {
-                *x = *x + 1;
+                // Infinite loop: x oscillates between 0 and 10
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
             }
         }
     } => Ok(())
@@ -475,24 +481,29 @@ test_verify_one_file! {
 // === R3: continue must check temporal invariant ===
 
 // Continue skips end-of-body; temporal_invariant must be preserved at continue too.
+// Uses infinite loop (AG requires non-termination).
 test_verify_one_file! {
     #[test] test_continue_breaks_temporal_invariant verus_code! {
+        #[verifier::exec_allows_no_decreases_clause]
         fn test_continue(x: &mut u64)
-            ensures ag(au(true, *x == 0)),
+            ensures ag(*x <= 10),
         {
-            *x = 10;
-            while *x > 0
+            *x = 0;
+            loop
                 invariant *x <= 10,
                 temporal_invariant *x <= 10,
-                decreases *x,
             {
                 if *x == 5 {
                     // This continue path must still satisfy temporal_invariant.
                     // Since *x == 5 and *x <= 10, it does, so this should pass.
-                    *x = (*x - 1) as u64;
+                    *x = 0;
                     continue;
                 }
-                *x = (*x - 1) as u64;
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
             }
         }
     } => Ok(())
@@ -501,20 +512,24 @@ test_verify_one_file! {
 // Continue that violates temporal invariant should fail.
 test_verify_one_file! {
     #[test] test_continue_violates_temporal_invariant verus_code! {
+        #[verifier::exec_allows_no_decreases_clause]
         fn test_continue_bad(x: &mut u64)
-            ensures ag(au(true, *x == 0)),
+            ensures ag(*x <= 10),
         {
-            *x = 5;
-            while *x > 0
+            *x = 0;
+            loop
                 invariant *x <= 100,
                 temporal_invariant *x <= 10,
-                decreases *x,
             {
                 if *x == 3 {
                     *x = 50;  // Satisfies invariant *x <= 100 but breaks temporal_invariant *x <= 10
                     continue;
                 }
-                *x = (*x - 1) as u64;
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
             }
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal invariant not preserved")
@@ -556,12 +571,34 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// === S1: AG base-case assertion at function exit ===
+// === S7: AG loops must never exit (TICL ag_cprog_while condition 2) ===
 
-// AG(φ) property must hold at the terminal state — loop invariant implies it after exit
+// AG with infinite loop — passes (no exit path)
 test_verify_one_file! {
-    #[test] test_ag_exit_base_case_pass verus_code! {
-        fn test_ag_exit(x: &mut u64)
+    #[test] test_ag_infinite_loop_pass verus_code! {
+        #[verifier::exec_allows_no_decreases_clause]
+        fn test_ag_inf(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+                temporal_invariant *x <= 10,
+            {
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// AG with terminating while loop — fails (loop exits, violating AG non-exit requirement)
+test_verify_one_file! {
+    #[test] test_ag_terminating_loop_fail verus_code! {
+        fn test_ag_term(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 10),
         {
@@ -573,32 +610,15 @@ test_verify_one_file! {
                 *x = *x + 1;
             }
         }
-    } => Ok(())
-}
-
-// AG(φ) where φ doesn't hold at exit — exit invariant doesn't cover postcondition
-test_verify_one_file! {
-    #[test] test_ag_exit_base_case_fail verus_code! {
-        fn test_ag_exit_bad(x: &mut u64)
-            requires *old(x) == 0,
-            ensures ag(*x == 0),
-        {
-            while *x < 5
-                invariant *x <= 10,
-                temporal_invariant *x <= 10,
-                decreases 10 - *x,
-            {
-                *x = *x + 1;
-            }
-        }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal AG postcondition not satisfied at function exit")
+    } => Err(err) => assert_any_vir_error_msg(err, "AG temporal property requires the loop to never exit")
 }
 
 // === S2: Deferred R6 — utility loops coexist with temporal loops ===
 
-// Function with utility loop + temporal loop — utility loop has no temporal_invariant
+// Function with utility loop + temporal infinite loop — utility loop has no temporal_invariant
 test_verify_one_file! {
     #[test] test_utility_loop_with_temporal_loop verus_code! {
+        #[verifier::exec_allows_no_decreases_clause]
         fn test_multi_loop(x: &mut u64)
             requires *old(x) == 0,
             ensures ag(*x <= 20),
@@ -611,13 +631,16 @@ test_verify_one_file! {
             {
                 setup = setup - 1;
             }
-            // Main temporal loop
-            while *x < 10
+            // Main temporal loop (infinite — AG requires non-termination)
+            loop
                 invariant *x <= 20,
                 temporal_invariant *x <= 20,
-                decreases 20 - *x,
             {
-                *x = *x + 1;
+                if *x < 20 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
             }
         }
     } => Ok(())
