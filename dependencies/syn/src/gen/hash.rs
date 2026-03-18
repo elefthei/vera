@@ -1127,6 +1127,7 @@ impl Hash for crate::ExprLoop {
         self.invariant_except_break.hash(state);
         self.invariant.hash(state);
         self.invariant_ensures.hash(state);
+        self.temporal_invariant.hash(state);
         self.ensures.hash(state);
         self.decreases.hash(state);
         self.body.hash(state);
@@ -1348,6 +1349,7 @@ impl Hash for crate::ExprWhile {
         self.invariant_except_break.hash(state);
         self.invariant.hash(state);
         self.invariant_ensures.hash(state);
+        self.temporal_invariant.hash(state);
         self.ensures.hash(state);
         self.decreases.hash(state);
         self.body.hash(state);
@@ -1878,6 +1880,15 @@ impl Hash for crate::Invariant {
 }
 #[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
 impl Hash for crate::InvariantEnsures {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.exprs.hash(state);
+    }
+}
+#[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
+impl Hash for crate::TemporalInvariantSpec {
     fn hash<H>(&self, state: &mut H)
     where
         H: Hasher,

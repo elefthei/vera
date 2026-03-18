@@ -72,6 +72,7 @@ pub struct Header {
     pub returns: Option<Expr>,
     pub invariant_except_break: Exprs,
     pub invariant: Exprs,
+    pub temporal_invariant: Exprs,
     pub decrease: Exprs,
     pub decrease_when: Option<Expr>,
     pub decrease_by: Option<Fun>,
@@ -91,6 +92,7 @@ pub fn read_header_block(block: &mut Vec<Stmt>, allows: &HeaderAllows) -> Result
     let mut recommend: Option<Exprs> = None;
     let mut invariant_except_break: Option<Exprs> = None;
     let mut invariant: Option<Exprs> = None;
+    let mut temporal_invariant: Option<Exprs> = None;
     let mut decrease: Option<Exprs> = None;
     let mut decrease_when: Option<Expr> = None;
     let mut decrease_by: Option<Fun> = None;
@@ -176,6 +178,16 @@ pub fn read_header_block(block: &mut Vec<Stmt>, allows: &HeaderAllows) -> Result
                         }
                         allowed = allows.loops();
                         invariant = Some(es.clone());
+                    }
+                    HeaderExprX::TemporalInvariant(es) => {
+                        if temporal_invariant.is_some() {
+                            return Err(error(
+                                &stmt.span,
+                                "only one call to temporal_invariant allowed (use temporal_invariant([e1, ..., en]) for multiple expressions",
+                            ));
+                        }
+                        allowed = allows.loops();
+                        temporal_invariant = Some(es.clone());
                     }
                     HeaderExprX::Decreases(es) => {
                         if decrease.is_some() {
@@ -297,6 +309,7 @@ pub fn read_header_block(block: &mut Vec<Stmt>, allows: &HeaderAllows) -> Result
     };
     let invariant_except_break = invariant_except_break.unwrap_or(Arc::new(vec![]));
     let invariant = invariant.unwrap_or(Arc::new(vec![]));
+    let temporal_invariant = temporal_invariant.unwrap_or(Arc::new(vec![]));
     let decrease = decrease.unwrap_or(Arc::new(vec![]));
     Ok(Header {
         unwrap_parameters,
@@ -309,6 +322,7 @@ pub fn read_header_block(block: &mut Vec<Stmt>, allows: &HeaderAllows) -> Result
         returns,
         invariant_except_break,
         invariant,
+        temporal_invariant,
         decrease,
         decrease_when,
         decrease_by,
@@ -425,6 +439,7 @@ impl Header {
             LoopInvariantKind::InvariantExceptBreak,
         );
         Self::add_invariants(&mut invs, &self.invariant, LoopInvariantKind::InvariantAndEnsures);
+        Self::add_invariants(&mut invs, &self.temporal_invariant, LoopInvariantKind::TemporalInvariant);
         assert!(self.ensure.1.len() == 0);
         Self::add_invariants(&mut invs, &self.ensure.0, LoopInvariantKind::Ensures);
         Arc::new(invs)

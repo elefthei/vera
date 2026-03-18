@@ -515,7 +515,8 @@ fn verus_item_to_vir<'tcx, 'a>(
                     | SpecItem::DecreasesBy
                     | SpecItem::RecommendsBy
                     | SpecItem::InvariantExceptBreak
-                    | SpecItem::Invariant => (false, false),
+                    | SpecItem::Invariant
+                    | SpecItem::TemporalInvariant => (false, false),
 
                     SpecItem::Requires
                     | SpecItem::Decreases
@@ -659,7 +660,7 @@ fn verus_item_to_vir<'tcx, 'a>(
                     let header = Arc::new(HeaderExprX::Decreases(Arc::new(vir_args)));
                     mk_expr(ExprX::Header(header))
                 }
-                SpecItem::InvariantExceptBreak | SpecItem::Invariant => {
+                SpecItem::InvariantExceptBreak | SpecItem::Invariant | SpecItem::TemporalInvariant => {
                     record_spec_fn_pure_args_only(bctx, expr);
                     unsupported_err_unless!(args_len == 1, expr.span, "expected invariant", &args);
                     let subargs = extract_array(args[0]);
@@ -677,6 +678,7 @@ fn verus_item_to_vir<'tcx, 'a>(
                             Arc::new(HeaderExprX::InvariantExceptBreak(Arc::new(vir_args)))
                         }
                         SpecItem::Invariant => Arc::new(HeaderExprX::Invariant(Arc::new(vir_args))),
+                        SpecItem::TemporalInvariant => Arc::new(HeaderExprX::TemporalInvariant(Arc::new(vir_args))),
                         _ => unreachable!(),
                     };
                     mk_expr(ExprX::Header(header))

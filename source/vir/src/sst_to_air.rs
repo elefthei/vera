@@ -46,6 +46,30 @@ use std::collections::{BTreeMap, HashMap};
 use std::mem::swap;
 use std::sync::Arc;
 
+/// A single temporal obligation extracted from a function's ensures clause.
+#[derive(Clone, Debug)]
+pub struct TemporalObligation {
+    pub op: crate::ast::TemporalOp,
+    /// The primary property (φ for AG, ψ target for AU)
+    pub property: Exp,
+    /// The path property for binary operators (φ in AU(φ, ψ))
+    pub path_property: Option<Exp>,
+}
+
+/// Temporal verification context threaded through VCGen.
+/// When non-empty, stm_to_stmts generates additional assertions
+/// per TICL structural rules.
+#[derive(Clone, Debug, Default)]
+pub struct TemporalContext {
+    pub obligations: Vec<TemporalObligation>,
+}
+
+impl TemporalContext {
+    pub fn is_empty(&self) -> bool {
+        self.obligations.is_empty()
+    }
+}
+
 pub struct PostConditionInfo {
     /// Identifier that holds the return value.
     /// May be referenced by `ens_exprs` or `ens_spec_precondition_stms`.
@@ -1608,6 +1632,8 @@ struct State {
     post_condition_info: PostConditionInfo,
     loop_infos: Vec<LoopInfo>,
     static_prelude: Vec<Stmt>,
+    /// Temporal obligations from ensures clauses, threaded through VCGen
+    temporal_context: TemporalContext,
 }
 
 impl State {
@@ -3164,6 +3190,7 @@ pub(crate) fn body_stm_to_air(
         },
         loop_infos: Vec::new(),
         static_prelude: mk_static_prelude(ctx, statics),
+        temporal_context: TemporalContext::default(),
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);

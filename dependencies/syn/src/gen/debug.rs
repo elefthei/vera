@@ -1244,6 +1244,7 @@ impl crate::ExprLoop {
         formatter.field("invariant_except_break", &self.invariant_except_break);
         formatter.field("invariant", &self.invariant);
         formatter.field("invariant_ensures", &self.invariant_ensures);
+        formatter.field("temporal_invariant", &self.temporal_invariant);
         formatter.field("ensures", &self.ensures);
         formatter.field("decreases", &self.decreases);
         formatter.field("body", &self.body);
@@ -1572,6 +1573,7 @@ impl crate::ExprWhile {
         formatter.field("invariant_except_break", &self.invariant_except_break);
         formatter.field("invariant", &self.invariant);
         formatter.field("invariant_ensures", &self.invariant_ensures);
+        formatter.field("temporal_invariant", &self.temporal_invariant);
         formatter.field("ensures", &self.ensures);
         formatter.field("decreases", &self.decreases);
         formatter.field("body", &self.body);
@@ -2144,6 +2146,15 @@ impl Debug for crate::Invariant {
 impl Debug for crate::InvariantEnsures {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let mut formatter = formatter.debug_struct("InvariantEnsures");
+        formatter.field("token", &self.token);
+        formatter.field("exprs", &self.exprs);
+        formatter.finish()
+    }
+}
+#[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
+impl Debug for crate::TemporalInvariantSpec {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let mut formatter = formatter.debug_struct("TemporalInvariantSpec");
         formatter.field("token", &self.token);
         formatter.field("exprs", &self.exprs);
         formatter.finish()

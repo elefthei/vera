@@ -820,6 +820,7 @@ impl Clone for crate::ExprLoop {
             invariant_except_break: self.invariant_except_break.clone(),
             invariant: self.invariant.clone(),
             invariant_ensures: self.invariant_ensures.clone(),
+            temporal_invariant: self.temporal_invariant.clone(),
             ensures: self.ensures.clone(),
             decreases: self.decreases.clone(),
             body: self.body.clone(),
@@ -1041,6 +1042,7 @@ impl Clone for crate::ExprWhile {
             invariant_except_break: self.invariant_except_break.clone(),
             invariant: self.invariant.clone(),
             invariant_ensures: self.invariant_ensures.clone(),
+            temporal_invariant: self.temporal_invariant.clone(),
             ensures: self.ensures.clone(),
             decreases: self.decreases.clone(),
             body: self.body.clone(),
@@ -1468,6 +1470,15 @@ impl Clone for crate::Invariant {
 impl Clone for crate::InvariantEnsures {
     fn clone(&self) -> Self {
         crate::InvariantEnsures {
+            token: self.token.clone(),
+            exprs: self.exprs.clone(),
+        }
+    }
+}
+#[cfg_attr(docsrs, doc(cfg(feature = "clone-impls")))]
+impl Clone for crate::TemporalInvariantSpec {
+    fn clone(&self) -> Self {
+        crate::TemporalInvariantSpec {
             token: self.token.clone(),
             exprs: self.exprs.clone(),
         }
