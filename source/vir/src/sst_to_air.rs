@@ -1645,8 +1645,25 @@ pub(crate) fn exp_to_expr(ctx: &Ctx, exp: &Exp, expr_ctxt: &ExprCtxt) -> Result<
         ExpX::Interp(_) => {
             panic!("Found an interpreter expression {:?} outside the interpreter", exp)
         }
-        ExpX::Temporal(..) => {
-            panic!("Temporal expressions should be structurally decomposed before reaching AIR encoding")
+        ExpX::Temporal(op, inner, goal) => {
+            // TICL bind rule (aul_bind_r): when a callee's temporal ensures
+            // reaches exp_to_expr (e.g., inlined at call sites), extract the
+            // first-order postcondition R:
+            //   af(Q) = AU(true, Q) → R = Q (goal holds at termination)
+            //   ag(Q) → R = Q (Q held at every state, including final)
+            //   au(φ, Q) → R = Q (goal reached)
+            // This implements: a, w |= φ AU AX done(R) where R = callee ensures
+            match op {
+                crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
+                    // Binary: extract goal (second arg) as R
+                    let r = goal.as_ref().unwrap_or(inner);
+                    exp_to_expr(ctx, r, expr_ctxt)?
+                }
+                _ => {
+                    // Unary (AG, EG) or unsupported: extract inner property
+                    exp_to_expr(ctx, inner, expr_ctxt)?
+                }
+            }
         }
     };
     Ok(result)
@@ -2345,7 +2362,15 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 stmts.push(Arc::new(StmtX::Assume(generic_ens_expr)));
             }
             let mut result = vec![Arc::new(StmtX::Block(Arc::new(stmts)))];
-            // TICL ag_seq/aul_seq: prefix obligations after function call
+            // TICL bind rule (aul_bind_r / ag_bind_r):
+            //   {x <- a ;; k x}, w |= φ AU ψ
+            //   ⟸  a, w |= φ AU AX done(R)   — callee ensures R (assumed above)
+            //   ∧  ∀x w', R(x,w') → {k x}, w' |= φ AU ψ
+            //
+            // The callee's ensures (possibly temporal, e.g. af(Q)) is the R.
+            // exp_to_expr extracts the first-order R from temporal expressions
+            // (af(Q) → Q, ag(Q) → Q). The assumption above establishes R.
+            // Prefix obligations below check φ in the continuation k x.
             result.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
             result
         }

@@ -960,3 +960,84 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === TICL bind rule tests ===
+// aul_bind_r: callee ensures af(Q) → R = Q assumed at call site
+
+// Callee with af() ensures called in AG temporal context — bind rule extracts R
+test_verify_one_file! {
+    #[test] test_bind_callee_af_in_ag_context verus_code! {
+        fn reset_to_zero(x: &mut u64)
+            ensures af(*x == 0),
+        {
+            *x = 0;
+        }
+
+        fn ag_caller(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                *x = *x + 1;
+                if *x > 5 {
+                    reset_to_zero(x);
+                    // After call: af(*x == 0) → assume *x == 0 (bind rule R)
+                    // Invariant *x <= 10 holds since 0 <= 10
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// Callee with af() ensures — caller verifies AU postcondition
+test_verify_one_file! {
+    #[test] test_bind_callee_af_in_au_context verus_code! {
+        fn decrement(x: &mut u64)
+            requires *old(x) > 0,
+            ensures af(*x == *old(x) - 1),
+        {
+            *x = *x - 1;
+        }
+
+        fn drain_to_zero(x: &mut u64)
+            requires *old(x) > 0,
+            ensures af(*x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                decrement(x);
+            }
+        }
+    } => Ok(())
+}
+
+// Callee with standard (non-temporal) ensures in temporal caller — also works
+test_verify_one_file! {
+    #[test] test_bind_callee_standard_in_ag_context verus_code! {
+        fn add_one(x: &mut u64)
+            requires *old(x) < 20,
+            ensures *x == *old(x) + 1,
+        {
+            *x = *x + 1;
+        }
+
+        fn bounded_counter(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 {
+                    add_one(x);
+                } else {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}

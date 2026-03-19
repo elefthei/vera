@@ -463,11 +463,9 @@ fn req_ens_to_air(
             exprs.push(e.clone());
         }
         for (default_ensures, exp) in specs.iter() {
-            // Skip temporal postconditions — they are handled by temporal VCGen,
-            // not as standard function axioms
-            if matches!(&exp.x, crate::sst::ExpX::Temporal(..)) {
-                continue;
-            }
+            // Temporal postconditions (af(Q), ag(Q), au(φ,Q)) are included in the
+            // ensures predicate — exp_to_expr extracts the first-order R via the
+            // TICL bind rule (af(Q) → Q, ag(Q) → Q, au(φ,Q) → Q).
             let expr_ctxt = if is_singular {
                 ExprCtxt::new_mode_singular(ExprMode::Spec, true)
             } else {
