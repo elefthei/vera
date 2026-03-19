@@ -688,3 +688,177 @@ test_verify_one_file! {
         }
     } => Err(err) => assert_any_vir_error_msg(err, "loop must have a decreases clause")
 }
+
+// === TICL ag_seq / aul_seq: Prefix temporal obligation tests ===
+// These test that the temporal property φ must hold at every intermediate state
+// in prefix code before the temporal loop (TICL sequence composition rules).
+
+// Assignment in prefix violates AG property — should fail
+test_verify_one_file! {
+    #[test] test_prefix_assign_violates_ag verus_code! {
+        fn test_prefix_bad(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            *x = 999; // violates *x <= 20
+            *x = 0;
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+}
+
+// Assignment in prefix satisfies AG property — should pass
+test_verify_one_file! {
+    #[test] test_prefix_assign_clean_ag verus_code! {
+        fn test_prefix_ok(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            *x = 5; // 5 <= 20, OK
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// Utility loop in prefix violates AG property — should fail
+// The utility loop body sets x to 999, violating the AG invariant *x <= 20
+// which is added as an additional invariant on the utility loop.
+test_verify_one_file! {
+    #[test] test_prefix_utility_loop_violates_ag verus_code! {
+        fn test_utility_bad(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            let mut setup: u64 = 5;
+            while setup > 0
+                invariant setup <= 5,
+                decreases setup,
+            {
+                *x = 999; // breaks the additional invariant *x <= 20 at iteration boundary
+                setup = setup - 1;
+            }
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "invariant not satisfied at end of loop body")
+}
+
+// Utility loop in prefix preserves AG property — should pass
+// The utility loop body doesn't modify x, so the additional invariant *x <= 20 is preserved.
+test_verify_one_file! {
+    #[test] test_prefix_utility_loop_preserves_ag verus_code! {
+        fn test_utility_ok(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            let mut setup: u64 = 5;
+            while setup > 0
+                invariant setup <= 5,
+                decreases setup,
+            {
+                setup = setup - 1;
+                // x is not modified — additional invariant *x <= 20 trivially preserved
+            }
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// Function call in prefix violates AG property — should fail
+test_verify_one_file! {
+    #[test] test_prefix_call_violates_ag verus_code! {
+        fn set_high(x: &mut u64)
+            ensures *x == 999,
+        {
+            *x = 999;
+        }
+
+        fn test_call_bad(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            set_high(x); // x becomes 999, violating *x <= 20
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+}
+
+// Conditional in prefix — one branch violates AG property — should fail
+test_verify_one_file! {
+    #[test] test_prefix_conditional_violates_ag verus_code! {
+        fn test_cond_bad(x: &mut u64, flag: bool)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            if flag {
+                *x = 5; // OK
+            } else {
+                *x = 999; // violates *x <= 20
+            }
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+}
+
+// AU with non-trivial path property checked in prefix — should fail
+// au(*x > 0, *x == 0): path property *x > 0 must hold at every step until *x == 0.
+// But prefix sets x to 0 immediately, violating the path property.
+test_verify_one_file! {
+    #[test] test_prefix_au_path_property_fail verus_code! {
+        fn test_au_prefix_bad(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x > 0, *x == 0),
+        {
+            *x = 0; // violates path property *x > 0 (and coincidentally reaches goal)
+            while *x > 0
+                invariant *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+}
+
+// AF (= au(true, ...)) has trivial prefix obligation — should always pass
+// The path property is `true`, so no prefix assertions are generated.
+test_verify_one_file! {
+    #[test] test_prefix_af_trivial verus_code! {
+        fn test_af_prefix_ok(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(*x == 0),
+        {
+            *x = 999; // would violate any non-trivial prefix, but AF has ⊤ prefix
+            *x = 10;
+            while *x > 0
+                invariant *x <= 1000,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
