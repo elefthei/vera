@@ -1,55 +1,17 @@
-[![Quick Start](https://img.shields.io/badge/tutorial-quick%20start-informational)](https://verus-lang.github.io/verus/guide/getting_started.html) [![Verus docs](https://img.shields.io/badge/docs-verus-informational)](https://verus-lang.github.io/verus/guide/) [![Library Documentation](https://img.shields.io/badge/docs-vstd-informational)](https://verus-lang.github.io/verus/verusdoc/vstd/) [![project chat](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://verus-lang.zulipchat.com)
+# <a href="https://verus-lang.github.io/verus/verus/logo.html"><img height="60px" src="https://verus-lang.github.io/verus/verus/assets/verus-color.svg" alt="Verus" /></a> Vera (Verus Always)
 
-# <a href="https://verus-lang.github.io/verus/verus/logo.html"><img height="60px" src="https://verus-lang.github.io/verus/verus/assets/verus-color.svg" alt="Verus" /></a> <a href="https://github.com/verus-lang/verus"><picture><source media="(prefers-color-scheme: dark)" height="60px" height="60px" srcset="https://verus-lang.github.io/verus/verus/assets/verus-text-dark.svg" /><img height="60px" height="60px" src="https://verus-lang.github.io/verus/verus/assets/verus-text-light.svg" alt="Verus" /></picture></a>
+**Vera** extends [Verus](https://github.com/verus-lang/verus) with **CTL temporal logic**
+to prove **liveness** and **fairness** properties of Rust programs at compile time.
 
-Verus is a tool for verifying the correctness of code written in Rust.
-Developers write specifications of what their code should do,
-and Verus statically checks that the executable Rust code will always 
-satisfy the specifications for all possible executions of the code.
-Rather than adding run-time checks, Verus instead relies on powerful solvers to
-prove the code is correct.  Verus currently supports a subset of Rust (which we
-are working to expand), and in some cases, it allows developers to go beyond
-the standard Rust type system and statically check the correctness of code
-that, for example, manipulates raw pointers.  
+While Verus proves *safety* (something bad never happens), Vera adds the ability to prove
+*liveness* (something good eventually happens) — including **always-eventually** (fairness)
+properties for infinite-running systems like schedulers, servers, and event loops.
 
-![VS Code Demo](source/docs/verus-demo.png)
+Vera is built on the [TICL](https://github.com/eioannidis/ticl) framework, which provides
+sound structural rules for decomposing CTL temporal obligations into standard first-order
+verification conditions checked by Z3.
 
-## Status
-
-Verus is under *active development*. Features may be broken and/or missing, and
-the documentation is still incomplete. If you want to try Verus, please be
-prepared to ask for help in the [💬 Zulip](https://verus-lang.zulipchat.com/).
-
-The Verus community has published a number of research papers, and there are a
-variety of industry and academic projects using Verus. You can find a list on our
-<a href="https://verus-lang.github.io/verus/publications-and-projects/">publications and projects</a> page. 
-If you're using Verus please consider adding your project to that page (see the instructions there).
-
-## Try Verus
-
-To try Verus in your browser, please visit the [Verus Playground](https://play.verus-lang.org/).
-For more involved development, please follow our [installation instructions](INSTALL.md).
-Then you can dive into the documentation below, starting
-with the [📖 Tutorial and reference](https://verus-lang.github.io/verus/guide/).
-We also support an auto-formatter ([verusfmt](https://github.com/verus-lang/verusfmt)) for your
-Verus code.
-
-## Documentation
-Our (work-in-progress) documentation resources include:
- * [📖 Tutorial and reference](https://verus-lang.github.io/verus/guide/)
- * [📖 API documentation for Verus's standard library](https://verus-lang.github.io/verus/verusdoc/vstd/)
- * [📖 Guide for verifying concurrent code](https://verus-lang.github.io/verus/state_machines/)
- * [Contributing to Verus](CONTRIBUTING.md)
- * [Best Practices](best-practices-for-publishing-verusverified-code-on-cratesio) for publishing Verus-related crates on [crates.io](crates.io).
- * [Verus License](LICENSE)
- * [Verus Logos](https://verus-lang.github.io/verus/verus/logo.html)
-
-## Temporal Verification (Experimental)
-
-Verus includes experimental support for **CTL temporal logic** operators in postconditions,
-enabling verification of **liveness** and **fairness** properties for programs with loops.
-
-### Supported Operators
+## Temporal Operators
 
 | Operator | Meaning |
 |----------|---------|
@@ -62,10 +24,10 @@ work via recursive decomposition into leaf obligations. For example, `ag(af(φ))
 `AG` wrapping `AU(⊤, φ)`: the outer AG requires an infinite loop with invariance, the
 inner AU requires progress toward φ on each iteration.
 
-### How It Works
+## How It Works
 
-Temporal postconditions are decomposed into standard first-order verification conditions
-using structural rules from the [TICL](https://github.com/eioannidis/ticl) framework:
+Temporal postconditions in `ensures` clauses are decomposed into standard first-order
+verification conditions using TICL structural rules:
 
 - **`ensures ag(φ)`** — the function must contain an infinite loop (`loop` without `decreases`)
   whose invariant R implies φ. The loop may never exit.
@@ -74,9 +36,13 @@ using structural rules from the [TICL](https://github.com/eioannidis/ticl) frame
 - **`ensures au(φ, ψ)`** — path property φ holds until goal ψ is reached. Requires `decreases`
   weakened to ψ ∨ (measure decreased).
 - **Prefix code** (assignments, calls before the temporal loop) must maintain φ at every step
-  (sequence composition rules).
+  (sequence composition rules: `ag_seq`, `aul_seq`).
 
-### Example: Round-Robin Fairness
+The key insight: `{P} prog {Q}` in Verus Hoare logic corresponds to `{P} prog {AF(done ∧ Q)}`
+in temporal logic. Standard `ensures` + `decreases` already proves `AF(Q)` — temporal operators
+add genuinely new capabilities for infinite computations (`AG`) and fairness (`AG(AF)`).
+
+## Example: Round-Robin Fairness
 
 A round-robin scheduler dequeues from the front and re-enqueues at the back.
 The fairness property: every element eventually returns to the head.
@@ -110,7 +76,7 @@ impl Queue {
     { self.data.remove(0) }
 }
 
-/// Round-robin loop with AG(AF(peek == x)) fairness postcondition.
+/// Round-robin loop: AG(AF(peek == x)) fairness postcondition.
 /// The loop invariant serves as the temporal refinement mapping R.
 /// No `decreases` → AG (infinite loop). R → φ is checked automatically.
 fn round_robin(queue: &mut Queue)
@@ -129,11 +95,11 @@ fn round_robin(queue: &mut Queue)
 
 See also [`examples/drain.rs`](examples/drain.rs) for an `AF` (progress/termination) proof.
 
-### Building This Branch
+## Building
 
-This feature lives on the `ctl-operators-liveness` branch and requires a
-**forked `syn`** crate (vendored in `dependencies/syn/` as `verus_syn`) that adds
-temporal keyword parsing. To build:
+Vera requires a **forked `syn`** crate (vendored in `dependencies/syn/` as `verus_syn`)
+that adds temporal keyword parsing. Everything is checked into this branch — no extra
+setup beyond Z3.
 
 ```sh
 # 1. Get Z3
@@ -144,37 +110,33 @@ cd source
 source ../tools/activate     # sets up vargo (cargo wrapper for Verus)
 vargo build --vstd-no-verify # fast build, skips vstd SMT verification
 
-# 3. Run an example
+# 3. Run examples
 ./target-verus/release/verus --crate-type=lib ../examples/round_robin.rs
 ./target-verus/release/verus --crate-type=lib ../examples/drain.rs
 ```
 
-> **Note:** The vendored `dependencies/syn/` is checked into this branch — no
-> extra submodule or crate registry setup is needed. The workspace `Cargo.toml`
-> references it via local path as `verus_syn`.
+### Running Tests
 
-## Examples of Using Verus
-In addition to the documentation above, it can be helpful to see Verus used in action.  Here are some starting points.
- * [Publications and projects](https://verus-lang.github.io/verus/publications-and-projects/) using Verus.
- * [Videos, slides, and exercises](https://verus-lang.github.io/event-sites/2024-sosp/) from a day-long Verus tutorial.
- * [Standalone examples](https://github.com/secure-foundations/human-eval-verus/) showing Verus in use for small, concrete tasks.
- * [Small and medium-sized examples](examples) illustrating various Verus features
- * [Unit tests](source/rust_verify_test/tests) for Verus, containing examples of Verus syntax and features.
+```sh
+cd source
+source ../tools/activate
+vargo test -p rust_verify_test --test temporal   # 54 temporal logic tests
+vargo test -p rust_verify_test --test loops      # 62 loop regression tests
+```
 
-## Getting in touch, reporting issues, and starting discussions
+## Examples
 
-Please report issues or start discussions here on GitHub, or join us on [💬 Zulip](https://verus-lang.zulipchat.com/) for more realtime discussions and if you need help. Thank you for using and contributing to Verus!
+ * [`examples/round_robin.rs`](examples/round_robin.rs) — AG(AF) fairness: every element eventually returns to the head
+ * [`examples/drain.rs`](examples/drain.rs) — AF progress: draining a queue eventually empties it
+ * [More Verus examples](examples) illustrating various features
 
-We use GitHub discussions for feature requests and more open-ended conversations about
-upcoming features, and we reserve GitHub issues for actionable issues (bugs) with
-existing features. Don't worry though: if we think an issue should be a discussion (or
-vice versa) we can always move it later.
+## Built on Verus
 
-We welcome contributions! If you'd like to contribute code, have a look at the tips in
-[Contributing to Verus](CONTRIBUTING.md).
+Vera is a fork of [Verus](https://github.com/verus-lang/verus), a tool for verifying
+the correctness of Rust code using SMT solvers. All standard Verus features (safety
+verification, vstd, state machines, etc.) remain fully functional.
 
----
-
-[<img src="source/docs/zulip-icon-circle.svg" alt="Zulip" style="height: 1em;"/> Zulip](https://zulip.com/) sponsors free hosting for Verus. Zulip is an open-source modern team chat app designed to keep both live and asynchronous conversations organized.
-
-Special thanks to Johanna Polzin for her contribution to the design of the Verus Logo. The Verus logos (bitmap and vector) are by the <b>Verus Contributors</b> and licensed under the terms of <a href="https://creativecommons.org/licenses/by/4.0/?ref=chooser-v1" target="_blank" rel="license noopener noreferrer">Creative Commons Attribution 4.0 International<img style="height:22px!important;width:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/cc.svg?ref=chooser-v1" alt=""><img style="height:22px!important;width:22px!important;margin-left:3px;vertical-align:text-bottom;" src="https://mirrors.creativecommons.org/presskit/icons/by.svg?ref=chooser-v1" alt=""></a> license.
+ * [📖 Verus Tutorial and reference](https://verus-lang.github.io/verus/guide/)
+ * [📖 vstd API documentation](https://verus-lang.github.io/verus/verusdoc/vstd/)
+ * [💬 Verus Zulip](https://verus-lang.zulipchat.com/)
+ * [Verus License](LICENSE)
