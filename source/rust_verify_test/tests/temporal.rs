@@ -328,6 +328,21 @@ test_verify_one_file! {
     } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with an invariant")
 }
 
+// Nested AU(φ, AG(ψ)) — structural composition: AU wrapping AG in the goal position.
+// Currently decompose_temporal only recurses on the first (property) argument.
+// When the goal (second arg) contains temporal operators, those are stored as-is
+// in the TemporalObligation.goal field. Full VCGen decomposition of temporal goals
+// (e.g., phased verification where AU reaches AG) is future work.
+// For now, the temporal expression in the goal is accepted but not deeply checked.
+test_verify_one_file! {
+    #[test] test_nested_au_ag_in_ensures verus_code! {
+        fn test_nested_au_ag(x: u64)
+            ensures au(x > 0, ag(x > 0)),
+        {
+        }
+    } => Ok(()) // TODO: should require a loop structure when goal contains AG
+}
+
 // === I4: Function calls inside loops with temporal invariant ===
 
 // Function call preserving temporal invariant — caught by loop-end R check
