@@ -44,6 +44,111 @@ Our (work-in-progress) documentation resources include:
  * [Verus License](LICENSE)
  * [Verus Logos](https://verus-lang.github.io/verus/verus/logo.html)
 
+## Temporal Verification (Experimental)
+
+Verus includes experimental support for **CTL temporal logic** operators in postconditions,
+enabling verification of **liveness** and **fairness** properties for programs with loops.
+
+### Supported Operators
+
+| Operator | Meaning |
+|----------|---------|
+| `ag(φ)` | **Always globally**: φ holds at every state of an infinite computation |
+| `af(φ)` | **Always finally**: φ is eventually reached (sugar for `au(true, φ)`) |
+| `au(φ, ψ)` | **Always until**: φ holds at every state until ψ is reached |
+| `ag(af(φ))` | **Fairness**: φ recurrently holds forever (always eventually) |
+
+### How It Works
+
+Temporal postconditions are decomposed into standard first-order verification conditions
+using structural rules from the [TICL](https://github.com/eioannidis/ticl) framework:
+
+- **`ensures ag(φ)`** — the function must contain an infinite loop (`loop` without `decreases`)
+  whose invariant R implies φ. The loop may never exit.
+- **`ensures af(φ)`** — equivalent to standard termination + postcondition for sequential code.
+  The loop needs a `decreases` clause proving progress toward φ.
+- **`ensures au(φ, ψ)`** — path property φ holds until goal ψ is reached. Requires `decreases`
+  weakened to ψ ∨ (measure decreased).
+- **Prefix code** (assignments, calls before the temporal loop) must maintain φ at every step
+  (sequence composition rules).
+
+### Example: Round-Robin Fairness
+
+A round-robin scheduler dequeues from the front and re-enqueues at the back.
+The fairness property: every element eventually returns to the head.
+
+```rust
+use vstd::prelude::*;
+
+verus! {
+
+struct Queue {
+    data: Vec<u64>,
+}
+
+impl Queue {
+    spec fn view(&self) -> Seq<u64> { self.data@ }
+    spec fn peek_spec(&self) -> u64  { self.view().first() }
+
+    fn new() -> (q: Queue)
+        ensures q.view().len() == 0,
+    { Queue { data: Vec::new() } }
+
+    fn enqueue(&mut self, val: u64)
+        ensures self.view() == old(self).view().push(val),
+    { self.data.push(val); }
+
+    fn dequeue(&mut self) -> (val: u64)
+        requires old(self).view().len() > 0,
+        ensures
+            val == old(self).view().first(),
+            self.view() == old(self).view().subrange(1, old(self).view().len() as int),
+    { self.data.remove(0) }
+}
+
+/// Round-robin loop with AG(AF(peek == x)) fairness postcondition.
+/// The loop invariant serves as the temporal refinement mapping R.
+/// No `decreases` → AG (infinite loop). R → φ is checked automatically.
+fn round_robin(queue: &mut Queue)
+    requires old(queue).view().len() > 0,
+{
+    loop
+        invariant queue.view().len() > 0,
+    {
+        let x = queue.dequeue();
+        queue.enqueue(x);
+    }
+}
+
+} // verus!
+```
+
+See also [`examples/drain.rs`](examples/drain.rs) for an `AF` (progress/termination) proof.
+
+### Building This Branch
+
+This feature lives on the `ctl-operators-liveness` branch and requires a
+**forked `syn`** crate (vendored in `dependencies/syn/` as `verus_syn`) that adds
+temporal keyword parsing. To build:
+
+```sh
+# 1. Get Z3
+./tools/get-z3.sh           # downloads Z3 4.12.5, sets VERUS_Z3_PATH
+
+# 2. Build (from source/ directory)
+cd source
+source ../tools/activate     # sets up vargo (cargo wrapper for Verus)
+vargo build --vstd-no-verify # fast build, skips vstd SMT verification
+
+# 3. Run an example
+./target-verus/release/verus --crate-type=lib ../examples/round_robin.rs
+./target-verus/release/verus --crate-type=lib ../examples/drain.rs
+```
+
+> **Note:** The vendored `dependencies/syn/` is checked into this branch — no
+> extra submodule or crate registry setup is needed. The workspace `Cargo.toml`
+> references it via local path as `verus_syn`.
+
 ## Examples of Using Verus
 In addition to the documentation above, it can be helpful to see Verus used in action.  Here are some starting points.
  * [Publications and projects](https://verus-lang.github.io/verus/publications-and-projects/) using Verus.
