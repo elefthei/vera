@@ -1600,6 +1600,13 @@ struct State {
     temporal_discharged: bool,
     /// Set to true when a loop without decreases exists in temporal context (AG = infinite loop)
     has_infinite_temporal_loop: bool,
+    /// TICL ag_seq/aul_seq: properties that must hold at every intermediate state
+    /// in prefix code before the temporal loop. AG(φ) → [φ], AU(path, goal) → [path].
+    /// AF(ψ) = AU(⊤, ψ) → empty (trivial prefix).
+    temporal_prefix_obligations: Vec<Exp>,
+    /// Depth counter for loop nesting — prefix assertions only fire outside all loops.
+    /// Incremented at start of Loop handler, decremented at end.
+    in_loop_depth: u32,
 }
 
 impl State {
@@ -1939,6 +1946,31 @@ fn temporal_loop_assertions(
     Ok(stmts)
 }
 
+/// TICL ag_seq / aul_seq: emit assertions for prefix temporal obligations.
+/// These obligations ensure the temporal property φ holds at every intermediate
+/// state before the temporal loop. Emitted after Assign and Call statements.
+/// Only fires outside of loop bodies — inside loops, invariant checking handles φ.
+fn emit_prefix_assertions(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    // Inside a loop (including its initialization code), the loop's invariant
+    // machinery handles temporal properties. Only emit in straight-line prefix
+    // code outside all loops.
+    if state.in_loop_depth > 0 {
+        return Ok(Vec::new());
+    }
+    let mut stmts = Vec::new();
+    for obligation_exp in &state.temporal_prefix_obligations {
+        let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
+        let err = error(span, "temporal property must hold at every step (TICL sequence rule)");
+        stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2213,11 +2245,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let generic_ens_expr = exp_to_expr(ctx, &generic_ens_exp, expr_ctxt)?;
                 stmts.push(Arc::new(StmtX::Assume(generic_ens_expr)));
             }
-            // Note: No per-call temporal assertions needed here. Function calls inside loops
-            // are covered by the loop-end temporal invariant preservation check (TICL rule).
-            // If a callee breaks the temporal invariant R, the `assert R` at the end of the
-            // loop iteration will catch it. Only loop boundaries are observation points.
-            vec![Arc::new(StmtX::Block(Arc::new(stmts)))] // wrap in block for readability
+            let mut result = vec![Arc::new(StmtX::Block(Arc::new(stmts)))];
+            // TICL ag_seq/aul_seq: prefix obligations after function call
+            result.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            result
         }
         StmX::Assert(assert_id, error, expr) => {
             let air_expr = exp_to_expr(ctx, &expr, expr_ctxt)?;
@@ -2427,7 +2458,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
         }
         StmX::Assign { lhs: Dest { dest, is_init: true }, rhs } => {
             let x = loc_is_var(dest).expect("is_init assign dest must be a variable");
-            stm_to_stmts(ctx, state, &assume_var(&stm.span, x, rhs))?
+            let mut stmts = stm_to_stmts(ctx, state, &assume_var(&stm.span, x, rhs))?;
+            // TICL ag_seq/aul_seq: prefix obligations after init assignment
+            stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            stmts
         }
         StmX::Assign { lhs: Dest { dest, is_init: false }, rhs } => {
             let mut stmts: Vec<Stmt> = Vec::new();
@@ -2518,6 +2552,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     stmts.push(Arc::new(StmtX::Assume(expr)));
                 }
             }
+
+            // TICL ag_seq/aul_seq: prefix obligations after mutation
+            stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
 
             stmts
         }
@@ -2698,6 +2735,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             pre_modified_params,
         } => {
             let loop_isolation = *loop_isolation;
+            state.in_loop_depth += 1;
             let (cond_stm, pos_assume, neg_assume) = if let Some((cond_stm, cond_exp)) = cond {
                 let pos_cond = exp_to_expr(ctx, &cond_exp, expr_ctxt)?;
                 let neg_cond = Arc::new(ExprX::Unary(air::ast::UnaryOp::Not, pos_cond.clone()));
@@ -2732,8 +2770,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     invs_exit.push((inv.inv.span.clone(), expr.clone(), msg_opt.clone(), both));
                 }
             }
-            let invs_entry = Arc::new(invs_entry);
-            let invs_exit = Arc::new(invs_exit);
+            let mut invs_entry = Arc::new(invs_entry);
+            let mut invs_exit = Arc::new(invs_exit);
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -2741,6 +2779,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // - Loop without decreases in temporal context → AG (infinite loop)
             // - Loop with decreases + AU obligations → AU (progress loop)
             // - Loop with decreases + AG only → standard utility loop (not temporal)
+            let is_utility_loop_in_temporal;
             if !state.temporal_context.is_empty() {
                 let is_ag_loop = decrease.len() == 0;
                 let has_au = state.temporal_context.obligations.iter()
@@ -2751,6 +2790,24 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         temporal_invs.push((span.clone(), inv.clone()));
                     }
                 }
+                is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop;
+            } else {
+                is_utility_loop_in_temporal = false;
+            }
+
+            // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
+            // the prefix temporal property φ. Add φ as additional loop invariant
+            // so standard invariant checking covers the AU-prefix requirement.
+            if is_utility_loop_in_temporal && !state.temporal_prefix_obligations.is_empty() {
+                let mut entry_ext: Vec<_> = (*invs_entry).clone();
+                let mut exit_ext: Vec<_> = (*invs_exit).clone();
+                for prefix_exp in &state.temporal_prefix_obligations {
+                    let prefix_expr = exp_to_expr(ctx, prefix_exp, expr_ctxt)?;
+                    entry_ext.push((prefix_exp.span.clone(), prefix_expr.clone(), None, true));
+                    exit_ext.push((prefix_exp.span.clone(), prefix_expr, None, true));
+                }
+                invs_entry = Arc::new(entry_ext);
+                invs_exit = Arc::new(exit_ext);
             }
 
             // Track that this loop discharges temporal obligations.
@@ -3056,6 +3113,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let snapshot = Arc::new(StmtX::Snapshot(sid));
                 stmts.push(snapshot);
             }
+            state.in_loop_depth -= 1;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3352,6 +3410,28 @@ pub(crate) fn body_stm_to_air(
     }
     let temporal_context = TemporalContext { obligations: temporal_obligations };
 
+    // TICL ag_seq / aul_seq: compute prefix obligations from temporal context.
+    // These must hold at every intermediate state in prefix code (before temporal loop).
+    // AG(φ) → φ must hold at every step
+    // AU(path, goal) → path must hold at every step (skip if path is trivially true)
+    // Note: For AU, `obligation.property` is the path φ (first arg of AU(φ, ψ)),
+    //       and `obligation.path_property` is the goal ψ (second arg).
+    let temporal_prefix_obligations: Vec<Exp> = temporal_context.obligations.iter().filter_map(|o| {
+        match o.op {
+            crate::ast::TemporalOp::AG => Some(o.property.clone()),
+            crate::ast::TemporalOp::AU => {
+                // For AU, the path property is in `property` (first arg).
+                // AF(ψ) = AU(true, ψ): property = true → skip (trivial prefix)
+                let path = &o.property;
+                match &path.x {
+                    ExpX::Const(crate::ast::Constant::Bool(true)) => None,
+                    _ => Some(path.clone()),
+                }
+            }
+            _ => None,
+        }
+    }).collect();
+
     let unwind_air = match unwind {
         UnwindSst::MayUnwind => UnwindAir::MayUnwind,
         UnwindSst::NoUnwind => UnwindAir::NoUnwind(ReasonForNoUnwind::Function),
@@ -3389,6 +3469,8 @@ pub(crate) fn body_stm_to_air(
         temporal_context,
         temporal_discharged: false,
         has_infinite_temporal_loop: false,
+        temporal_prefix_obligations,
+        in_loop_depth: 0,
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
