@@ -56,7 +56,11 @@ enabling verification of **liveness** and **fairness** properties for programs w
 | `ag(φ)` | **Always globally**: φ holds at every state of an infinite computation |
 | `af(φ)` | **Always finally**: φ is eventually reached (sugar for `au(true, φ)`) |
 | `au(φ, ψ)` | **Always until**: φ holds at every state until ψ is reached |
-| `ag(af(φ))` | **Fairness**: φ recurrently holds forever (always eventually) |
+
+Operators compose structurally — `ag(af(φ))`, `au(φ, ag(ψ))`, `ag(ag(φ))`, etc. all
+work via recursive decomposition into leaf obligations. For example, `ag(af(φ))` is just
+`AG` wrapping `AU(⊤, φ)`: the outer AG requires an infinite loop with invariance, the
+inner AU requires progress toward φ on each iteration.
 
 ### How It Works
 

@@ -5,19 +5,20 @@
 // This example demonstrates a simple round-robin scheduler over a FIFO queue.
 // The fairness property we want to prove is:
 //   Given precondition { queue.peek() == x },
-//   AG (AU(true, queue.peek() == x))   i.e. AG(AF(peek == x))
+//   AG(AF(queue.peek() == x))
 //   i.e., it is always the case that eventually x returns to the head.
 //
+// AG(AF(φ)) is not a special operator — it is nested composition:
+//   AG wraps AU(true, φ) (since AF is sugar for AU(true, ·)).
+//   decompose_temporal flattens this into a single AU obligation
+//   with requires_invariance = true (from the outer AG).
+//
 // Temporal VCGen:
-//   - `ensures ag(au(true, ...))` declares the temporal postcondition
+//   - `ensures ag(af(...))` is decomposed structurally into leaf obligations
 //   - Loop `invariant` serves as the temporal refinement mapping R
-//     (no separate temporal_invariant annotation needed)
-//   - For AG: the loop has no `decreases` → infinite loop, invariant = R
-//   - TICL structural rules decompose these into standard AIR assertions:
-//     * R established at loop entry (standard invariant check)
-//     * R preserved by loop body (standard invariant check)
-//     * R(state) → φ(state) checked at loop boundary
-//     * break unreachable (AG non-exit)
+//   - For the AG layer: no `decreases` → infinite loop, R→φ checked
+//   - For the AU layer: progress toward the goal checked per iteration
+//   - Structural rules handle prefix code and loop boundaries automatically
 
 use vstd::prelude::*;
 
