@@ -53,16 +53,47 @@ use std::mem::swap;
 use std::sync::Arc;
 
 /// A single temporal obligation extracted from a function's ensures clause.
+/// Each variant enforces the correct arity for its operator.
 #[derive(Clone, Debug)]
-pub struct TemporalObligation {
-    pub op: crate::ast::TemporalOp,
-    /// For AG(φ): the invariant φ. For AU(φ, ψ): the path property φ (first arg).
-    pub property: Exp,
-    /// For AU(φ, ψ): the goal ψ (second arg). None for unary operators like AG.
-    pub goal: Option<Exp>,
-    /// True when this obligation was nested inside an AG (coinductive invariance).
-    /// When true, the loop invariant R serves as the temporal refinement mapping.
-    pub requires_invariance: bool,
+pub enum TemporalObligation {
+    /// AG(φ): φ must hold at every state of an infinite computation.
+    Always {
+        property: Exp,
+        /// True when nested inside an outer AG (coinductive invariance).
+        requires_invariance: bool,
+    },
+    /// AU(φ, ψ): path property φ holds at every state until goal ψ is reached.
+    Until {
+        path: Exp,
+        goal: Exp,
+        /// True when nested inside an outer AG (coinductive invariance).
+        requires_invariance: bool,
+    },
+    /// AN(φ, ψ): next-state operator (future work).
+    Next {
+        path: Exp,
+        goal: Exp,
+        /// True when nested inside an outer AG (coinductive invariance).
+        requires_invariance: bool,
+    },
+}
+
+impl TemporalObligation {
+    pub fn requires_invariance(&self) -> bool {
+        match self {
+            TemporalObligation::Always { requires_invariance, .. }
+            | TemporalObligation::Until { requires_invariance, .. }
+            | TemporalObligation::Next { requires_invariance, .. } => *requires_invariance,
+        }
+    }
+
+    pub fn is_always(&self) -> bool {
+        matches!(self, TemporalObligation::Always { .. })
+    }
+
+    pub fn is_until(&self) -> bool {
+        matches!(self, TemporalObligation::Until { .. })
+    }
 }
 
 /// Temporal verification context threaded through VCGen.
@@ -1963,9 +1994,9 @@ fn temporal_loop_assertions(
     };
 
     for obligation in &state.temporal_context.obligations {
-        match obligation.op {
-            crate::ast::TemporalOp::AG => {
-                let phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
+        match obligation {
+            TemporalObligation::Always { property, .. } => {
+                let phi = exp_to_expr(ctx, property, expr_ctxt)?;
                 if let Some(r_conj) = &r_conjunction {
                     // Explicit implication: assert R → φ
                     let implication = mk_implies(&r_conj, &phi);
@@ -1977,18 +2008,16 @@ fn temporal_loop_assertions(
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
                 }
             }
-            crate::ast::TemporalOp::AU => {
-                // AU(φ, ψ): assert ψ ∨ φ — path property holds until goal reached
-                if let Some(goal) = &obligation.goal {
-                    let goal_psi = exp_to_expr(ctx, goal, expr_ctxt)?;
-                    let path_phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
-                    let phi_until_psi = mk_or(&vec![path_phi, goal_psi]);
-                    let error = error(span, "temporal AU: path property violated before goal reached");
-                    stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
-                }
+            TemporalObligation::Until { path, goal, .. } => {
+                // AU(φ, ψ): assert φ ∨ ψ — path property holds until goal reached
+                let path_phi = exp_to_expr(ctx, path, expr_ctxt)?;
+                let goal_psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                let phi_until_psi = mk_or(&vec![path_phi, goal_psi]);
+                let error = error(span, "temporal AU: path property violated before goal reached");
+                stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
             }
             _ => {
-                // Other temporal operators not yet supported for VCGen
+                // Next and other temporal operators not yet supported for VCGen
             }
         }
     }
@@ -2659,7 +2688,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 // Loops with decreases are AU/standard and CAN exit.
                 if *is_break && !loop_info.temporal_invs.is_empty() && loop_info.decrease.len() == 0 {
                     let has_ag = state.temporal_context.obligations.iter()
-                        .any(|o| matches!(o.op, crate::ast::TemporalOp::AG) || o.requires_invariance);
+                        .any(|o| o.is_always() || o.requires_invariance());
                     if has_ag {
                         let error = error_with_label(
                             &stm.span,
@@ -2695,17 +2724,20 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
 
                     // TICL: weaken decreases at continue for AU obligations (ψ ∨ m decreased)
                     // Only weaken for loops in temporal context
-                    let au_goals: Vec<_> = if !loop_info.temporal_invs.is_empty() {
+                    let au_goals: Vec<(&Exp, &Exp)> = if !loop_info.temporal_invs.is_empty() {
                         state.temporal_context.obligations.iter()
-                            .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                            .filter_map(|o| match o {
+                                TemporalObligation::Until { path, goal, .. } => Some((path, goal)),
+                                _ => None,
+                            })
                             .collect()
                     } else {
                         vec![]
                     };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
-                        for au in &au_goals {
-                            let psi = exp_to_expr(ctx, &au.property, expr_ctxt)?;
+                        for (_, goal) in &au_goals {
+                            let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
                             disjuncts.push(psi);
                         }
                         let weakened = mk_or(&disjuncts);
@@ -2832,7 +2864,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             if !state.temporal_context.is_empty() {
                 let is_ag_loop = decrease.len() == 0;
                 let has_au = state.temporal_context.obligations.iter()
-                    .any(|o| matches!(o.op, crate::ast::TemporalOp::AU));
+                    .any(|o| o.is_until());
                 let is_au_loop = decrease.len() > 0 && has_au;
                 if is_ag_loop || is_au_loop {
                     for (span, inv, _, _) in invs_entry.iter() {
@@ -2872,7 +2904,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // If the temporal context has AU obligations, decreases is mandatory.
             if !temporal_invs.is_empty() && decrease.len() == 0 {
                 let has_au = state.temporal_context.obligations.iter()
-                    .any(|o| matches!(o.op, crate::ast::TemporalOp::AU));
+                    .any(|o| o.is_until());
                 if has_au {
                     return Err(error(&stm.span,
                         "AU temporal property requires a decreases clause to prove progress toward the goal")
@@ -3051,17 +3083,20 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
 
                     // TICL rule: aul_cprog_while — for AU(φ,ψ), weaken decreases to ψ ∨ (m decreased)
                     // Only weaken for loops in temporal context (utility loops use strict decreases)
-                    let au_goals: Vec<_> = if !temporal_invs.is_empty() {
+                    let au_goals: Vec<(&Exp, &Exp)> = if !temporal_invs.is_empty() {
                         state.temporal_context.obligations.iter()
-                            .filter(|o| matches!(o.op, crate::ast::TemporalOp::AU))
+                            .filter_map(|o| match o {
+                                TemporalObligation::Until { path, goal, .. } => Some((path, goal)),
+                                _ => None,
+                            })
                             .collect()
                     } else {
                         vec![]
                     };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
-                        for au in &au_goals {
-                            let psi = exp_to_expr(ctx, &au.property, expr_ctxt)?;
+                        for (_, goal) in &au_goals {
+                            let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
                             disjuncts.push(psi);
                         }
                         let weakened = mk_or(&disjuncts);
@@ -3402,7 +3437,7 @@ pub(crate) fn body_stm_to_air(
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
 
     /// Recursively decompose nested temporal expressions into flat leaf obligations.
-    /// E.g., AG(AU(φ,ψ)) → innermost AU(φ,ψ) obligation with `requires_invariance = true`.
+    /// E.g., AG(AU(φ,ψ)) → innermost Until { path: φ, goal: ψ, requires_invariance: true }.
     /// Outer operators like AG are structural — they are handled by loop invariants in temporal context
     /// on loops, not by direct AIR assertions. The `inside_ag` flag tracks AG nesting
     /// to enforce the TICL invariance rule.
@@ -3422,12 +3457,30 @@ pub(crate) fn body_stm_to_air(
                 decompose_temporal(inner_op, inner_prop, inner_path, inside_ag, obligations);
             }
             _ => {
-                obligations.push(TemporalObligation {
-                    op: op.clone(),
-                    property: prop.clone(),
-                    goal: path_prop.clone(),
-                    requires_invariance: inside_ag,
-                });
+                let obligation = match op {
+                    crate::ast::TemporalOp::AG => {
+                        TemporalObligation::Always {
+                            property: prop.clone(),
+                            requires_invariance: inside_ag,
+                        }
+                    }
+                    crate::ast::TemporalOp::AU => {
+                        TemporalObligation::Until {
+                            path: prop.clone(),
+                            goal: path_prop.clone().expect("AU requires a goal (second argument)"),
+                            requires_invariance: inside_ag,
+                        }
+                    }
+                    crate::ast::TemporalOp::AN => {
+                        TemporalObligation::Next {
+                            path: prop.clone(),
+                            goal: path_prop.clone().expect("AN requires a goal (second argument)"),
+                            requires_invariance: inside_ag,
+                        }
+                    }
+                    _ => return, // EG, EU, EN not yet supported
+                };
+                obligations.push(obligation);
             }
         }
     }
@@ -3449,15 +3502,13 @@ pub(crate) fn body_stm_to_air(
 
     // TICL ag_seq / aul_seq: compute prefix obligations from temporal context.
     // These must hold at every intermediate state in prefix code (before temporal loop).
-    // AG(φ) → φ must hold at every step
-    // AU(φ, ψ) → path property φ must hold at every step (skip if φ is trivially true)
+    // Always(φ) → φ must hold at every step
+    // Until(path, goal) → path must hold at every step (skip if path is trivially true)
     let temporal_prefix_obligations: Vec<Exp> = temporal_context.obligations.iter().filter_map(|o| {
-        match o.op {
-            crate::ast::TemporalOp::AG => Some(o.property.clone()),
-            crate::ast::TemporalOp::AU => {
-                // For AU, the path property is in `property` (first arg).
-                // AF(ψ) = AU(true, ψ): property = true → skip (trivial prefix)
-                let path = &o.property;
+        match o {
+            TemporalObligation::Always { property, .. } => Some(property.clone()),
+            TemporalObligation::Until { path, .. } => {
+                // AF(ψ) = AU(true, ψ): path = true → skip (trivial prefix)
                 match &path.x {
                     ExpX::Const(crate::ast::Constant::Bool(true)) => None,
                     _ => Some(path.clone()),
@@ -3522,7 +3573,7 @@ pub(crate) fn body_stm_to_air(
     // without temporal obligations to coexist with the main temporal loop.
     if !state.temporal_context.is_empty() && !state.temporal_discharged {
         let needs_invariance = state.temporal_context.obligations.iter()
-            .any(|o| o.requires_invariance);
+            .any(|o| o.requires_invariance());
         if needs_invariance {
             return Err(error(
                 func_span,
@@ -3533,7 +3584,7 @@ pub(crate) fn body_stm_to_air(
     // AG requires at least one infinite loop (no decreases).
     // A function with only terminating loops can't satisfy AG.
     let has_ag = state.temporal_context.obligations.iter()
-        .any(|o| matches!(o.op, crate::ast::TemporalOp::AG) || o.requires_invariance);
+        .any(|o| o.is_always() || o.requires_invariance());
     if has_ag && !state.has_infinite_temporal_loop {
         return Err(error(
             func_span,
