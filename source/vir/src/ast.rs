@@ -749,8 +749,6 @@ pub enum HeaderExprX {
     InvariantExceptBreak(Exprs),
     /// Invariants on loops
     Invariant(Exprs),
-    /// Temporal invariants on loops (for TICL structural rules)
-    TemporalInvariant(Exprs),
     /// Decreases clauses for functions (possibly also for while loops, but this isn't implemented yet)
     Decreases(Exprs),
     /// Recursive function is uninterpreted when Expr is false
@@ -894,8 +892,6 @@ pub enum LoopInvariantKind {
     InvariantAndEnsures,
     /// holds at loop exit (including breaks)
     Ensures,
-    /// temporal invariant R for TICL AG rule (R ⇒ φ at all observable states)
-    TemporalInvariant,
 }
 
 pub type LoopInvariants = Arc<Vec<LoopInvariant>>;

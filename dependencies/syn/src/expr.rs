@@ -26,7 +26,7 @@ use crate::ty::Type;
 use crate::verus::{
     Assert, AssertForall, Assume, BigAnd, BigOr, ClosureArg, Decreases, Ensures, ExprFinal,
     ExprGetField, ExprHas, ExprHasNot, ExprIs, ExprIsNot, ExprMatches, FnProofOptions, Invariant,
-    InvariantEnsures, InvariantExceptBreak, Requires, RevealHide, TemporalInvariantSpec, View,
+    InvariantEnsures, InvariantExceptBreak, Requires, RevealHide, View,
 };
 use proc_macro2::{Span, TokenStream};
 #[cfg(feature = "printing")]
@@ -538,7 +538,6 @@ ast_struct! {
         pub invariant_except_break: Option<InvariantExceptBreak>,
         pub invariant: Option<Invariant>,
         pub invariant_ensures: Option<InvariantEnsures>,
-        pub temporal_invariant: Option<TemporalInvariantSpec>,
         pub ensures: Option<Ensures>,
         pub decreases: Option<Decreases>,
         pub body: Block,
@@ -737,7 +736,6 @@ ast_struct! {
         pub invariant_except_break: Option<InvariantExceptBreak>,
         pub invariant: Option<Invariant>,
         pub invariant_ensures: Option<InvariantEnsures>,
-        pub temporal_invariant: Option<TemporalInvariantSpec>,
         pub ensures: Option<Ensures>,
         pub decreases: Option<Decreases>,
         pub body: Block,
@@ -2586,7 +2584,6 @@ pub(crate) mod parsing {
             let invariant_except_break = input.parse()?;
             let invariant = input.parse()?;
             let invariant_ensures = input.parse()?;
-            let temporal_invariant = input.parse()?;
             let ensures = Ensures::parse_optional_in(Context::Expr, input)?;
             let decreases = Decreases::parse_optional_in(Context::Expr, input)?;
 
@@ -2602,7 +2599,6 @@ pub(crate) mod parsing {
                 invariant_except_break,
                 invariant,
                 invariant_ensures,
-                temporal_invariant,
                 ensures,
                 decreases,
                 body: Block { brace_token, stmts },
@@ -2940,7 +2936,6 @@ pub(crate) mod parsing {
             let invariant_except_break = input.parse()?;
             let invariant = input.parse()?;
             let invariant_ensures = input.parse()?;
-            let temporal_invariant = input.parse()?;
             let ensures = Ensures::parse_optional_in(Context::Expr, input)?;
             let decreases = Decreases::parse_optional_in(Context::Expr, input)?;
 
@@ -2957,7 +2952,6 @@ pub(crate) mod parsing {
                 invariant_except_break,
                 invariant,
                 invariant_ensures,
-                temporal_invariant,
                 ensures,
                 decreases,
                 body: Block { brace_token, stmts },
@@ -4091,7 +4085,6 @@ pub(crate) mod printing {
             self.invariant_except_break.to_tokens(tokens);
             self.invariant.to_tokens(tokens);
             self.invariant_ensures.to_tokens(tokens);
-            self.temporal_invariant.to_tokens(tokens);
             self.ensures.to_tokens(tokens);
             self.decreases.to_tokens(tokens);
             self.body.brace_token.surround(tokens, |tokens| {
@@ -4416,7 +4409,6 @@ pub(crate) mod printing {
             self.invariant_except_break.to_tokens(tokens);
             self.invariant.to_tokens(tokens);
             self.invariant_ensures.to_tokens(tokens);
-            self.temporal_invariant.to_tokens(tokens);
             self.ensures.to_tokens(tokens);
             self.decreases.to_tokens(tokens);
             self.body.brace_token.surround(tokens, |tokens| {

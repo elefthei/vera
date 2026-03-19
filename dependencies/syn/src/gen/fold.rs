@@ -590,12 +590,6 @@ pub trait Fold {
     ) -> crate::InvariantEnsures {
         fold_invariant_ensures(self, i)
     }
-    fn fold_temporal_invariant_spec(
-        &mut self,
-        i: crate::TemporalInvariantSpec,
-    ) -> crate::TemporalInvariantSpec {
-        fold_temporal_invariant_spec(self, i)
-    }
     fn fold_invariant_except_break(
         &mut self,
         i: crate::InvariantExceptBreak,
@@ -2292,8 +2286,6 @@ where
         invariant: (node.invariant).map(|it| f.fold_invariant(it)),
         invariant_ensures: (node.invariant_ensures)
             .map(|it| f.fold_invariant_ensures(it)),
-        temporal_invariant: (node.temporal_invariant)
-            .map(|it| f.fold_temporal_invariant_spec(it)),
         ensures: (node.ensures).map(|it| f.fold_ensures(it)),
         decreases: (node.decreases).map(|it| f.fold_decreases(it)),
         body: f.fold_block(node.body),
@@ -2544,8 +2536,6 @@ where
         invariant: (node.invariant).map(|it| f.fold_invariant(it)),
         invariant_ensures: (node.invariant_ensures)
             .map(|it| f.fold_invariant_ensures(it)),
-        temporal_invariant: (node.temporal_invariant)
-            .map(|it| f.fold_temporal_invariant_spec(it)),
         ensures: (node.ensures).map(|it| f.fold_ensures(it)),
         decreases: (node.decreases).map(|it| f.fold_decreases(it)),
         body: f.fold_block(node.body),
@@ -3103,18 +3093,6 @@ where
     F: Fold + ?Sized,
 {
     crate::InvariantEnsures {
-        token: node.token,
-        exprs: f.fold_specification(node.exprs),
-    }
-}
-pub fn fold_temporal_invariant_spec<F>(
-    f: &mut F,
-    node: crate::TemporalInvariantSpec,
-) -> crate::TemporalInvariantSpec
-where
-    F: Fold + ?Sized,
-{
-    crate::TemporalInvariantSpec {
         token: node.token,
         exprs: f.fold_specification(node.exprs),
     }

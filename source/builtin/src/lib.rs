@@ -77,14 +77,6 @@ pub fn invariant<A>(_a: A) {
     unimplemented!();
 }
 
-// Can only appear at beginning of loop body
-#[cfg(verus_keep_ghost)]
-#[rustc_diagnostic_item = "verus::verus_builtin::temporal_invariant"]
-#[verifier::proof]
-pub fn temporal_invariant<A>(_a: A) {
-    unimplemented!();
-}
-
 // Can only appear at beginning of function body
 #[cfg(verus_keep_ghost)]
 #[rustc_diagnostic_item = "verus::verus_builtin::decreases"]

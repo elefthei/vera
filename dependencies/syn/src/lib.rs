@@ -560,7 +560,7 @@ pub use crate::verus::{
     MatchesOpToken, Mode, ModeExec, ModeGhost, ModeProof, ModeProofAxiom, ModeSpec,
     ModeSpecChecked, ModeTracked, Open, OpenRestricted, Prover, Publish, Recommends, Requires,
     Returns, RevealHide, SignatureDecreases, SignatureInvariants, SignatureSpec, SignatureSpecAttr,
-    SignatureUnwind, Specification, TemporalInvariantSpec, TypeFnProof, TypeFnSpec, Uninterp, View,
+    SignatureUnwind, Specification, TypeFnProof, TypeFnSpec, Uninterp, View,
     WithSpecOnExpr, WithSpecOnFn,
 };
 
