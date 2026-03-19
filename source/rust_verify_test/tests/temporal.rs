@@ -877,3 +877,86 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === TICL postcondition semantics: Immediate + AF equivalence tests ===
+
+// AF goal checked at return — must pass when Q is established
+test_verify_one_file! {
+    #[test] test_af_return_check_pass verus_code! {
+        fn test_af_good(x: &mut u64)
+            requires *old(x) > 0,
+            ensures af(*x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// AF goal checked at return — must fail when Q is not established
+test_verify_one_file! {
+    #[test] test_af_return_check_fail verus_code! {
+        fn test_af_bad(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(*x == 0), // FAILS
+        {
+            while *x > 5
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            // x could be 1..5, not necessarily 0
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// Immediate: non-temporal ensures in TICL mode checked at state 0
+test_verify_one_file! {
+    #[test] test_immediate_state0_pass verus_code! {
+        fn test_imm_good(x: u64)
+            requires x > 10,
+            ensures
+                x > 5, // non-temporal + function has temporal ensures
+                ag(x > 0),
+        {
+            loop
+                invariant x > 5,
+            {
+            }
+        }
+    } => Ok(())
+}
+
+// Immediate: non-temporal ensures NOT derivable from precondition — must fail
+test_verify_one_file! {
+    #[test] test_immediate_state0_fail verus_code! {
+        fn test_imm_bad(x: u64)
+            requires x > 0,
+            ensures
+                x > 100, // FAILS — not derivable from x > 0
+                ag(x > 0),
+        {
+            loop
+                invariant x > 0,
+            {
+            }
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// Standard Hoare mode: no temporal ensures, non-temporal checked at return only
+test_verify_one_file! {
+    #[test] test_hoare_mode_no_immediate verus_code! {
+        fn test_hoare_ok(x: &mut u64)
+            requires *old(x) == 5,
+            ensures *x == 10,
+        {
+            *x = 10;
+        }
+    } => Ok(())
+}
