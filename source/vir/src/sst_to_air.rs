@@ -55,8 +55,17 @@ use std::sync::Arc;
 
 /// A single temporal obligation extracted from a function's ensures clause.
 /// Each variant enforces the correct arity for its operator.
+/// In TICL semantics, ALL postconditions are temporal:
+///   - Non-temporal `ensures Q` → Immediate (Q at state 0)
+///   - `ensures af(Q)` → Until(true, Q) (Q eventually — old Hoare semantics)
+///   - `ensures ag(Q)` → Always(Q) (Q at every state forever)
 #[derive(Clone, Debug)]
 pub enum TemporalObligation {
+    /// Non-temporal ensures Q: Q must hold at state 0 (before the program steps).
+    /// Asserted at function entry, derivable from preconditions.
+    Immediate {
+        property: Exp,
+    },
     /// AG(φ): φ must hold at every state of an infinite computation.
     Always {
         property: Exp,
@@ -82,10 +91,15 @@ pub enum TemporalObligation {
 impl TemporalObligation {
     pub fn requires_invariance(&self) -> bool {
         match self {
+            TemporalObligation::Immediate { .. } => false,
             TemporalObligation::Always { requires_invariance, .. }
             | TemporalObligation::Until { requires_invariance, .. }
             | TemporalObligation::Next { requires_invariance, .. } => *requires_invariance,
         }
+    }
+
+    pub fn is_immediate(&self) -> bool {
+        matches!(self, TemporalObligation::Immediate { .. })
     }
 
     pub fn is_always(&self) -> bool {
@@ -108,6 +122,13 @@ pub struct TemporalContext {
 impl TemporalContext {
     pub fn is_empty(&self) -> bool {
         self.obligations.is_empty()
+    }
+
+    /// True if the context has temporal (non-Immediate) obligations.
+    /// Immediate obligations are state-0 assertions and don't drive
+    /// temporal VCGen (loop classification, prefix obligations, etc.).
+    pub fn has_temporal(&self) -> bool {
+        self.obligations.iter().any(|o| !o.is_immediate())
     }
 }
 
@@ -2818,7 +2839,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // - Loop with decreases + AU obligations → AU (progress loop)
             // - Loop with decreases + AG only → standard utility loop (not temporal)
             let is_utility_loop_in_temporal;
-            if !state.temporal_context.is_empty() {
+            if state.temporal_context.has_temporal() {
                 let is_ag_loop = decrease.len() == 0;
                 let has_au = state.temporal_context.obligations.iter()
                     .any(|o| o.is_until());
@@ -2849,7 +2870,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
 
             // Track that this loop discharges temporal obligations.
-            if !temporal_invs.is_empty() && !state.temporal_context.is_empty() {
+            if !temporal_invs.is_empty() && state.temporal_context.has_temporal() {
                 state.temporal_discharged = true;
                 if decrease.len() == 0 {
                     state.has_infinite_temporal_loop = true;
@@ -2986,7 +3007,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
             // Only fire for loops in temporal context (utility loops skip this)
-            if !state.temporal_context.is_empty() && !temporal_invs.is_empty() {
+            if state.temporal_context.has_temporal() && !temporal_invs.is_empty() {
                 air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt, &temporal_invs)?);
             }
             for dec in decrease_init.iter() {
@@ -3399,10 +3420,13 @@ pub(crate) fn body_stm_to_air(
 
     let initial_sid = Arc::new("0_entry".to_string());
 
-    // Separate temporal postconditions from standard ensures.
-    // Temporal ensures (ExpX::Temporal) populate TemporalContext and are not
-    // passed to exp_to_expr (which would panic on temporal nodes).
-    let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
+    // TICL: ALL postconditions are temporal obligations when explicit temporal ensures exist.
+    // - Non-temporal `ensures Q` with temporal ensures → Immediate (Q at state 0) + Hoare (Q at return)
+    // - Non-temporal `ensures Q` without temporal → Hoare only (Q at return, standard Verus)
+    // - `ensures af(Q)` → Until(true, Q) via decompose_temporal
+    // - `ensures ag(Q)` → Always(Q) via decompose_temporal
+    let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
+    let mut hoare_ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
 
     /// Recursively decompose nested temporal expressions into flat leaf obligations.
@@ -3454,20 +3478,61 @@ pub(crate) fn body_stm_to_air(
         }
     }
 
+    // Check if the function has any explicit temporal ensures.
+    // This determines how non-temporal ensures are handled:
+    // - With temporal ensures: non-temporal Q → Immediate (Q at state 0, TICL semantics)
+    // - Without temporal ensures: non-temporal Q → standard Hoare (Q at return)
+    let has_explicit_temporal = post_condition.ens_exps.iter()
+        .any(|e| matches!(&e.x, ExpX::Temporal(..)));
+
     for ens in post_condition.ens_exps.iter() {
         match &ens.x {
             ExpX::Temporal(op, prop, path_prop) => {
                 decompose_temporal(op, prop, path_prop, false, &mut temporal_obligations);
             }
             _ => {
+                if has_explicit_temporal {
+                    // TICL mode: non-temporal ensures Q → Immediate (Q at state 0)
+                    temporal_obligations.push(TemporalObligation::Immediate {
+                        property: ens.clone(),
+                    });
+                }
+                // In both modes, non-temporal ensures get standard Hoare checking at return.
+                // In TICL mode this is redundant for Immediate (state 0 ⊆ all states)
+                // but harmless — it ensures backward compat during migration.
                 let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
                 let note = sst_exp_get_proof_note(ens);
-                let e = exp_to_expr(ctx, &ens, expr_ctxt)?;
-                ens_exprs.push((ens.span.clone(), e, note));
+                if let Ok(e) = exp_to_expr(ctx, &ens, expr_ctxt) {
+                    hoare_ens_exprs.push((ens.span.clone(), e, note));
+                }
             }
         }
     }
     let temporal_context = TemporalContext { obligations: temporal_obligations };
+
+    // Derive ens_exprs for Return-point checking:
+    // 1. Hoare ensures (non-temporal, always checked at return)
+    // 2. Until goals (from af(Q), au(φ,Q)) — also checked at return
+    // Always and Immediate have no return assertion.
+    let mut ens_exprs = hoare_ens_exprs;
+    {
+        let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+        for o in temporal_context.obligations.iter() {
+            match o {
+                TemporalObligation::Until { goal, .. } => {
+                    // Skip goals that contain nested temporal expressions
+                    if matches!(&goal.x, ExpX::Temporal(..)) {
+                        continue;
+                    }
+                    let note = sst_exp_get_proof_note(goal);
+                    if let Ok(e) = exp_to_expr(ctx, goal, expr_ctxt) {
+                        ens_exprs.push((goal.span.clone(), e, note));
+                    }
+                }
+                _ => {}
+            }
+        }
+    };
 
     // TICL ag_seq / aul_seq: compute prefix obligations from temporal context.
     // These must hold at every intermediate state in prefix code (before temporal loop).
@@ -3532,15 +3597,15 @@ pub(crate) fn body_stm_to_air(
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;
 
-    // TICL ag_cprog_while: AG loops are infinite — the function never returns past the loop.
-    // No AG base-case assertion at function exit: the non-exit check at break (assert false)
-    // ensures the loop never terminates, so function exit after an AG loop is unreachable.
-    // AU obligations are also not checked at exit — loop progress checks are sufficient.
+    // TICL: AG loops are infinite — the function never returns past the loop.
+    // Until goals (from af(Q), au(φ,Q)) ARE checked at exit via ens_exprs.
+    // Always obligations have no return assertion (infinite loop, unreachable exit).
+    // Immediate obligations are checked at function entry (state 0), not exit.
 
     // AG obligations require at least one loop in temporal context.
     // This fires once at function level, allowing utility loops
     // without temporal obligations to coexist with the main temporal loop.
-    if !state.temporal_context.is_empty() && !state.temporal_discharged {
+    if state.temporal_context.has_temporal() && !state.temporal_discharged {
         let needs_invariance = state.temporal_context.obligations.iter()
             .any(|o| o.requires_invariance());
         if needs_invariance {
@@ -3564,6 +3629,23 @@ pub(crate) fn body_stm_to_air(
     stmts.insert(0, Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_PRE))));
     if state.static_prelude.len() > 0 {
         stmts.splice(0..0, state.static_prelude.clone());
+    }
+
+    // TICL: Assert Immediate obligations at function entry (state 0).
+    // Non-temporal `ensures Q` means Q holds at the initial state, derivable from preconditions.
+    // These are inserted after the PRE snapshot + static prelude, before body code.
+    {
+        let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+        let insert_pos = state.static_prelude.len() + 1; // after static_prelude + PRE snapshot
+        let mut offset = 0;
+        for obligation in &state.temporal_context.obligations {
+            if let TemporalObligation::Immediate { property } = obligation {
+                let e = exp_to_expr(ctx, property, expr_ctxt)?;
+                let err = error(&property.span, "immediate postcondition (state 0) not derivable from preconditions");
+                stmts.insert(insert_pos + offset, Arc::new(StmtX::Assert(None, err, None, e)));
+                offset += 1;
+            }
+        }
     }
 
     if ctx.debug {
