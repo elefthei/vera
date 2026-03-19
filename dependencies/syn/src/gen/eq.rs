@@ -802,7 +802,6 @@ impl PartialEq for crate::ExprLoop {
             && self.invariant_except_break == other.invariant_except_break
             && self.invariant == other.invariant
             && self.invariant_ensures == other.invariant_ensures
-            && self.temporal_invariant == other.temporal_invariant
             && self.ensures == other.ensures && self.decreases == other.decreases
             && self.body == other.body
     }
@@ -994,7 +993,6 @@ impl PartialEq for crate::ExprWhile {
             && self.invariant_except_break == other.invariant_except_break
             && self.invariant == other.invariant
             && self.invariant_ensures == other.invariant_ensures
-            && self.temporal_invariant == other.temporal_invariant
             && self.ensures == other.ensures && self.decreases == other.decreases
             && self.body == other.body
     }
@@ -1454,14 +1452,6 @@ impl PartialEq for crate::Invariant {
 impl Eq for crate::InvariantEnsures {}
 #[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
 impl PartialEq for crate::InvariantEnsures {
-    fn eq(&self, other: &Self) -> bool {
-        self.exprs == other.exprs
-    }
-}
-#[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
-impl Eq for crate::TemporalInvariantSpec {}
-#[cfg_attr(docsrs, doc(cfg(feature = "extra-traits")))]
-impl PartialEq for crate::TemporalInvariantSpec {
     fn eq(&self, other: &Self) -> bool {
         self.exprs == other.exprs
     }

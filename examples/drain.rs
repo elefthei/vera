@@ -1,4 +1,4 @@
-// rust_verify/tests/example.rs ignore --- temporal verification requires manual temporal_invariant
+// rust_verify/tests/example.rs ignore --- temporal verification example
 //
 // Queue drain example.
 //
@@ -7,9 +7,13 @@
 //   AF(queue.is_empty())   i.e.  AU(⊤, queue.len() == 0)
 //   "eventually, the queue will be empty"
 //
-// Temporal VCGen support:
+// Since AF is equivalent to standard termination + postcondition for sequential
+// programs, this is also provable with plain `ensures q.view().len() == 0`.
+// The `af(...)` syntax makes the temporal intent explicit.
+//
+// Temporal VCGen:
 //   - `ensures af(...)` declares the temporal postcondition (sugar for au(true, ...))
-//   - `temporal_invariant R` on the loop provides the refinement mapping
+//   - Loop `invariant` serves as the temporal refinement mapping R
 //   - `decreases q.view().len()` provides the well-founded metric for AU progress
 //   - TICL structural rules (aul_cprog_while) decompose this into:
 //     * R established at loop entry
@@ -82,8 +86,6 @@ fn drain(q: &mut Queue)
 {
     while q.len() > 0
         invariant
-            q.view().len() >= 0,
-        temporal_invariant
             q.view().len() >= 0,
         decreases
             q.view().len(),

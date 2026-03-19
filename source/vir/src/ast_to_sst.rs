@@ -2430,7 +2430,6 @@ pub(crate) fn expr_to_stm_opt(
                             LoopInvariantKind::InvariantExceptBreak => Some(inv.clone()),
                             LoopInvariantKind::InvariantAndEnsures => Some(inv.clone()),
                             LoopInvariantKind::Ensures => None,
-                            LoopInvariantKind::TemporalInvariant => Some(inv.clone()),
                         })
                         .collect(),
                 )
@@ -2474,12 +2473,16 @@ pub(crate) fn expr_to_stm_opt(
             } else {
                 None
             };
-            // Loops with temporal_invariant don't require decreases:
+            // Loops in functions with temporal ensures (AG/AF/AU) don't require decreases:
             // - AG semantics: loop is infinite, no termination proof needed
             // - AU semantics: decreases is still expected (checked later in sst_to_air)
-            let has_temporal_invariant = invs.iter().any(|inv| inv.kind == LoopInvariantKind::TemporalInvariant);
+            let has_temporal_ensures = ctx.fun.as_ref().map(|c| {
+                let function = &ctx.func_map[&c.current_fun];
+                function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
+                    .any(|e| matches!(&e.x, ExprX::Temporal(..)))
+            }).unwrap_or(false);
             if decrease.len() == 0
-                && !has_temporal_invariant
+                && !has_temporal_ensures
                 && !ctx
                     .fun
                     .as_ref()
@@ -2520,12 +2523,10 @@ pub(crate) fn expr_to_stm_opt(
                         LoopInvariantKind::InvariantExceptBreak => (true, false),
                         LoopInvariantKind::InvariantAndEnsures => (true, true),
                         LoopInvariantKind::Ensures => (false, true),
-                        LoopInvariantKind::TemporalInvariant => (true, false),
                     }
                 };
 
-                let temporal = inv.kind == LoopInvariantKind::TemporalInvariant;
-                let inv1 = crate::sst::LoopInv { inv: exp, at_entry, at_exit, temporal };
+                let inv1 = crate::sst::LoopInv { inv: exp, at_entry, at_exit };
                 invs1.push(inv1);
             }
             let mut decrease1: Vec<Exp> = Vec::new();

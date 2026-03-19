@@ -1,4 +1,4 @@
-// rust_verify/tests/example.rs ignore --- temporal verification requires manual temporal_invariant
+// rust_verify/tests/example.rs ignore --- temporal verification example
 //
 // Round-robin fairness example.
 //
@@ -8,15 +8,16 @@
 //   AG (AU(true, queue.peek() == x))   i.e. AG(AF(peek == x))
 //   i.e., it is always the case that eventually x returns to the head.
 //
-// Temporal VCGen support:
+// Temporal VCGen:
 //   - `ensures ag(au(true, ...))` declares the temporal postcondition
-//   - `temporal_invariant R` on loops provides the refinement mapping R
-//   - `decreases m` provides the well-founded metric for AU progress
+//   - Loop `invariant` serves as the temporal refinement mapping R
+//     (no separate temporal_invariant annotation needed)
+//   - For AG: the loop has no `decreases` → infinite loop, invariant = R
 //   - TICL structural rules decompose these into standard AIR assertions:
-//     * R established at loop entry
-//     * R preserved by loop body
+//     * R established at loop entry (standard invariant check)
+//     * R preserved by loop body (standard invariant check)
 //     * R(state) → φ(state) checked at loop boundary
-//     * decreases weakened to ψ ∨ (m decreased) for AU obligations
+//     * break unreachable (AG non-exit)
 
 use vstd::prelude::*;
 
@@ -88,21 +89,19 @@ spec fn round_robin_fairness(queue: Queue, x: u64) -> bool {
 /// schedule is fair: every element in the queue eventually returns to the head.
 ///
 /// To verify this, the loop uses:
-/// - `temporal_invariant queue.view().len() > 0` — the queue stays non-empty (R)
-/// - `invariant queue.view().len() > 0` — standard loop invariant
+/// - `invariant queue.view().len() > 0` — serves as both standard and temporal invariant (R)
 ///
 /// The TICL VCGen checks:
-/// 1. R holds at loop entry (assert)
+/// 1. R holds at loop entry (standard invariant check)
 /// 2. After havoc + assume R, the AG postcondition is checked (R → φ)
-/// 3. After the loop body, R is preserved (assert)
+/// 3. After the loop body, R is preserved (standard invariant check)
+/// 4. Loop is infinite (no decreases, break unreachable)
 fn round_robin(queue: &mut Queue)
     requires
         old(queue).view().len() > 0,
 {
     loop
         invariant
-            queue.view().len() > 0,
-        temporal_invariant
             queue.view().len() > 0,
     {
         let x = queue.dequeue();

@@ -558,9 +558,6 @@ pub trait VisitMut {
     fn visit_invariant_ensures_mut(&mut self, i: &mut crate::InvariantEnsures) {
         visit_invariant_ensures_mut(self, i);
     }
-    fn visit_temporal_invariant_spec_mut(&mut self, i: &mut crate::TemporalInvariantSpec) {
-        visit_temporal_invariant_spec_mut(self, i);
-    }
     fn visit_invariant_except_break_mut(&mut self, i: &mut crate::InvariantExceptBreak) {
         visit_invariant_except_break_mut(self, i);
     }
@@ -2252,9 +2249,6 @@ where
     if let Some(it) = &mut node.invariant_ensures {
         v.visit_invariant_ensures_mut(it);
     }
-    if let Some(it) = &mut node.temporal_invariant {
-        v.visit_temporal_invariant_spec_mut(it);
-    }
     if let Some(it) = &mut node.ensures {
         v.visit_ensures_mut(it);
     }
@@ -2495,9 +2489,6 @@ where
     }
     if let Some(it) = &mut node.invariant_ensures {
         v.visit_invariant_ensures_mut(it);
-    }
-    if let Some(it) = &mut node.temporal_invariant {
-        v.visit_temporal_invariant_spec_mut(it);
     }
     if let Some(it) = &mut node.ensures {
         v.visit_ensures_mut(it);
@@ -2992,13 +2983,6 @@ where
     v.visit_specification_mut(&mut node.exprs);
 }
 pub fn visit_invariant_ensures_mut<V>(v: &mut V, node: &mut crate::InvariantEnsures)
-where
-    V: VisitMut + ?Sized,
-{
-    skip!(node.token);
-    v.visit_specification_mut(&mut node.exprs);
-}
-pub fn visit_temporal_invariant_spec_mut<V>(v: &mut V, node: &mut crate::TemporalInvariantSpec)
 where
     V: VisitMut + ?Sized,
 {

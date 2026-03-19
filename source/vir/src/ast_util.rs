@@ -1273,8 +1273,7 @@ impl HeaderExprX {
             | HeaderExprX::NoUnwindWhen(_) => "beginning of the function body",
 
             HeaderExprX::InvariantExceptBreak(_)
-            | HeaderExprX::Invariant(_)
-            | HeaderExprX::TemporalInvariant(_) => {
+            | HeaderExprX::Invariant(_) => {
                 "beginning of a loop body"
             }
 

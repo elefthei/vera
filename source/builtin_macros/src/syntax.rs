@@ -34,7 +34,7 @@ use verus_syn::{
     ItemTrait, ItemUnion, Lit, Local, MatchesOpExpr, MatchesOpToken, Meta, MetaList, ModeSpec,
     ModeSpecChecked, Pat, PatIdent, PatType, Path, PathArguments, Publish, Recommends, Requires,
     ReturnType, Returns, Signature, SignatureDecreases, SignatureInvariants, SignatureSpec,
-    SignatureSpecAttr, SignatureUnwind, Stmt, TemporalInvariantSpec, Token, TraitItem, TraitItemFn, Type, TypeFnProof,
+    SignatureSpecAttr, SignatureUnwind, Stmt, Token, TraitItem, TraitItemFn, Type, TypeFnProof,
     TypeFnSpec, TypePath, UnOp, Visibility, braced, bracketed, parenthesized, parse_macro_input,
 };
 
@@ -3390,7 +3390,6 @@ impl Visitor {
         invariant_except_breaks: Option<InvariantExceptBreak>,
         invariants: Option<Invariant>,
         invariant_ensures: Option<InvariantEnsures>,
-        temporal_invariants: Option<TemporalInvariantSpec>,
         ensures: Option<Ensures>,
         decreases: Option<Decreases>,
     ) {
@@ -3429,11 +3428,6 @@ impl Visitor {
         if let Some(InvariantEnsures { token, exprs }) = invariant_ensures {
             if exprs.exprs.len() > 0 {
                 stmts.push(stmt_with_semi!(verus_builtin, token.span => #verus_builtin::invariant([#exprs])));
-            }
-        }
-        if let Some(TemporalInvariantSpec { token, exprs }) = temporal_invariants {
-            if exprs.exprs.len() > 0 {
-                stmts.push(stmt_with_semi!(verus_builtin, token.span => #verus_builtin::temporal_invariant([#exprs])));
             }
         }
         if let Some(Ensures { token, exprs, attrs }) = ensures {
@@ -3670,7 +3664,7 @@ impl Visitor {
         } else {
             None
         };
-        self.add_loop_specs(&mut stmts, None, invariant_for, None, None, ensure, decreases);
+        self.add_loop_specs(&mut stmts, None, invariant_for, None, ensure, decreases);
         let body_exec = Expr::Verbatim(quote_spanned!(span => {
             #[allow(non_snake_case)]
             let mut VERUS_loop_next;
@@ -4073,7 +4067,6 @@ impl VisitMut for Visitor {
         let invariant_except_breaks = self.take_ghost(&mut expr_while.invariant_except_break);
         let invariants = self.take_ghost(&mut expr_while.invariant);
         let invariant_ensures = self.take_ghost(&mut expr_while.invariant_ensures);
-        let temporal_invariants = self.take_ghost(&mut expr_while.temporal_invariant);
         let ensures = self.take_ghost(&mut expr_while.ensures);
         let decreases = self.take_ghost(&mut expr_while.decreases);
         let mut stmts: Vec<Stmt> = Vec::new();
@@ -4082,7 +4075,6 @@ impl VisitMut for Visitor {
             invariant_except_breaks,
             invariants,
             invariant_ensures,
-            temporal_invariants,
             ensures,
             decreases,
         );
@@ -4094,7 +4086,6 @@ impl VisitMut for Visitor {
         let invariant_except_breaks = self.take_ghost(&mut expr_loop.invariant_except_break);
         let invariants = self.take_ghost(&mut expr_loop.invariant);
         let invariant_ensures = self.take_ghost(&mut expr_loop.invariant_ensures);
-        let temporal_invariants = self.take_ghost(&mut expr_loop.temporal_invariant);
         let ensures = self.take_ghost(&mut expr_loop.ensures);
         let decreases = self.take_ghost(&mut expr_loop.decreases);
         let mut stmts: Vec<Stmt> = Vec::new();
@@ -4103,7 +4094,6 @@ impl VisitMut for Visitor {
             invariant_except_breaks,
             invariants,
             invariant_ensures,
-            temporal_invariants,
             ensures,
             decreases,
         );
@@ -5213,7 +5203,6 @@ pub(crate) fn while_loop_spec_attr(
         &mut stmt,
         invariant_except_breaks,
         invariants,
-        None,
         None,
         ensures,
         decreases,
