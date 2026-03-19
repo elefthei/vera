@@ -146,9 +146,9 @@ test_verify_one_file! {
     } => Ok(()) // AU without AG doesn't require temporal invariant; no loop = no checks
 }
 
-// === TICL VCGen Rule Tests ===
+// === Temporal VCGen Rule Tests ===
 
-// TICL rule: ag_cprog_while — invariant = temporal refinement R, established at entry and preserved by body
+// ag_cprog_while rule: invariant = temporal refinement R, established at entry and preserved by body
 test_verify_one_file! {
     #[test] test_temporal_inv_preserved verus_code! {
         fn test_loop_invariant_preserved(x: &mut u64)
@@ -168,7 +168,7 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// TICL rule: ag_cprog_while — invariant violated at entry should fail
+// ag_cprog_while rule: invariant violated at entry should fail
 test_verify_one_file! {
     #[test] test_temporal_inv_entry_fail verus_code! {
         fn test_loop_invariant_entry_fail(x: &mut u64)
@@ -184,7 +184,7 @@ test_verify_one_file! {
     } => Err(err) => assert_fails(err, 1)
 }
 
-// TICL rule: ag_cprog_while — invariant (= R) does not imply AG property φ
+// ag_cprog_while rule: invariant (= R) does not imply AG property φ
 test_verify_one_file! {
     #[test] test_temporal_inv_body_fail verus_code! {
         fn test_loop_invariant_body_fail(x: &mut u64)
@@ -397,7 +397,7 @@ test_verify_one_file! {
 }
 
 // loop invariant R implies AG postcondition φ (R ⊆ φ) — should pass
-// AG requires an infinite loop (TICL ag_cprog_while: condition always true)
+// AG requires an infinite loop (ag_cprog_while: condition always true)
 test_verify_one_file! {
     #[test] test_temporal_inv_implies_postcondition verus_code! {
         fn test_r_implies_phi(x: &mut u64)
@@ -565,7 +565,7 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// === S7: AG loops must never exit (TICL ag_cprog_while condition 2) ===
+// === AG loops must never exit (ag_cprog_while condition 2) ===
 
 // AG with infinite loop — passes (no exit path)
 test_verify_one_file! {
@@ -689,9 +689,9 @@ test_verify_one_file! {
     } => Err(err) => assert_any_vir_error_msg(err, "loop must have a decreases clause")
 }
 
-// === TICL ag_seq / aul_seq: Prefix temporal obligation tests ===
+// === Prefix temporal obligation tests (ag_seq / aul_seq) ===
 // These test that the temporal property φ must hold at every intermediate state
-// in prefix code before the temporal loop (TICL sequence composition rules).
+// in prefix code before the temporal loop (sequence composition rules).
 
 // Assignment in prefix violates AG property — should fail
 test_verify_one_file! {
@@ -708,7 +708,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
 }
 
 // Assignment in prefix satisfies AG property — should pass
@@ -799,7 +799,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
 }
 
 // Conditional in prefix — one branch violates AG property — should fail
@@ -820,7 +820,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
 }
 
 // AU with non-trivial path property checked in prefix — should fail
@@ -840,7 +840,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold at every step")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
 }
 
 // AF (= au(true, ...)) has trivial prefix obligation — should always pass

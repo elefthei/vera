@@ -1,3 +1,9 @@
+// TICL (Temporal Interaction & Computation Tree Logic) is the proof framework
+// from ~/git/ticl/ that provides structural rules for decomposing CTL temporal
+// obligations into first-order verification conditions. References to "TICL rules"
+// in this file cite specific lemmas from that framework (e.g., ag_cprog_while,
+// aul_cprog_seq).
+
 use crate::ast::{
     ArithOp, ArrayKind, AssertQueryMode, BinaryOp, BitwiseOp, Dt, FieldOpr, Fun, GenericBoundX,
     Ident, Idents, InequalityOp, IntRange, IntegerTypeBitwidth, IntegerTypeBoundKind, Mode, Path,
@@ -51,10 +57,10 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct TemporalObligation {
     pub op: crate::ast::TemporalOp,
-    /// The primary property (φ for AG, ψ target for AU)
+    /// For AG(φ): the invariant φ. For AU(φ, ψ): the path property φ (first arg).
     pub property: Exp,
-    /// The path property for binary operators (φ in AU(φ, ψ))
-    pub path_property: Option<Exp>,
+    /// For AU(φ, ψ): the goal ψ (second arg). None for unary operators like AG.
+    pub goal: Option<Exp>,
     /// True when this obligation was nested inside an AG (coinductive invariance).
     /// When true, the loop invariant R serves as the temporal refinement mapping.
     pub requires_invariance: bool,
@@ -1930,10 +1936,10 @@ fn temporal_loop_assertions(
             }
             crate::ast::TemporalOp::AU => {
                 // AU(φ, ψ): assert ψ ∨ φ — path property holds until goal reached
-                if let Some(path_prop) = &obligation.path_property {
-                    let phi = exp_to_expr(ctx, path_prop, expr_ctxt)?;
-                    let psi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
-                    let phi_until_psi = mk_or(&vec![psi, phi]);
+                if let Some(goal) = &obligation.goal {
+                    let goal_psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                    let path_phi = exp_to_expr(ctx, &obligation.property, expr_ctxt)?;
+                    let phi_until_psi = mk_or(&vec![path_phi, goal_psi]);
                     let error = error(span, "temporal AU: path property violated before goal reached");
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
                 }
@@ -1965,7 +1971,7 @@ fn emit_prefix_assertions(
     let mut stmts = Vec::new();
     for obligation_exp in &state.temporal_prefix_obligations {
         let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
-        let err = error(span, "temporal property must hold at every step (TICL sequence rule)");
+        let err = error(span, "temporal property must hold before the temporal loop (sequence composition)");
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
     }
     Ok(stmts)
@@ -3388,7 +3394,7 @@ pub(crate) fn body_stm_to_air(
                 obligations.push(TemporalObligation {
                     op: op.clone(),
                     property: prop.clone(),
-                    path_property: path_prop.clone(),
+                    goal: path_prop.clone(),
                     requires_invariance: inside_ag,
                 });
             }
@@ -3413,9 +3419,7 @@ pub(crate) fn body_stm_to_air(
     // TICL ag_seq / aul_seq: compute prefix obligations from temporal context.
     // These must hold at every intermediate state in prefix code (before temporal loop).
     // AG(φ) → φ must hold at every step
-    // AU(path, goal) → path must hold at every step (skip if path is trivially true)
-    // Note: For AU, `obligation.property` is the path φ (first arg of AU(φ, ψ)),
-    //       and `obligation.path_property` is the goal ψ (second arg).
+    // AU(φ, ψ) → path property φ must hold at every step (skip if φ is trivially true)
     let temporal_prefix_obligations: Vec<Exp> = temporal_context.obligations.iter().filter_map(|o| {
         match o.op {
             crate::ast::TemporalOp::AG => Some(o.property.clone()),
@@ -3482,8 +3486,8 @@ pub(crate) fn body_stm_to_air(
     // ensures the loop never terminates, so function exit after an AG loop is unreachable.
     // AU obligations are also not checked at exit — loop progress checks are sufficient.
 
-    // S2: Deferred R6 check — AG obligations require at least one loop in temporal context.
-    // Unlike the old per-loop check, this fires once at function level, allowing utility loops
+    // AG obligations require at least one loop in temporal context.
+    // This fires once at function level, allowing utility loops
     // without temporal obligations to coexist with the main temporal loop.
     if !state.temporal_context.is_empty() && !state.temporal_discharged {
         let needs_invariance = state.temporal_context.obligations.iter()
