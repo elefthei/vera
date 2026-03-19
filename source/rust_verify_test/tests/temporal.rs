@@ -140,10 +140,10 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_au_in_fn_ensures verus_code! {
         fn test_au_ensures(x: u64)
-            ensures au(x > 0, x == 42),
+            ensures au(x > 0, x == 42), // FAILS
         {
         }
-    } => Ok(()) // AU without AG doesn't require temporal invariant; no loop = no checks
+    } => Err(err) => assert_one_fails(err) // AU goal (x == 42) checked at return
 }
 
 // === Temporal VCGen Rule Tests ===
