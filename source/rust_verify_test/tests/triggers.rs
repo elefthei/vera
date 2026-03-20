@@ -55,7 +55,7 @@ test_verify_one_file! {
         uninterp spec fn some_fn(a: nat) -> nat;
         proof fn quant()
             ensures
-                forall|a: nat, b: nat| #[trigger] some_fn(a + b) == 10,
+                af(forall|a: nat, b: nat| #[trigger] some_fn(a + b) == 10),
         {
             assume(false);
         }
@@ -67,7 +67,7 @@ test_verify_one_file! {
         #[verifier(nonlinear)]
         proof fn mul_distributive_auto()
             ensures
-                forall|a: nat, b: nat, c: nat| #[trigger] ((a + b) * c) == a * c + b * c,
+                af(forall|a: nat, b: nat, c: nat| #[trigger] ((a + b) * c) == a * c + b * c),
         {
         }
 
@@ -76,7 +76,7 @@ test_verify_one_file! {
                 (a + b) * c == 20,
                 a * c == 10,
             ensures
-                b * c == 10,
+                af(b * c == 10),
         {
             mul_distributive_auto();
             assert((a + b) * c == a * c + b * c);
@@ -89,7 +89,7 @@ test_verify_one_file! {
         #[verifier(nonlinear)]
         proof fn mul_distributive_auto()
             ensures
-                forall|a: nat, b: nat, c: nat| #[trigger] ((a + b) * c) == a * c + b * c
+                af(forall|a: nat, b: nat, c: nat| #[trigger] ((a + b) * c) == a * c + b * c)
         {
             assert forall|a: nat, b: nat, c: nat| #[trigger] ((a + b) * c) == a * c + b * c by {
             }
@@ -103,7 +103,7 @@ test_verify_one_file! {
         #[verifier(nonlinear)]
         proof fn mul_distributive_auto()
             ensures
-                forall|a: nat, b: nat, c: nat| t(c) ==> #[trigger] ((a + b) * c) == a * c + b * c
+                af(forall|a: nat, b: nat, c: nat| t(c) ==> #[trigger] ((a + b) * c) == a * c + b * c)
         {
         }
     } => Ok(())
@@ -140,7 +140,7 @@ test_verify_one_file! {
         }
 
         proof fn quant()
-            ensures forall|a: nat, b: nat| (#[trigger] some_arith(a, b)) == 0
+            ensures af(forall|a: nat, b: nat| (#[trigger] some_arith(a, b)) == 0)
         {
             assume(false)
         }
@@ -150,7 +150,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_arith_and_ord verus_code! {
         proof fn quant()
-            ensures forall|a: nat, b: nat, c: nat| #[trigger] (a + b <= c)
+            ensures af(forall|a: nat, b: nat, c: nat| #[trigger] (a + b <= c))
         {
             assume(false)
         }
@@ -205,7 +205,7 @@ test_verify_one_file! {
     #[test] test_arith_assert_by verus_code! {
         proof fn assoc()
             ensures
-                forall|x: int, y: int, z: int| #[trigger] ((x * y) * z) == x * (y * z),
+                af(forall|x: int, y: int, z: int| #[trigger] ((x * y) * z) == x * (y * z)),
         {
             assert forall|x: int, y: int, z: int| #[trigger] ((x * y) * z) == x * (y * z) by {
                 assert((x * y) * z == x * (y * z)) by(nonlinear_arith);
@@ -231,7 +231,7 @@ test_verify_one_file! {
     #[test] test_arith_assert_by_nat verus_code! {
         proof fn assoc()
             ensures
-                forall|x: nat, y: nat, z: nat| #[trigger] ((x * y) * z) == x * (y * z),
+                af(forall|x: nat, y: nat, z: nat| #[trigger] ((x * y) * z) == x * (y * z)),
         {
             assert forall|x: nat, y: nat, z: nat| #[trigger] ((x * y) * z) == x * (y * z) by {
                 assert((x * y) * z == x * (y * z)) by(nonlinear_arith);
@@ -268,8 +268,8 @@ test_verify_one_file! {
 
         proof fn p()
             ensures
-                forall|a: int, b: int| #[trigger] (a * b) == b * a,
-                forall|a: int| some_fn(a), // FAILS
+                af(forall|a: int, b: int| #[trigger] (a * b) == b * a),
+                af(forall|a: int| some_fn(a)), // FAILS
         {
         }
     } => Err(e) => assert_one_fails(e)
@@ -316,7 +316,7 @@ test_verify_one_file! {
     #[test] test_trigger_on_lambda_1 TRIGGER_ON_LAMBDA_COMMON.to_string() + verus_code_str! {
         #[verifier(external_body)]
         proof fn something(fn1: spec_fn(S)->bool, fn2: spec_fn(S)->bool)
-        ensures forall|s: S| #[trigger] fn1(s) ==> fn2(s) { }
+        ensures af(forall|s: S| #[trigger] fn1(s) ==> fn2(s)) { }
 
         proof fn foo(s: S) {
           let p1 = |s1| prop_1(s1);
@@ -333,7 +333,7 @@ test_verify_one_file! {
     #[test] test_trigger_on_lambda_2 TRIGGER_ON_LAMBDA_COMMON.to_string() + verus_code_str! {
         #[verifier(external_body)]
         proof fn something(fn1: spec_fn(S)->bool, fn2: spec_fn(S)->bool)
-        ensures forall|s: S| #[trigger] fn1(s) ==> fn2(s) { }
+        ensures af(forall|s: S| #[trigger] fn1(s) ==> fn2(s)) { }
 
         proof fn foo(s: S) {
           something(|s1| #[trigger] prop_1(s1), |s1| prop_2(s1));
@@ -369,7 +369,7 @@ test_verify_one_file! {
     #[test] test_no_trigger_on_lambda TRIGGER_ON_LAMBDA_COMMON.to_string() + verus_code_str! {
         #[verifier(external_body)]
         proof fn something(fn1: spec_fn(S)->bool, fn2: spec_fn(S)->bool)
-        ensures forall|s: S| #[trigger] fn1(s) ==> fn2(s) { }
+        ensures af(forall|s: S| #[trigger] fn1(s) ==> fn2(s)) { }
 
         proof fn foo(s: S) {
           something(|s1| prop_1(s1), |s1| prop_2(s1));
@@ -395,7 +395,7 @@ test_verify_one_file! {
                 bar(3),
                 qux(4),
             ensures
-                baz(4)
+                af(baz(4))
         {}
     } => Ok(())
 }
@@ -422,7 +422,7 @@ test_verify_one_file! {
     #[test] test_broadcast_arith_trigger verus_code! {
         pub broadcast proof fn testb(x: int, y: int)
             ensures
-                #[trigger] (2 * x + 2 * y) == (x + y) * 2
+                #[trigger] af((2 * x + 2 * y) == (x + y) * 2)
         {
         }
     } => Ok(())
@@ -462,7 +462,7 @@ test_verify_one_file! {
 
         impl Clone for Node {
             fn clone(&self) -> (res: Self)
-                ensures forall |key: int| #[trigger] self.map().dom().contains(key) ==> key == 3
+                ensures af(forall |key: int| #[trigger] self.map().dom().contains(key) ==> key == 3)
             {
                 return Node { child: None }; // FAILS
             }
@@ -513,7 +513,7 @@ test_verify_one_file! {
             requires
                 a(x)
             ensures
-                #![all_triggers] b(x) && c(x)
+                af(#![all_triggers] b(x) && c(x))
             // a(x) ==> b(x) && c(x)
         {
             admit();
@@ -536,7 +536,7 @@ test_verify_one_file! {
 
         pub broadcast proof fn test_ext<A>(s1: Set<A>, s2: Set<A>)
             ensures
-                #![all_triggers] (s1 =~= s2) <==> (forall|a: A| my_contains(s1, a) == my_contains(s2, a)),
+                af(#![all_triggers] (s1 =~= s2) <==> (forall|a: A| my_contains(s1, a) == my_contains(s2, a))),
         {
             admit();
         }

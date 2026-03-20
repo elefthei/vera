@@ -949,7 +949,7 @@ test_verify_one_file_with_options! {
 
         fn test_old_in_ensures(a: &mut u64)
             requires *old(a) < 2000,
-            ensures *a as int === *old(a) + 25,
+            ensures af(*a as int === *old(a) + 25),
         {
             let mut i: u64 = 0;
             loop
@@ -967,7 +967,7 @@ test_verify_one_file_with_options! {
 
         fn test_old_in_ensures_fail(a: &mut u64)
             requires *old(a) < 2000,
-            ensures *a as int === *old(a) + 26,
+            ensures af(*a as int === *old(a) + 26),
         {
             let mut i: u64 = 0;
             loop
@@ -998,7 +998,7 @@ test_verify_one_file_with_options! {
                 pub closed spec fn view(&self) -> T { self.t }
 
                 pub fn new(t: T) -> (s: Self)
-                  ensures s.view() === t
+                  ensures af(s.view() === t)
                 {
                     X { t: t }
                 }
@@ -1214,8 +1214,8 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
         fn test_loop(n: u32) -> (v: Vec<u32>)
             ensures
-                v.len() == n,
-                forall|i: int| 0 <= i < n ==> v[i] == i,
+                af(v.len() == n),
+                af(forall|i: int| 0 <= i < n ==> v[i] == i),
         {
             let mut v: Vec<u32> = Vec::new();
             for i in iter: 0..n
@@ -1229,8 +1229,8 @@ test_verify_one_file_with_options! {
 
         fn test_loop_fail(n: u32) -> (v: Vec<u32>)
             ensures
-                v.len() == n,
-                forall|i: int| 0 <= i < n ==> v[i] == i,
+                af(v.len() == n),
+                af(forall|i: int| 0 <= i < n ==> v[i] == i),
         {
             let mut v: Vec<u32> = Vec::new();
             for i in iter: 0..n
@@ -1259,10 +1259,10 @@ test_verify_one_file_with_options! {
             type Item = T;
             fn next(&mut self) -> (item: Option<T>)
                 ensures
-                    self.vec == old(self).vec,
-                    old(self).cur < self.vec.len() ==> self.cur == old(self).cur + 1,
-                    old(self).cur < self.vec.len() ==> item == Some(self.vec[old(self).cur as int]),
-                    old(self).cur >= self.vec.len() ==> item.is_none() && self.cur == old(self).cur,
+                    af(self.vec == old(self).vec),
+                    af(old(self).cur < self.vec.len() ==> self.cur == old(self).cur + 1),
+                    af(old(self).cur < self.vec.len() ==> item == Some(self.vec[old(self).cur as int])),
+                    af(old(self).cur >= self.vec.len() ==> item.is_none() && self.cur == old(self).cur),
             {
                 if self.cur < self.vec.len() {
                     let item = self.vec[self.cur];
@@ -1347,14 +1347,14 @@ test_verify_one_file_with_options! {
         #[verifier::when_used_as_spec(vec_iter_copy_spec)]
         fn vec_iter_copy<'a, T: 'a>(vec: &'a Vec<T>) -> (iter: VecIterCopy<'a, T>)
             ensures
-                iter == (VecIterCopy { vec, cur: 0 }),
+                af(iter == (VecIterCopy { vec, cur: 0 })),
         {
             VecIterCopy { vec, cur: 0 }
         }
 
         fn all_positive(v: &Vec<u8>) -> (b: bool)
             ensures
-                b <==> (forall|i: int| 0 <= i < v.len() ==> v[i] > 0),
+                af(b <==> (forall|i: int| 0 <= i < v.len() ==> v[i] > 0)),
         {
             let mut b: bool = true;
 
@@ -1375,9 +1375,9 @@ test_verify_one_file_with_options! {
             requires
                 n >= 1,
             ensures
-                1 <= result <= n,
-                1 <= result * result <= n,
-                n < (result + 1) * (result + 1),
+                af(1 <= result <= n),
+                af(1 <= result * result <= n),
+                af(n < (result + 1) * (result + 1)),
         {
             let mut result: u32 = 1;
             loop
@@ -1550,7 +1550,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] recursive_call_in_loop_mut_ref verus_code! {
         fn test1(x: &mut usize)
-            ensures *x <= *old(x),
+            ensures af(*x <= *old(x)),
             decreases old(x),
         {
             if *x == 0 {
@@ -1579,7 +1579,7 @@ test_verify_one_file! {
                 hi <= src.len(),
                 hi <= old(dst).len(),
             ensures
-                src@.subrange(lo as int, hi as int) == dst@.subrange(lo as int, hi as int),
+                af(src@.subrange(lo as int, hi as int) == dst@.subrange(lo as int, hi as int)),
         {
             for n in lo..hi
                 invariant
