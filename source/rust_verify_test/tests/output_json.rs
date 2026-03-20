@@ -51,9 +51,9 @@ test_verify_one_file_with_options! {
             ensures
                 // both postconditions fail
                 #![verifier::proof_note("Property 732")]
-                z == x + y,
+                af(z == x + y),
                 #![verifier::proof_note("Label 451")]
-                z == x - y,
+                af(z == x - y),
         {
             x
         }

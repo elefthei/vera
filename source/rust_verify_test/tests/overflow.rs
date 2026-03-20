@@ -110,7 +110,7 @@ test_verify_one_file! {
     #[test] test_overflow_ensures_pass verus_code! {
         fn test(a: usize) -> (r: usize)
             requires a < 30
-            ensures r == a + 1
+            ensures af(r == a + 1)
         {
             let b = a + 1;
             b

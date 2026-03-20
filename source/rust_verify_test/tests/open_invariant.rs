@@ -730,7 +730,7 @@ test_verify_one_file_with_options! {
 
         #[verifier::external_body]
         proof fn no_dupes(tracked x: X, tracked y: X)
-            ensures false
+            ensures af(false)
         {
         }
 

@@ -2693,7 +2693,7 @@ test_verify_one_file_with_options! {
 
         fn add1(b: &mut u64) -> (ret: (Blah, Blah))
             requires mut_ref_current(b) < 100
-            ensures mut_ref_future(b) == mut_ref_current(b) + 1
+            ensures af(mut_ref_future(b) == mut_ref_current(b) + 1)
         {
             *b = *b + 1;
             (Blah::C, Blah::C)

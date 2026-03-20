@@ -441,7 +441,7 @@ test_verify_one_file! {
 
         fn test(a: &mut u64)
             requires *old(a) < 1000,
-            ensures *a == *old(a) + 30,
+            ensures af(*a == *old(a) + 30),
         {
             let ghost old_a = *a;
             *a = *a + 5 * 6;
@@ -656,7 +656,7 @@ test_verify_one_file! {
         pub proof fn bounds_for_smallest_bin_fitting_size_alt(size: int)
             requires 0 <= size <= 10,
             ensures
-                valid_bin_idx(smallest_bin_fitting_size(size)),
+                af(valid_bin_idx(smallest_bin_fitting_size(size))),
         {
             assert({let r = 0..11int;
                     r.all_spec(|v| property_bounds_for_smallest_bitting_size(v))
