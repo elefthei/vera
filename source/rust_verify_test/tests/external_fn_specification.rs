@@ -15,7 +15,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         fn negate_bool_requires_ensures(b: bool, x: u8) -> (ret_b: bool)
             requires x != 0,
-            ensures ret_b == !b
+            ensures af(ret_b == !b)
         {
             negate_bool(b, x)
         }
@@ -43,7 +43,7 @@ test_verify_one_file! {
     #[test] test_apply_spec_to_external verus_code! {
         #[verifier(external_fn_specification)]
         pub fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -98,7 +98,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         fn negate_bool_requires_ensures(b: bool, x: u8) -> (ret_b: bool)
             requires x != 0,
-            ensures ret_b == !b
+            ensures af(ret_b == !b)
         {
             negate_bool(b, x)
         }
@@ -106,7 +106,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         fn negate_bool_requires_ensures2(b: bool, x: u8) -> (ret_b: bool)
             requires x != 0,
-            ensures ret_b == !b
+            ensures af(ret_b == !b)
         {
             negate_bool(b, x)
         }
@@ -117,14 +117,14 @@ test_verify_one_file! {
     #[test] test_overlap2 verus_code! {
         #[verifier(external_fn_specification)]
         pub fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
 
         #[verifier(external_fn_specification)]
         pub fn swap_requires_ensures2<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -138,7 +138,7 @@ test_verify_one_file! {
         // This will conflict with the mem::swap specification declared in vstd
         #[verifier(external_fn_specification)]
         pub fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -157,7 +157,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         fn negate_bool_requires_ensures(b: bool, x: u8) -> (ret_b: bool)
             requires x != 0,
-            ensures ret_b == !b
+            ensures af(ret_b == !b)
         {
             negate_bool(b, x)
         }
@@ -320,7 +320,7 @@ test_verify_one_file! {
     #[test] test_proxy_is_more_private2 verus_code! {
         #[verifier(external_fn_specification)]
         fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -335,7 +335,7 @@ test_verify_one_file! {
 
 test_verify_one_file! {
     #[test] const_assoc_const verus_code! {
-        assume_specification[char::REPLACEMENT_CHARACTER] -> (c: char) ensures c != '7';
+        assume_specification[char::REPLACEMENT_CHARACTER] -> (c: char) ensures af(c != '7');
         fn test() {
             let z = char::REPLACEMENT_CHARACTER;
             assert(z != '7');
@@ -346,7 +346,7 @@ test_verify_one_file! {
 
 test_verify_one_file! {
     #[test] const_exec_not_spec verus_code! {
-        assume_specification[char::REPLACEMENT_CHARACTER] -> (c: char) ensures c != '7';
+        assume_specification[char::REPLACEMENT_CHARACTER] -> (c: char) ensures af(c != '7');
         fn test() {
             assert(char::REPLACEMENT_CHARACTER != '7');
         }
@@ -697,7 +697,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         #[verifier(external)]
         pub fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -709,7 +709,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         #[verifier(external_body)]
         pub fn swap_requires_ensures<T>(a: &mut T, b: &mut T)
-            ensures *a == *old(b), *b == *old(a),
+            ensures af(*a == *old(b)), af(*b == *old(a)),
         {
             std::mem::swap(a, b)
         }
@@ -740,7 +740,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X(a: u8) -> (res: X)
-            ensures res.a == a,
+            ensures af(res.a == a),
         {
             X::new(a)
         }
@@ -770,7 +770,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X_new<T: Tr1 + Tr2>(a: T) -> (res: X<T>)
-            ensures res.a == a,
+            ensures af(res.a == a),
         {
             X::<T>::new(a)
         }
@@ -804,7 +804,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X_new<T: Tr1 + Tr2>(a: T) -> (res: X<T>)
-            ensures res.a == a,
+            ensures af(res.a == a),
         {
             X::<T>::new(a)
         }
@@ -827,7 +827,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X_swap(x: &X) -> (res: X)
-              ensures res.a == x.b && res.b == x.a
+              ensures af(res.a == x.b && res.b == x.a)
         {
             x.swap()
         }
@@ -859,7 +859,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X_swap<T: Tr1 + Tr2>(x: X<T>) -> (res: X<T>)
-              ensures res.a == x.b && res.b == x.a
+              ensures af(res.a == x.b && res.b == x.a)
         {
             x.swap()
         }
@@ -894,7 +894,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_X_swap<T: Tr1 + Tr2>(x: X<T>) -> (res: X<T>)
-              ensures res.a == x.b && res.b == x.a
+              ensures af(res.a == x.b && res.b == x.a)
         {
             x.swap()
         }
@@ -1040,7 +1040,7 @@ test_verify_one_file! {
 
         #[verifier::when_used_as_spec(stuff)]
         pub fn ex_likely(x: bool) -> (res: bool)
-            ensures res == x
+            ensures af(res == x)
         {
             std::intrinsics::likely(x)
         }
@@ -1053,7 +1053,7 @@ test_verify_one_file! {
     #[test] foregin_trait1 verus_code! {
         #[verifier(external_fn_specification)]
         pub fn ex_u8_default() -> (res: u8)
-            ensures res == 0
+            ensures af(res == 0)
         {
             u8::default()
         }
@@ -1134,7 +1134,7 @@ test_verify_one_file! {
 
         #[verifier(external_fn_specification)]
         pub fn ex_foo_default<T>() -> (res: Foo<T>)
-            ensures res == Foo::<T>::Two
+            ensures af(res == Foo::<T>::Two)
         {
             Foo::<T>::default()
         }
@@ -1168,7 +1168,7 @@ test_verify_one_file! {
 
         #[verifier(external_fn_specification)]
         pub fn ex_foo_default<T, U>() -> (res: Foo<T, U>)
-            ensures res == Foo::<T, U>::Two
+            ensures af(res == Foo::<T, U>::Two)
         {
             Foo::<T, U>::default()
         }
@@ -1221,7 +1221,7 @@ test_verify_one_file! {
     #[ignore] #[test] foreign_trait_use_self_2 verus_code! {
         #[verifier(external_fn_specification)]
         pub fn ex_u8_max(a: u8, b: u8) -> (res: u8)
-            ensures res == if a > b { a } else { b },
+            ensures af(res == if a > b) { a } else { b },
         {
             a.max(b)
         }
@@ -1241,7 +1241,7 @@ test_verify_one_file! {
 
         #[verifier(external_fn_specification)]
         pub fn ex_u8_not(a: u8) -> (res: u8)
-            ensures res == !a
+            ensures af(res == !a)
         {
             a.not()
         }
@@ -1263,7 +1263,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         #[verifier::when_used_as_spec(wrong_not)]
         pub fn ex_u8_not(a: u8) -> (res: u8)
-            ensures res == !a
+            ensures af(res == !a)
         {
             a.not()
         }
@@ -1472,7 +1472,7 @@ test_verify_one_file! {
         }
 
         assume_specification [ Y::t_foo ] (y: &Y) -> (x: X)
-            ensures x == (X { u: 0 });
+            ensures af(x == (X { u: 0 }));
 
         fn test(y: &Y) {
             let j = y.t_foo();
@@ -1499,7 +1499,7 @@ test_verify_one_file! {
     #[test] test_blanket_impl verus_code! {
         trait Tr {
             fn stuff(&self)
-                ensures self.foo();
+                ensures af(self.foo());
 
             spec fn foo(&self) -> bool;
         }
@@ -1517,7 +1517,7 @@ test_verify_one_file! {
         }
 
         assume_specification <T: Tr> [ <T as Blanket>::stuff2 ] (x: &T)
-            ensures x.foo();
+            ensures af(x.foo());
 
 
         fn test_generic<T: Tr>(t: &T) {
@@ -1546,7 +1546,7 @@ test_verify_one_file! {
     #[test] test_blanket_impl_unsized verus_code! {
         trait Tr {
             fn stuff(&self)
-                ensures self.foo();
+                ensures af(self.foo());
 
             spec fn foo(&self) -> bool;
         }
@@ -1564,7 +1564,7 @@ test_verify_one_file! {
         }
 
         assume_specification <T: Tr + ?Sized> [ <T as Blanket>::stuff2 ] (x: &T)
-            ensures x.foo();
+            ensures af(x.foo());
 
 
         fn test_generic<T: Tr + ?Sized>(t: &T) {

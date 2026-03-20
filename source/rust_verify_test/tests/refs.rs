@@ -28,7 +28,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_return_ref_0 verus_code! {
         fn return_ref(p: &u64) -> (r: &u64)
-            ensures r == p
+            ensures af(r == p)
         {
             p
         }
@@ -44,7 +44,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_return_ref_named_lifetime verus_code! {
         fn return_ref<'a>(p: &'a u64) -> (r: &'a u64)
-            ensures r == p
+            ensures af(r == p)
         {
             p
         }
@@ -55,7 +55,7 @@ test_verify_one_file! {
     #[test] test_mut_ref_arg_exec verus_code! {
         fn add1(a: &mut u64)
             requires *old(a) < 10
-            ensures *a == *old(a) + 1
+            ensures af(*a == *old(a) + 1)
         {
             *a = *a + 1;
         }
@@ -71,7 +71,7 @@ test_verify_one_file! {
 const MUT_REF_PROOF_COMMON: &str = verus_code_str! {
     fn add1(Tracked(a): Tracked<&mut int>)
         requires old(a) < 10,
-        ensures a == old(a) + 1,
+        ensures af(a == old(a) + 1),
     {
         proof {
             *a = *a + 1;
@@ -145,7 +145,7 @@ const MUT_REF_ARG_SELF_COMMON: &str = verus_code_str! {
     impl Value {
         pub fn add1(&mut self)
             requires old(self).v < 10
-            ensures self.v == old(self).v + 1
+            ensures af(self.v == old(self).v + 1)
         {
             let Value { v } = *self;
             *self = Value { v: v + 1 };
@@ -236,7 +236,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_mut_ref_generic_1 verus_code! {
         fn add1<A>(a: &mut A)
-            ensures equal(*old(a), *a)
+            ensures af(equal(*old(a), *a))
         {
         }
 
@@ -251,7 +251,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_mut_ref_old_shadow verus_code! {
         fn add1(a: &mut u64)
-            ensures equal(*old(a), *a)
+            ensures af(equal(*old(a), *a))
         {
             let a = true;
             assert(old(a) == true);
@@ -270,13 +270,13 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_mut_ref_forward verus_code! {
         fn div2(a: &mut u64)
-            ensures *a == *old(a) / 2
+            ensures af(*a == *old(a) / 2)
         {
             *a = *a / 2;
         }
 
         fn test(b: &mut u64)
-            ensures *b == *old(b) / 2
+            ensures af(*b == *old(b) / 2)
         {
             div2(b);
         }
@@ -297,7 +297,7 @@ test_verify_one_file! {
 
         exec fn add1(a: &mut A, i: usize)
             ensures
-                forall|j: nat| a.index(j) == old(a).index(j) + 1
+                af(forall|j: nat| a.index(j) == old(a).index(j) + 1)
         {
             assume(false);
         }
@@ -327,7 +327,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_mut_ref_shadow verus_code! {
         fn foo(x: &mut u32)
-            ensures equal(*x, *old(x))
+            ensures af(equal(*x, *old(x)))
         {
         }
 
@@ -350,9 +350,9 @@ test_verify_one_file! {
         fn foo(#[verifier::proof] x: &mut int) -> (int, int)
         {
             ensures(|ret: (int, int)|
-                { let (a, b) = ret;
+                af({ let (a, b) = ret;
                     a + b == (*x)
-                });
+                }));
 
             unimplemented!();
         }
@@ -368,7 +368,7 @@ test_verify_one_file! {
 test_verify_one_file_with_options! {
     #[test] test_regression_115_mut_ref_pattern_case_2 ["--no-external-by-default"] => code! {
         fn foo(x: &mut bool) -> (u8, u8) {
-            ensures(|ret: (u8, u8)| (*x) == ! *old(x));
+            ensures(|ret: (u8, u8)| af((*x) == ! *old(x)));
 
             *x = ! *x;
             (0, 0)
@@ -391,14 +391,14 @@ test_verify_one_file! {
         }
 
         fn do_mut(x: &mut u64) -> (b: u64)
-            ensures *x == 1 && b == 1
+            ensures af(*x == 1 && b == 1)
         {
             *x = 1;
             1
         }
 
         fn same_foo(foo: Foo) -> (res: Foo)
-            ensures equal(res, foo)
+            ensures af(equal(res, foo))
         {
             foo
         }
@@ -430,8 +430,8 @@ test_verify_one_file! {
                 *old(a) < 10,
                 *old(b) < 10,
             ensures
-                *a == *old(a) + 1,
-                *b == *old(b) + 1,
+                af(*a == *old(a) + 1),
+                af(*b == *old(b) + 1),
         {
             *a = *a + 1;
             *b = *b + 1;
@@ -455,7 +455,7 @@ test_verify_one_file! {
 
         fn add1(a: &mut u32)
             requires *old(a) < 10
-            ensures *a == *old(a) + 1
+            ensures af(*a == *old(a) + 1)
         {
             *a = *a + 1;
         }
@@ -480,8 +480,8 @@ test_verify_one_file! {
             requires
                 *old(a) < 10
             ensures
-                *a == *old(a) + 1,
-                ret == *old(a)
+                af(*a == *old(a) + 1),
+                af(ret == *old(a))
         {
             *a = *a + 1;
             *a - 1
@@ -606,7 +606,7 @@ test_verify_one_file! {
                 *old(a) < 10,
             ensures
                 //*a == *old(a) + 1,
-                check_inc(a, old(a)),
+                af(check_inc(a, old(a))),
         {
             *a = *a + 1;
         }
@@ -640,7 +640,7 @@ test_verify_one_file! {
             #[verifier::when_used_as_spec(x_deref_spec)]
             fn deref(&self) -> (ret: &usize)
                 ensures
-                    ret == self.inner,
+                    af(ret == self.inner),
             {
                 &self.inner
             }
