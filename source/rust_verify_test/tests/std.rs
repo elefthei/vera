@@ -224,7 +224,7 @@ test_verify_one_file_with_options! {
         use vstd::*;
 
         fn test() -> (res: Option<u32>)
-            ensures res.is_none()
+            ensures af(res.is_none())
         {
             let x: Option<u8> = None;
             let y = x?;
@@ -243,7 +243,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test3() -> (res: Option<u32>)
-            ensures res.is_some(),
+            ensures af(res.is_some()),
         {
             let x: Option<u8> = None;
             let y = x?; // FAILS
@@ -252,7 +252,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test4() -> (res: Option<u32>)
-            ensures false,
+            ensures af(false),
         {
             let x: Option<u8> = Some(12);
             let y = x?;
@@ -269,7 +269,7 @@ test_verify_one_file_with_options! {
         use vstd::*;
 
         fn test() -> (res: Result<u32, bool>)
-            ensures res === Err(false),
+            ensures af(res === Err(false)),
         {
             let x: Result<u8, bool> = Err(false);
             let y = x?;
@@ -288,7 +288,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test3() -> (res: Result<u32, bool>)
-            ensures res.is_ok(),
+            ensures af(res.is_ok()),
         {
             let x: Result<u8, bool> = Err(false);
             let y = x?; // FAILS
@@ -297,7 +297,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test4() -> (res: Result<u32, bool>)
-            ensures false,
+            ensures af(false),
         {
             let x: Result<u8, bool> = Ok(12);
             let y = x?;
@@ -395,7 +395,7 @@ test_verify_one_file! {
                 a1[0][0] == 10,
                 a2[0][0] == 10,
             ensures
-                a1.deep_view() == a2.deep_view(),
+                af(a1.deep_view() == a2.deep_view()),
         {
             assert(a1.deep_view() =~~= a2.deep_view()); // TODO: get rid of this?
         }
@@ -407,7 +407,7 @@ test_verify_one_file! {
                 a1[0][0] == 10,
                 a2[0][0] == 10,
             ensures
-                a1.deep_view() == a2.deep_view(),
+                af(a1.deep_view() == a2.deep_view()),
         {
             assert(a1.deep_view() =~~= a2.deep_view()); // TODO: get rid of this?
         }
@@ -498,7 +498,7 @@ test_verify_one_file! {
 
         impl Clone for X {
             fn clone(&self) -> (res: Self)
-                ensures res == (X { i: 5 }),
+                ensures af(res == (X { i: 5 })),
             {
                 X { i: 5 }
             }
@@ -622,7 +622,7 @@ test_verify_one_file! {
 
         impl Clone for X {
             fn clone(&self) -> (s: Self)
-                ensures s.u == (if self.u < 1000 { self.u + 1 } else { 1000 })
+                ensures af(s.u == (if self.u < 1000 { self.u + 1 } else { 1000 }))
             {
                 X { u: if self.u < 1000 { self.u + 1 } else { 1000 } }
             }
@@ -689,7 +689,7 @@ test_verify_one_file! {
 
         impl Clone for X {
             fn clone(&self) -> (s: Self)
-                ensures s.u == (if self.u < 1000 { self.u + 1 } else { 1000 })
+                ensures af(s.u == (if self.u < 1000 { self.u + 1 } else { 1000 }))
             {
                 X { u: if self.u < 1000 { self.u + 1 } else { 1000 } }
             }

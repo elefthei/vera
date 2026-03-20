@@ -490,7 +490,7 @@ test_verify_one_file! {
         mod M1 {
             pub(crate) trait T {
                 fn f(&self)
-                    ensures false; // TRAIT
+                    ensures af(false); // TRAIT
             }
         }
         mod M2 {
@@ -534,7 +534,7 @@ test_verify_one_file! {
             pub(crate) trait T {
                 spec fn ens(&self) -> bool;
                 fn f(&self)
-                    ensures self.ens(); // TRAIT
+                    ensures af(self.ens()); // TRAIT
             }
         }
         mod M2 {
@@ -617,7 +617,7 @@ test_verify_one_file! {
 
                 fn f(&self, a: &A) -> (ra: A)
                     requires self.req(*a),
-                    ensures self.ens(*a, ra); // TRAIT
+                    ensures af(self.ens(*a, ra)); // TRAIT
             }
         }
 
@@ -669,7 +669,7 @@ test_verify_one_file! {
         mod M6 {
             pub(crate) fn p<A, Z: crate::M1::T<A>>(a: &A, z: &Z) -> (rz: A)
                 requires z.req(*a)
-                ensures z.ens(*a, rz)
+                ensures af(z.ens(*a, rz))
             {
                 z.f(a)
             }
@@ -748,7 +748,7 @@ test_verify_one_file! {
         mod M4 {
             #[allow(unused_imports)] use crate::M1::T;
             proof fn test() -> (b: bool)
-                ensures b // FAILS
+                ensures af(b) // FAILS
             {
                 let i: u8 = 10;
                 let s = crate::M2::S(true, i);
@@ -783,7 +783,7 @@ test_verify_one_file! {
         mod M4 {
             #[allow(unused_imports)] use crate::M1::T;
             proof fn test() -> (b: bool)
-                ensures b
+                ensures af(b)
             {
                 let i: u8 = 10;
                 let s = crate::M2::S(true, i);
@@ -816,7 +816,7 @@ test_verify_one_file! {
         mod M3 {
             #[allow(unused_imports)] use crate::M1::T;
             proof fn test() -> (b: bool)
-                ensures b
+                ensures af(b)
             {
                 let i: u8 = 10;
                 let s = crate::M2::S(true, i);
@@ -853,7 +853,7 @@ test_verify_one_file! {
         mod M3 {
             #[allow(unused_imports)] use crate::M1::T;
             proof fn test() -> (b: bool)
-                ensures b // FAILS
+                ensures af(b) // FAILS
             {
                 let i: u8 = 10;
                 let s = crate::M2::S(true, i);
@@ -890,7 +890,7 @@ test_verify_one_file! {
         mod M3 {
             #[allow(unused_imports)] use crate::M1::T;
             proof fn test() -> (b: bool)
-                ensures b // FAILS
+                ensures af(b) // FAILS
             {
                 let s = crate::M2::S(10, 20);
                 let b: bool = s.apple(5);
@@ -908,7 +908,7 @@ test_verify_one_file! {
 
                 fn banana(&self)
                     requires self.apple(true),
-                    ensures true;
+                    ensures af(true);
             }
         }
 
@@ -969,8 +969,8 @@ test_verify_one_file! {
 
                 fn f<'a>(&'a self, x: &'a Self, b: bool) -> (r: &'a Self)
                     ensures
-                        b ==> r === self,
-                        !b ==> r === x;
+                        af(b ==> r === self),
+                        af(!b ==> r === x);
             }
 
             fn p<A: T>(a1: &A, a2: &A) {
@@ -1013,8 +1013,8 @@ test_verify_one_file! {
             pub(crate) trait T {
                 fn f<'a>(&'a self, x: &'a Self, b: bool) -> (r: &'a Self)
                     ensures
-                        b ==> r === self,
-                        !b ==> r === x; // TRAIT
+                        af(b ==> r === self),
+                        af(!b ==> r === x); // TRAIT
             }
         }
 
