@@ -20,14 +20,14 @@ trait ExEncoder {
 
     fn encode_value(&self, x: u64) -> (result: u64)
         ensures
-            result >= x;
+            af(result >= x);
 }
 // ANCHOR_END: basic_spec
 
 // ANCHOR: basic_use
 fn use_encoder<E: Encoder>(f: &E, val: u64) -> (result: u64)
     ensures
-        result >= val,
+        af(result >= val),
 {
     f.encode_value(val)
 }
@@ -53,7 +53,7 @@ trait ExSummarizer {
 
     fn summary(&self) -> (result: u64)
         ensures
-            result == self.spec_summary();
+            af(result == self.spec_summary());
 }
 // ANCHOR_END: extension_spec
 

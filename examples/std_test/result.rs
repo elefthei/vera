@@ -18,7 +18,7 @@ fn map_test() {
         requires
             x < 100000,
         ensures
-            y > x,
+            af(y > x),
         { x + 1 };
     let r2 = r1.map(op);
     runtime_assert(r2.unwrap() > 7);

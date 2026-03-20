@@ -16,55 +16,55 @@ verus! {
 #[verifier::bit_vector]
 proof fn bit_and32_auto()
     ensures
-        forall|a: u32, b: u32| #[trigger] (a & b) == b & a,
-        forall|a: u32, b: u32, c: u32| #[trigger] ((a & b) & c) == a & (b & c),
-        forall|a: u32| #[trigger] (a & a) == a,
-        forall|a: u32| #[trigger] (a & 0) == 0,
-        forall|a: u32| #[trigger] (a & 0xffffffffu32) == a,
+        af(forall|a: u32, b: u32| #[trigger] (a & b) == b & a),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] ((a & b) & c) == a & (b & c)),
+        af(forall|a: u32| #[trigger] (a & a) == a),
+        af(forall|a: u32| #[trigger] (a & 0) == 0),
+        af(forall|a: u32| #[trigger] (a & 0xffffffffu32) == a),
 {
 }
 
 #[verifier::bit_vector]
 proof fn bit_or32_auto()
     ensures
-        forall|a: u32, b: u32| #[trigger] (a | b) == b | a,
-        forall|a: u32, b: u32, c: u32| #[trigger] ((a | b) | c) == a | (b | c),
-        forall|a: u32| #[trigger] (a | a) == a,
-        forall|a: u32| #[trigger] (a | 0) == a,
-        forall|a: u32| #[trigger] (a | 0xffff_ffffu32) == 0xffff_ffffu32,
+        af(forall|a: u32, b: u32| #[trigger] (a | b) == b | a),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] ((a | b) | c) == a | (b | c)),
+        af(forall|a: u32| #[trigger] (a | a) == a),
+        af(forall|a: u32| #[trigger] (a | 0) == a),
+        af(forall|a: u32| #[trigger] (a | 0xffff_ffffu32) == 0xffff_ffffu32),
 {
 }
 
 #[verifier::bit_vector]
 proof fn bit_xor32_auto()
     ensures
-        forall|a: u32, b: u32| #[trigger] (a ^ b) == b ^ a,
-        forall|a: u32, b: u32, c: u32| #[trigger] ((a ^ b) ^ c) == a ^ (b ^ c),
-        forall|a: u32| #[trigger] (a ^ a) == 0,
-        forall|a: u32| #[trigger] (a ^ 0) == a,
-        forall|a: u32| #[trigger] (a ^ 0xffff_ffffu32) == !a,
+        af(forall|a: u32, b: u32| #[trigger] (a ^ b) == b ^ a),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] ((a ^ b) ^ c) == a ^ (b ^ c)),
+        af(forall|a: u32| #[trigger] (a ^ a) == 0),
+        af(forall|a: u32| #[trigger] (a ^ 0) == a),
+        af(forall|a: u32| #[trigger] (a ^ 0xffff_ffffu32) == !a),
 {
 }
 
 #[verifier::bit_vector]
 proof fn bit_not32_auto()
     ensures
-        forall|a: u32| #[trigger] !(!a) == a,
-        !0u32 == 0xffff_ffffu32,
+        af(forall|a: u32| #[trigger] !(!a) == a),
+        af(!0u32 == 0xffff_ffffu32),
 {
 }
 
 #[verifier::bit_vector]
 proof fn bit_lshr32_auto()
     ensures
-        forall|a: u32| #[trigger] (a >> 0u32) == a,
+        af(forall|a: u32| #[trigger] (a >> 0u32) == a),
 {
 }
 
 #[verifier::bit_vector]
 proof fn bit_shl32_auto()
     ensures
-        forall|a: u32| #[trigger] (a << 0u32) == a,
+        af(forall|a: u32| #[trigger] (a << 0u32) == a),
 {
 }
 
@@ -73,15 +73,15 @@ proof fn bit_property32_auto()
     ensures
 // absorb
 
-        forall|a: u32, b: u32| #[trigger] (a & (a | b)) == a,
-        forall|a: u32, b: u32| #[trigger] (a | (a & b)) == a,
+        af(forall|a: u32, b: u32| #[trigger] (a & (a | b)) == a),
+        af(forall|a: u32, b: u32| #[trigger] (a | (a & b)) == a),
         // distributive
-        forall|a: u32, b: u32, c: u32| #[trigger] (a & (b | c)) == (a & b) | (a & c),
-        forall|a: u32, b: u32, c: u32| #[trigger] (a & (b ^ c)) == (a & b) ^ (a & c),
-        forall|a: u32, b: u32, c: u32| #[trigger] (a | (b & c)) == (a | b) & (a | c),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] (a & (b | c)) == (a & b) | (a & c)),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] (a & (b ^ c)) == (a & b) ^ (a & c)),
+        af(forall|a: u32, b: u32, c: u32| #[trigger] (a | (b & c)) == (a | b) & (a | c)),
         // De Morgan
-        forall|a: u32, b: u32| #[trigger] (!(a & b)) == !a | !b,
-        forall|a: u32, b: u32| #[trigger] (!(a | b)) == !a & !b,
+        af(forall|a: u32, b: u32| #[trigger] (!(a & b)) == !a | !b),
+        af(forall|a: u32, b: u32| #[trigger] (!(a | b)) == !a & !b),
 {
 }
 

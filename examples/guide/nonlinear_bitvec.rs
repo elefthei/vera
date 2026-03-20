@@ -26,7 +26,7 @@ proof fn bound_check2(x: u32, y: u32, z: u32) by (nonlinear_arith)
         x <= 8,
         y <= 8,
     ensures
-        x * y <= 64
+        af(x * y <= 64)
 { }
 // ANCHOR_END: bound_checking_func
 
@@ -34,8 +34,8 @@ proof fn bound_check2(x: u32, y: u32, z: u32) by (nonlinear_arith)
 proof fn de_morgan_auto()
     by (bit_vector)
     ensures
-        forall|a: u32, b: u32| #[trigger] (!(a & b)) == !a | !b,
-        forall|a: u32, b: u32| #[trigger] (!(a | b)) == !a & !b,
+        af(forall|a: u32, b: u32| #[trigger] (!(a & b)) == !a | !b),
+        af(forall|a: u32, b: u32| #[trigger] (!(a | b)) == !a & !b),
 {
 }
 // ANCHOR_END: de_morgan

@@ -20,7 +20,7 @@ proof fn quantifier_example()
     requires
         forall|x| g(x),
     ensures
-        exists|y| g(y),
+        af(exists|y| g(y)),
 {
     let w = choose|z| g(z);
     assert(g(w));
@@ -57,7 +57,7 @@ proof fn trigger_forever()
     requires
         forall|x: nat, y: nat| f(x + 1, 2 * y) && f(2 * x, y + x) || f(y, x) ==> #[trigger] f(x, y),
     ensures
-        forall|x: nat, y: nat| x > 2318 && y < 100 ==> f(x, y),
+        af(forall|x: nat, y: nat| x > 2318 && y < 100 ==> f(x, y)),
 {
 }
 
@@ -69,7 +69,7 @@ proof fn trigger_forever2()
         forall|x: nat, y: nat| h(x, y) == f(x, y),
         forall|x: nat, y: nat| f(x + 1, 2 * y) && f(2 * x, y + x) || f(y, x) ==> #[trigger] f(x, y),
     ensures
-        forall|x: nat, y: nat| x > 2318 && y < 100 ==> h(x, y),
+        af(forall|x: nat, y: nat| x > 2318 && y < 100 ==> h(x, y)),
 {
     assert(g(4));
 }
@@ -77,7 +77,7 @@ proof fn trigger_forever2()
 
 fn simple_loop()
     ensures
-        forall|x| 0 <= x < 10 ==> g(x),
+        af(forall|x| 0 <= x < 10 ==> g(x)),
 {
     let mut x: u32 = 0;
     while x < 10

@@ -90,8 +90,8 @@ mod doubly_linked_list {
         /// Construct a new, empty, doubly-linked list.
         pub fn new() -> (s: Self)
             ensures
-                s.well_formed(),
-                s@.len() == 0,
+                af(s.well_formed()),
+                af(s@.len() == 0),
         {
             DoublyLinkedList {
                 ghost_state: Tracked(GhostState {
@@ -109,8 +109,8 @@ mod doubly_linked_list {
                 old(self).well_formed(),
                 old(self).ghost_state@.ptrs.len() == 0,
             ensures
-                self.well_formed(),
-                self@ =~= old(self)@.push(v),
+                af(self.well_formed()),
+                af(self@ =~= old(self)@.push(v)),
         {
             // Allocate a node to contain the payload
             let (ptr, Tracked(points_to)) = PPtr::<Node<V>>::new(
@@ -136,8 +136,8 @@ mod doubly_linked_list {
             requires
                 old(self).well_formed(),
             ensures
-                self.well_formed(),
-                self@ == old(self)@.push(v),
+                af(self.well_formed()),
+                af(self@ == old(self)@.push(v)),
         {
             match self.tail {
                 None => {
@@ -209,9 +209,9 @@ mod doubly_linked_list {
                 old(self).well_formed(),
                 old(self)@.len() > 0,
             ensures
-                self.well_formed(),
-                self@ == old(self)@.drop_last(),
-                v == old(self)@[old(self)@.len() as int - 1],
+                af(self.well_formed()),
+                af(self@ == old(self)@.drop_last()),
+                af(v == old(self)@[old(self)@.len() as int - 1]),
         {
             assert(self.well_formed_node((self.ghost_state@.ptrs.len() - 1) as nat));
 
@@ -286,8 +286,8 @@ mod doubly_linked_list {
             requires
                 old(self).well_formed(),
             ensures
-                self.well_formed(),
-                self@ == seq![v].add(old(self)@),
+                af(self.well_formed()),
+                af(self@ == seq![v].add(old(self)@)),
         {
             match self.head {
                 None => {
@@ -371,9 +371,9 @@ mod doubly_linked_list {
                 old(self).well_formed(),
                 old(self).view().len() > 0,
             ensures
-                self.well_formed(),
-                self@ == old(self)@.subrange(1, old(self)@.len() as int),
-                v == old(self)@[0],
+                af(self.well_formed()),
+                af(self@ == old(self)@.subrange(1, old(self)@.len() as int)),
+                af(v == old(self)@[0]),
         {
             assert(self.well_formed_node(0));
 
@@ -459,7 +459,7 @@ mod doubly_linked_list {
                 self.well_formed(),
                 0 <= i < self@.len(),
             ensures
-                *v == self@[i as int]
+                af(*v == self@[i as int])
         {
             // Iterate the nodes from 0 to j, starting at the head node
             let mut j = 0;
@@ -522,9 +522,9 @@ mod doubly_linked_list {
                 l.well_formed(),
                 l@.len() > 0,
             ensures
-                it.valid(),
-                it.index() == 0,
-                it.list() == l,
+                af(it.valid()),
+                af(it.index() == 0),
+                af(it.list() == l),
         {
             Iterator { l, cur: l.head, index: Ghost(0) }
         }
@@ -533,7 +533,7 @@ mod doubly_linked_list {
             requires
                 self.valid(),
             ensures
-                v == self.list()@[self.index() as int],
+                af(v == self.list()@[self.index() as int]),
         {
             let cur = self.cur.unwrap();
             assert(self.l.well_formed_node(self.index()));
@@ -546,9 +546,9 @@ mod doubly_linked_list {
             requires
                 old(self).valid(),
             ensures
-                old(self).list() == self.list(),
-                good == (old(self).index() < old(self).list()@.len() - 1),
-                good ==> (self.valid() && self.index() == old(self).index() + 1),
+                af(old(self).list() == self.list()),
+                af(good == (old(self).index() < old(self).list()@.len() - 1)),
+                af(good ==> (self.valid() && self.index() == old(self).index() + 1)),
         {
             assert(self.l.well_formed_node(self.index()));
             let cur = self.cur.unwrap();

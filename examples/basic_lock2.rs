@@ -33,7 +33,7 @@ struct_with_invariants!{
 
 impl<T> Lock<T> {
     fn new(t: T) -> (lock: Self)
-        ensures lock.wf()
+        ensures af(lock.wf())
     {
         let (cell, Tracked(cell_perm)) = PCell::new(t);
         let atomic = AtomicBool::new(Ghost(cell), false, Tracked(Some(cell_perm)));
@@ -42,7 +42,7 @@ impl<T> Lock<T> {
 
     fn acquire(&self) -> (points_to: Tracked<cell::PointsTo<T>>)
         requires self.wf(),
-        ensures points_to@.id() == self.cell.id(), points_to@.is_init()
+        ensures af(points_to@.id() == self.cell.id()), af(points_to@.is_init())
     {
         loop
             invariant self.wf(),

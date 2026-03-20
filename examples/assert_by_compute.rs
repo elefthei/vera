@@ -201,7 +201,7 @@ mod veribetrkv_example_original {
 
     proof fn zeroes_len(l: nat)
         ensures
-            zeroes(l).len() == l,
+            af(zeroes(l).len() == l),
         decreases l,
     {
         if l == 0 {
@@ -230,7 +230,7 @@ mod veribetrkv_example_original {
         requires
             p.len() == q.len(),
         ensures
-            xor(p, q).len() == p.len(),
+            af(xor(p, q).len() == p.len()),
         decreases p.len(),
     {
         if p.len() == 0 {

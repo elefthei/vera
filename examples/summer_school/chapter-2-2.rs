@@ -25,7 +25,7 @@ fn test_prime(candidate: u64) -> (result: bool)
     requires
         1 < candidate,
     ensures
-        result == is_prime(candidate as nat),
+        af(result == is_prime(candidate as nat)),
 {
     let mut factor: u64 = 2;
     while factor < candidate

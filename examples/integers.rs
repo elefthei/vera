@@ -21,7 +21,7 @@ spec fn add1_nat_opaque(i: nat) -> nat {
 
 proof fn test0() -> (n: nat)
     ensures
-        true,
+        af(true),
 {
     100
 }

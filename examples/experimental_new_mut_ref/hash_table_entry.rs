@@ -87,15 +87,15 @@ impl<'a, K, V> EntrySpecFns<K, V> for Entry<'a, K, V> {
 
 pub broadcast axiom fn occupied_entry_has_resolved<K, V>(entry: OccupiedEntry<K, V>)
     ensures
-        #[trigger] has_resolved(entry) ==> entry.future_value() == Some(entry.value());
+        af(#[trigger] has_resolved(entry) ==> entry.future_value() == Some(entry.value()));
 
 pub broadcast axiom fn vacant_entry_has_resolved<K, V>(entry: VacantEntry<K, V>)
     ensures
-        #[trigger] has_resolved(entry) ==> entry.future_value() == None::<V>;
+        af(#[trigger] has_resolved(entry) ==> entry.future_value() == None::<V>);
 
 pub broadcast proof fn entry_has_resolved<K, V>(entry: Entry<K, V>)
     ensures
-        #[trigger] has_resolved(entry) ==> entry.future_value() == entry.value()
+        af(#[trigger] has_resolved(entry) ==> entry.future_value() == entry.value())
 {
     broadcast use occupied_entry_has_resolved;
     broadcast use vacant_entry_has_resolved;
@@ -109,28 +109,28 @@ pub assume_specification<
 >[ HashMap::<Key, Value, S>::entry ](m: &'a mut HashMap<Key, Value, S>, key: Key)
   -> (entry: Entry<'a, Key, Value>)
 ensures
-    obeys_key_model::<Key>() && builds_valid_hashers::<S>() ==> (
+    af(obeys_key_model::<Key>() && builds_valid_hashers::<S>() ==> (
             entry.key() == key
          && entry.value() == mut_ref_current(m)@.get(key)
          && mut_ref_future(m)@ == (match entry.future_value() {
             Some(value) => mut_ref_current(m)@.insert(key, value),
             None => mut_ref_current(m)@.remove(key),
          })
-    );
+    ));
 
 pub assume_specification<'a, K, V> [ Entry::or_insert ]
     (entry: Entry::<'a, K, V>, default: V) -> (value: &'a mut V)
 ensures
-    mut_ref_current(value) == (match entry.value() {
+    af(mut_ref_current(value) == (match entry.value() {
         Some(v) => v,
         None => default
-    }),
-    entry.future_value() == Some(mut_ref_future(value));
+    })),
+    af(entry.future_value() == Some(mut_ref_future(value)));
 
 pub assume_specification<'a, K, V> [ OccupiedEntry::remove_entry ]
     (entry: OccupiedEntry::<'a, K, V>) -> (kv: (Key, Value))
 ensures
-    entry.future_value() == None,
+    af(entry.future_value() == None),
 returns
     (entry.key(), entry.value())
 

@@ -25,7 +25,7 @@ fn my_exec_fun(x: u32, y: u32) -> (sum: u32)
         x < 100,
         y < 100,
     ensures
-        sum < 200,
+        af(sum < 200),
 {
     x + y
 }
@@ -35,7 +35,7 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         x < 100,
         y < 100,
     ensures
-        sum < 200,
+        af(sum < 200),
 {
     x + y
 }
@@ -227,7 +227,7 @@ proof fn lemma_mul_upper_bound(x: int, x_bound: int, y: int, y_bound: int)
         0 <= x,
         0 <= y,
     ensures
-        x * y <= x_bound * y_bound,
+        af(x * y <= x_bound * y_bound),
 {
 }
 
@@ -374,7 +374,7 @@ proof fn chained_comparisons(i: int, j: int, k: int)
     requires
         0 <= i + 1 <= j + 10 < k + 7,
     ensures
-        j < k,
+        af(j < k),
 {
 }
 
@@ -516,7 +516,7 @@ fn test_ghost_tuple_match(t: (Tracked<S>, Tracked<S>, Ghost<int>, Ghost<int>)) -
 /// to create a mutable ghost or tracked parameter:
 fn test_ghost_mut(Ghost(g): Ghost<&mut int>)
     ensures
-        *g == *old(g) + 1,
+        af(*g == *old(g) + 1),
 {
     proof {
         *g = *g + 1;
@@ -561,8 +561,8 @@ trait T {
             0 <= i < 10,
             0 <= j < 10,
         ensures
-            i <= r,
-            j <= r,
+            af(i <= r),
+            af(j <= r),
     ;
 
     /// A trait function may have a default (provided) implementation,
@@ -572,8 +572,8 @@ trait T {
             0 <= i < 10,
             0 <= j < 10,
         ensures
-            i <= r,
-            j <= r,
+            af(i <= r),
+            af(j <= r),
         default_ensures
             i == r || j == r,
         {
@@ -601,7 +601,7 @@ impl T for S2 {
 
     fn my_function_with_a_default(&self, i: u32, j: u32) -> (r: u32)
         ensures
-            r == i + j,
+            af(r == i + j),
     {
         i + j
     }
@@ -680,7 +680,7 @@ assume_specification[EXTERNAL_C] -> u8
 
 assume_specification[external_f](u: u8) -> (r: u8)
     ensures
-        r <= u,
+        af(r <= u),
 ;
 
 fn test_external() {
