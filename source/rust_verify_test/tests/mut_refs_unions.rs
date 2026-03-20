@@ -387,8 +387,8 @@ test_verify_one_file_with_options! {
         #[verifier::external_body]
         fn manually_drop_deref_mut<T>(m: &mut ManuallyDrop<T>) -> (ret: &mut T)
             ensures
-                mut_ref_current(ret) == mut_ref_current(m)@,
-                mut_ref_future(ret) == mut_ref_future(m)@,
+                af(mut_ref_current(ret) == mut_ref_current(m)@),
+                af(mut_ref_future(ret) == mut_ref_future(m)@),
         {
             m.deref_mut()
         }
@@ -571,7 +571,7 @@ test_verify_one_file_with_options! {
         union V { a: &'static [u64], b: bool }
 
         #[verifier::external_body]
-        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures ret == b { Box::leak(b) }
+        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures af(ret == b) { Box::leak(b) }
 
         // fails
         fn test_union_slice_issue() {
@@ -595,7 +595,7 @@ test_verify_one_file_with_options! {
         union V { a: &'static [u64], b: bool }
 
         #[verifier::external_body]
-        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures ret == b { Box::leak(b) }
+        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures af(ret == b) { Box::leak(b) }
 
         // ok
         fn test_union_slice_issue2() {
@@ -619,7 +619,7 @@ test_verify_one_file_with_options! {
         union V { a: &'static [u64], b: bool }
 
         #[verifier::external_body]
-        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures ret == b { Box::leak(b) }
+        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures af(ret == b) { Box::leak(b) }
 
         // UB happens before bounds-check
         // because reading from u.a is needed to do the bounds-check
@@ -643,7 +643,7 @@ test_verify_one_file_with_options! {
         union V { a: &'static [u64], b: bool }
 
         #[verifier::external_body]
-        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures ret == b { Box::leak(b) }
+        fn leak<B: ?Sized>(b: Box<B>) -> (ret: &'static B) ensures af(ret == b) { Box::leak(b) }
 
         // UB happens before bounds-check
         // because reading from u.a is needed to do the bounds-check

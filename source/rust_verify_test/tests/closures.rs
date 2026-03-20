@@ -13,7 +13,7 @@ test_verify_one_file! {
 
         proof fn takefun(f: spec_fn(u32, u64) -> bool) -> (b: bool)
             ensures
-                b == f(10, 20),
+                af(b == f(10, 20)),
         {
             let b: bool = f(10, 20);
             b
@@ -89,7 +89,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test1_fails1 verus_code! {
         proof fn takefun(f: spec_fn(u32, u64) -> bool) -> bool {
-            ensures(|b: bool| b == f(10, 20));
+            ensures(|b: bool| af(b == f(10, 20)));
 
             #[verifier::spec] let b: bool = f(10, 20);
             b

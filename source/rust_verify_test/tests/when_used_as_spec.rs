@@ -166,7 +166,7 @@ test_verify_one_file! {
                 returns Self::f();
 
             proof fn lemma()
-                ensures Self::g();
+                ensures af(Self::g());
         }
 
         struct S;
@@ -176,7 +176,7 @@ test_verify_one_file! {
             fn g() -> bool { true }
 
             proof fn lemma()
-                ensures Self::g()
+                ensures af(Self::g())
             {}
         }
 

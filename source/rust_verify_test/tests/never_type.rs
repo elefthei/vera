@@ -30,7 +30,7 @@ test_verify_one_file! {
         }
 
         fn stuff(x: Option<u64>) -> (res: u64)
-            ensures x == Option::Some(res)
+            ensures af(x == Option::Some(res))
         {
             match x {
                 Option::Some(x) => x,
@@ -39,7 +39,7 @@ test_verify_one_file! {
         }
 
         fn stuff_fails(x: Option<u64>) -> (res: u64)
-            ensures x == Option::Some(res)
+            ensures af(x == Option::Some(res))
         {
             let x = match x {
                 Option::Some(x) => x,
