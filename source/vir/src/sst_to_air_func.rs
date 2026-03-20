@@ -435,9 +435,21 @@ fn req_ens_to_air(
             exprs.push(e.clone());
         }
         for (default_ensures, exp) in specs.iter() {
-            // Temporal postconditions (af(Q), ag(Q), au(φ,Q)) are included in the
-            // ensures predicate — exp_to_expr extracts the first-order R via the
-            // TICL bind rule (af(Q) → Q, ag(Q) → Q, au(φ,Q) → Q).
+            // TICL bind rule: strip temporal wrappers to get first-order R.
+            // af(Q) → Q, ag(Q) → Q, au(φ,Q) → Q.
+            // This must be done at the SST level (not in exp_to_expr) because
+            // the BV prover has its own expression converter that can't handle Temporal.
+            let exp = match &exp.x {
+                crate::sst::ExpX::Temporal(op, inner, goal) => {
+                    match op {
+                        crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
+                            goal.as_ref().unwrap_or(inner).clone()
+                        }
+                        _ => inner.clone(),
+                    }
+                }
+                _ => exp.clone(),
+            };
             let expr_ctxt = if is_singular {
                 ExprCtxt::new_mode_singular(ExprMode::Spec, true)
             } else {
@@ -462,7 +474,7 @@ fn req_ens_to_air(
                     is_proof_note: false,
                 }));
             }
-            if let Some(label) = sst_exp_get_proof_note(exp) {
+            if let Some(label) = sst_exp_get_proof_note(&exp) {
                 labels.push(Arc::new(MessageLabel {
                     span: exp.span.clone(),
                     note: label.to_string(),
