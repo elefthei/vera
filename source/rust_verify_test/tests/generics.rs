@@ -165,7 +165,7 @@ test_verify_one_file! {
 
         #[verifier::external_body]
         pub broadcast proof fn broadcaster<const X: u8>()
-            ensures #[trigger] af(stuff(X as int) ==> 0 <= X < 255)
+            ensures af(#[trigger] stuff(X as int) ==> 0 <= X < 255)
         {
         }
 

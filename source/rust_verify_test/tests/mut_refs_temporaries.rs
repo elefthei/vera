@@ -690,7 +690,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_ctor_update_tail ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -1020,11 +1020,11 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_let_stmt ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1))
         { }
 
         broadcast proof fn stronger_resolver_axiom2<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         { }
 
         fn consume<A>(a: A) { }
@@ -1248,7 +1248,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_let_stmt_with_pattern ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -1772,7 +1772,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_match ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -2748,12 +2748,12 @@ test_verify_one_file_with_options! {
         use crate::Option::None;
 
         broadcast proof fn stronger_resolve_axiom_opt<A>(opt: Option<A>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(opt) ==> opt is Some ==> has_resolved(opt->Some_0))
+            ensures af(#[trigger] has_resolved(opt) ==> opt is Some ==> has_resolved(opt->Some_0))
         {
         }
 
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -3470,7 +3470,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_shared_borrow ["new-mut-ref"] => verus_code! {
         broadcast axiom fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
 
 
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
@@ -3688,7 +3688,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_unused ["new-mut-ref"] => verus_code! {
         broadcast axiom fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
 
         uninterp spec fn arbitrary<A>() -> A;
 

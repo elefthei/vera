@@ -461,7 +461,7 @@ test_verify_one_file! {
         }
 
         broadcast proof fn b<A: T<X = u8>>(x: A::X, a: A)
-            ensures #[trigger] af(q(a, x) && p(x))
+            ensures af(#[trigger] q(a, x) && p(x))
         {
             p_u8(x);
         }

@@ -387,7 +387,7 @@ test_verify_one_file! {
         use vstd::std_specs::cmp::PartialEqSpec;
         broadcast proof fn axiom_spec_eq_u8(x: u8, y: u8)
             ensures
-                #[trigger] af(x.eq_spec(&y) <==> x == y),
+                af(#[trigger] x.eq_spec(&y) <==> x == y),
         {
             admit();
         }
@@ -544,7 +544,7 @@ test_verify_one_file! {
         uninterp spec fn f<A>(x: A) -> bool;
 
         broadcast proof fn p<A: TSpec>(x: A)
-            ensures #[trigger] af(f(x))
+            ensures af(#[trigger] f(x))
         {
             admit();
         }
@@ -579,14 +579,14 @@ test_verify_one_file! {
 
         broadcast proof fn b1<A: TSpec>(a: A)
             ensures
-                #[trigger] af(f(a)),
+                af(#[trigger] f(a)),
         {
             admit();
         }
 
         broadcast proof fn b2<A: T>(a: A)
             ensures
-                #[trigger] af(f(a)),
+                af(#[trigger] f(a)),
         {
             // Rust accepts this because of the blanket implementation for TSpec:
             b1(a);
