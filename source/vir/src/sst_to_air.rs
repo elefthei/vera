@@ -52,12 +52,41 @@ use std::collections::{BTreeMap, HashMap};
 use std::mem::swap;
 use std::sync::Arc;
 
-/// A single temporal obligation extracted from a function's ensures clause.
+/// Two kinds of propositions in Vera's TICL-based verification:
+///
+/// - **Instant**: Holds at a single state (preconditions, spec fn postconditions).
+///   No temporal modality — just a first-order formula.
+/// - **Temporal**: Holds over a computation trace (exec/proof fn postconditions).
+///   Carries a temporal obligation (Always, Until, Next).
+#[derive(Clone, Debug)]
+pub enum Proposition {
+    /// First-order formula holding at a single state.
+    /// Used for: preconditions, spec fn ensures, loop invariants.
+    Instant(Exp),
+    /// Temporal obligation over a computation trace.
+    /// Used for: exec/proof fn ensures (af, ag, au).
+    Temporal(TemporalObligation),
+}
+
+impl Proposition {
+    pub fn is_temporal(&self) -> bool {
+        matches!(self, Proposition::Temporal(_))
+    }
+
+    pub fn is_instant(&self) -> bool {
+        matches!(self, Proposition::Instant(_))
+    }
+
+    pub fn as_temporal(&self) -> Option<&TemporalObligation> {
+        match self {
+            Proposition::Temporal(t) => Some(t),
+            _ => None,
+        }
+    }
+}
+
+/// A temporal obligation over a computation trace.
 /// Each variant enforces the correct arity for its operator.
-/// In TICL semantics, ALL postconditions are temporal:
-///   - `ensures af(Q)` → Until(true, Q) (Q eventually — old Hoare semantics)
-///   - `ensures ag(Q)` → Always(Q) (Q at every state forever)
-///   - `ensures au(P, Q)` → Until(P, Q) (P holds until Q is reached)
 #[derive(Clone, Debug)]
 pub enum TemporalObligation {
     /// AG(φ): φ must hold at every state of an infinite computation.
@@ -100,23 +129,26 @@ impl TemporalObligation {
     }
 }
 
-/// Temporal verification context threaded through VCGen.
-/// When non-empty, stm_to_stmts generates additional assertions
-/// per TICL structural rules.
+/// Verification context threaded through VCGen.
+/// Contains propositions (temporal and instant) from the function's ensures clause.
 #[derive(Clone, Debug, Default)]
-pub struct TemporalContext {
-    pub obligations: Vec<TemporalObligation>,
+pub struct VerificationContext {
+    pub propositions: Vec<Proposition>,
 }
 
-impl TemporalContext {
+impl VerificationContext {
     pub fn is_empty(&self) -> bool {
-        self.obligations.is_empty()
+        self.propositions.is_empty()
     }
 
-    /// True if the context has temporal obligations that drive
-    /// temporal VCGen (loop classification, prefix obligations, etc.).
+    /// True if the context has any temporal propositions.
     pub fn has_temporal(&self) -> bool {
-        !self.obligations.is_empty()
+        self.propositions.iter().any(|p| p.is_temporal())
+    }
+
+    /// Iterator over temporal obligations only.
+    pub fn temporal_obligations(&self) -> impl Iterator<Item = &TemporalObligation> {
+        self.propositions.iter().filter_map(|p| p.as_temporal())
     }
 }
 
@@ -1702,7 +1734,7 @@ struct State {
     loop_infos: Vec<LoopInfo>,
     static_prelude: Vec<Stmt>,
     /// Temporal obligations from ensures clauses, threaded through VCGen
-    temporal_context: TemporalContext,
+    temporal_context: VerificationContext,
     /// Set to true when any loop discharges temporal obligations (has invariant in temporal context)
     temporal_discharged: bool,
     /// Set to true when a loop without decreases exists in temporal context (AG = infinite loop)
@@ -2020,7 +2052,7 @@ fn temporal_loop_assertions(
         Some(mk_and(&r_exprs))
     };
 
-    for obligation in &state.temporal_context.obligations {
+    for obligation in state.temporal_context.temporal_obligations() {
         match obligation {
             TemporalObligation::Always { property, .. } => {
                 let phi = exp_to_expr(ctx, property, expr_ctxt)?;
@@ -2722,7 +2754,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 // Only for loops without decreases (AG = infinite loop).
                 // Loops with decreases are AU/standard and CAN exit.
                 if *is_break && !loop_info.temporal_invs.is_empty() && loop_info.decrease.len() == 0 {
-                    let has_ag = state.temporal_context.obligations.iter()
+                    let has_ag = state.temporal_context.temporal_obligations()
                         .any(|o| o.is_always() || o.requires_invariance());
                     if has_ag {
                         let error = error_with_label(
@@ -2760,7 +2792,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     // TICL: weaken decreases at continue for genuine AU obligations (ψ ∨ m decreased)
                     // Skip af(Q) = Until(true, Q) — trivial path, standard decreases apply
                     let au_goals: Vec<(&Exp, &Exp)> = if !loop_info.temporal_invs.is_empty() {
-                        state.temporal_context.obligations.iter()
+                        state.temporal_context.temporal_obligations()
                             .filter_map(|o| match o {
                                 TemporalObligation::Until { path, goal, requires_invariance } => {
                                     if *requires_invariance || !matches!(&path.x, ExpX::Const(crate::ast::Constant::Bool(true))) {
@@ -2906,7 +2938,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let is_ag_loop = decrease.len() == 0;
                 // Only genuine AU(φ, Q) with non-trivial φ triggers AU loop classification.
                 // af(Q) = AU(true, Q) is Hoare-equivalent — loops with decreases are standard.
-                let has_genuine_au = state.temporal_context.obligations.iter()
+                let has_genuine_au = state.temporal_context.temporal_obligations()
                     .any(|o| match o {
                         TemporalObligation::Until { path, requires_invariance, .. } => {
                             *requires_invariance
@@ -2952,7 +2984,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // A loop without decreases in temporal context implies AG (infinite loop).
             // If the temporal context has AU obligations, decreases is mandatory.
             if !temporal_invs.is_empty() && decrease.len() == 0 {
-                let has_genuine_au = state.temporal_context.obligations.iter()
+                let has_genuine_au = state.temporal_context.temporal_obligations()
                     .any(|o| match o {
                         TemporalObligation::Until { path, requires_invariance, .. } => {
                             *requires_invariance
@@ -3139,7 +3171,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     // TICL rule: aul_cprog_while — for genuine AU(φ,ψ), weaken decreases to ψ ∨ (m decreased)
                     // Skip af(Q) = Until(true, Q) — trivial path, standard decreases apply
                     let au_goals: Vec<(&Exp, &Exp)> = if !temporal_invs.is_empty() {
-                        state.temporal_context.obligations.iter()
+                        state.temporal_context.temporal_obligations()
                             .filter_map(|o| match o {
                                 TemporalObligation::Until { path, goal, requires_invariance } => {
                                     if *requires_invariance || !matches!(&path.x, ExpX::Const(crate::ast::Constant::Bool(true))) {
@@ -3497,7 +3529,6 @@ pub(crate) fn body_stm_to_air(
     // - `ensures af(Q)` → Until(true, Q) via decompose_temporal
     // - `ensures ag(Q)` → Always(Q) via decompose_temporal
     let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
-    let mut temporal_obligations: Vec<TemporalObligation> = Vec::new();
 
     /// Recursively decompose nested temporal expressions into flat leaf obligations.
     /// E.g., AG(AU(φ,ψ)) → innermost Until { path: φ, goal: ψ, requires_invariance: true }.
@@ -3573,7 +3604,9 @@ pub(crate) fn body_stm_to_air(
             }
         }
     }
-    let temporal_context = TemporalContext { obligations: temporal_obligations };
+    let temporal_context = VerificationContext {
+        propositions: temporal_obligations.into_iter().map(Proposition::Temporal).collect(),
+    };
 
     // Derive ens_exprs for Return-point checking:
     // Until goals (from af(Q), au(φ,Q)) are checked at return.
@@ -3581,7 +3614,7 @@ pub(crate) fn body_stm_to_air(
     let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
     {
         let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
-        for o in temporal_context.obligations.iter() {
+        for o in temporal_context.temporal_obligations() {
             match o {
                 TemporalObligation::Until { goal, .. } => {
                     // Skip goals that contain nested temporal expressions
@@ -3602,7 +3635,7 @@ pub(crate) fn body_stm_to_air(
     // These must hold at every intermediate state in prefix code (before temporal loop).
     // Always(φ) → φ must hold at every step
     // Until(path, goal) → path must hold at every step (skip if path is trivially true)
-    let temporal_prefix_obligations: Vec<Exp> = temporal_context.obligations.iter().filter_map(|o| {
+    let temporal_prefix_obligations: Vec<Exp> = temporal_context.temporal_obligations().filter_map(|o| {
         match o {
             TemporalObligation::Always { property, .. } => Some(property.clone()),
             TemporalObligation::Until { path, .. } => {
@@ -3669,7 +3702,7 @@ pub(crate) fn body_stm_to_air(
     // This fires once at function level, allowing utility loops
     // without temporal obligations to coexist with the main temporal loop.
     if state.temporal_context.has_temporal() && !state.temporal_discharged {
-        let needs_invariance = state.temporal_context.obligations.iter()
+        let needs_invariance = state.temporal_context.temporal_obligations()
             .any(|o| o.requires_invariance());
         if needs_invariance {
             return Err(error(
@@ -3680,7 +3713,7 @@ pub(crate) fn body_stm_to_air(
     }
     // AG requires at least one infinite loop (no decreases).
     // A function with only terminating loops can't satisfy AG.
-    let has_ag = state.temporal_context.obligations.iter()
+    let has_ag = state.temporal_context.temporal_obligations()
         .any(|o| o.is_always() || o.requires_invariance());
     if has_ag && !state.has_infinite_temporal_loop {
         return Err(error(
