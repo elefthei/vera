@@ -354,7 +354,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] rec_cycle2 verus_code! {
         proof fn p(i: int)
-            ensures false
+            ensures af(false),
             decreases i
         {
             assert(f(3) == f(3) + 1); // FAILS
@@ -372,7 +372,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] rec_cycle3 verus_code! {
         proof fn p(i: int)
-            ensures false
+            ensures af(false),
             decreases i
         {
             assert(f(3) == f(3) + 1); // FAILS
@@ -390,7 +390,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] rec_cycle4 verus_code! {
         proof fn p()
-            ensures false
+            ensures af(false),
             decreases 1int
         {
             assert(f(3) == f(3) + 1); // FAILS
@@ -408,7 +408,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] rec_cycle5 verus_code! {
         proof fn p()
-            ensures false
+            ensures af(false),
         {
             assert(f(3) == f(3) + 1);
         }

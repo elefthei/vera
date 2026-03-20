@@ -290,7 +290,8 @@ test_verify_one_file! {
 
             #[verifier::external_body]
             pub broadcast proof fn ab(a: A)
-                ensures #![trigger a.f1()] (a.f1() ==> a.f2()) && a.f3()
+                ensures #![trigger a.f1()]
+                    af((a.f1() ==> a.f2()) && a.f3()),
             {
             }
         }
@@ -298,7 +299,7 @@ test_verify_one_file! {
         use M::*;
         proof fn p(a: A)
             requires a.f1(),
-            ensures a.f2(),
+            ensures af(a.f2()),
         {
             broadcast use ab;
         }
@@ -315,8 +316,7 @@ test_verify_one_file! {
             requires
                 forall|x: int| #[trigger a(x)] c(x) && (a(x) ==> b(x)),
                 a(i),
-            ensures
-                b(i),
+            ensures af(b(i)),
         {
 
         }

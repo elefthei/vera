@@ -297,7 +297,7 @@ test_verify_one_file! {
         struct R(Box<I<R>>);
 
         proof fn bad(r: R)
-            ensures false
+            ensures af(false),
             decreases r
         {
             bad(r.0.0);
@@ -306,7 +306,7 @@ test_verify_one_file! {
         spec fn make_r() -> R;
 
         proof fn test()
-            ensures false
+            ensures af(false),
         {
             bad(make_r())
         }
@@ -322,7 +322,7 @@ test_verify_one_file! {
         struct R(Box<I<R>>);
 
         proof fn bad(r: R)
-            ensures false
+            ensures af(false),
             decreases r
         {
             bad(r.0.0);
@@ -331,7 +331,7 @@ test_verify_one_file! {
         spec fn make_r() -> R;
 
         proof fn test()
-            ensures false
+            ensures af(false),
         {
             bad(make_r())
         }
