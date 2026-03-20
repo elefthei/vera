@@ -2529,16 +2529,16 @@ pub(crate) fn expr_to_stm_opt(
             } else {
                 None
             };
-            // Loops in functions with temporal ensures (AG/AF/AU) don't require decreases:
-            // - AG semantics: loop is infinite, no termination proof needed
-            // - AU semantics: decreases is still expected (checked later in sst_to_air)
-            let has_temporal_ensures = ctx.fun.as_ref().map(|c| {
+            // Loops in functions with AG temporal ensures don't require decreases:
+            // AG semantics: loop is infinite, no termination proof needed.
+            // AF/AU: still need decreases (checked later in sst_to_air).
+            let has_ag_ensures = ctx.fun.as_ref().map(|c| {
                 let function = &ctx.func_map[&c.current_fun];
                 function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
-                    .any(|e| matches!(&e.x, ExprX::Temporal(..)))
+                    .any(|e| matches!(&e.x, ExprX::Temporal(crate::ast::TemporalOp::AG, ..)))
             }).unwrap_or(false);
             if decrease.len() == 0
-                && !has_temporal_ensures
+                && !has_ag_ensures
                 && !ctx
                     .fun
                     .as_ref()
