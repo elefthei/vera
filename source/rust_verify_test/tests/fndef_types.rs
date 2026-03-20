@@ -7,7 +7,7 @@ test_verify_one_file_with_options! {
     #[test] basic_test ["vstd"] => verus_code! {
         fn llama(x: u8) -> (b: bool)
             requires x == 4 || x == 7,
-            ensures b == (x == 4)
+            ensures af(b == (x == 4))
         {
             x == 4
         }
@@ -85,7 +85,7 @@ test_verify_one_file_with_options! {
     #[test] generics_test ["vstd"] => verus_code! {
         fn llama<T>(x: T, y: T, z: T) -> (b: bool)
             requires x == y,
-            ensures b == (y == z),
+            ensures af(b == (y == z)),
         {
             // We can't actually implement this, but it doesn't matter for the test
             assume(false);
@@ -178,7 +178,7 @@ test_verify_one_file_with_options! {
         trait Tr : Sized {
             fn llama(self, y: Self, z: Self) -> (b: bool)
                 requires self == y,
-                ensures b == (y == z);
+                ensures af(b == (y == z));
         }
 
         struct X {
@@ -367,7 +367,7 @@ test_verify_one_file! {
         }
 
         fn test(x: u8)
-            ensures s(x),
+            ensures af(s(x)),
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "cyclic dependency in the requires/ensures of function")
@@ -621,7 +621,7 @@ test_verify_one_file! {
 
         impl Tr for X {
             fn stuff(&self) -> (res: bool)
-                ensures call_ensures(X::stuff, (&self,), res)
+                ensures af(call_ensures(X::stuff, (&self,), res))
             {
                 true
             }
@@ -633,7 +633,7 @@ test_verify_one_file! {
     #[test] recursion19_via_trait_function_ensures verus_code! {
         trait Tr {
             fn stuff(&self) -> (res: bool)
-                ensures call_ensures(Self::stuff, (&self,), res);
+                ensures af(call_ensures(Self::stuff, (&self,), res));
         }
     } => Err(err) => assert_vir_error_msg(err, "cyclic dependency in the requires/ensures of function")
 }
@@ -753,7 +753,7 @@ test_verify_one_file! {
         trait Tr {
             fn stuff(&self, x: u8) -> (b: bool)
                 requires x <= 5,
-                ensures (b == (x == 0));
+                ensures af((b == (x == 0)));
         }
 
         struct X { }
@@ -782,7 +782,7 @@ test_verify_one_file! {
         trait Tr {
             fn stuff(&self, x: u8) -> (b: bool)
                 requires x <= 5,
-                ensures (b == (x == 0));
+                ensures af((b == (x == 0)));
         }
 
         proof fn test_req<X: Tr>(x: X) {
@@ -801,14 +801,14 @@ test_verify_one_file! {
     #[test] test_ensures_extension verus_code! {
         trait Tr {
             fn stuff(&self) -> (res: u8)
-                ensures res % 2 == 0;
+                ensures af(res % 2 == 0);
         }
 
         struct X { t: u8 }
 
         impl Tr for X {
             fn stuff(&self) -> (res: u8)
-                ensures 0 <= res <= self.t
+                ensures af(0 <= res <= self.t)
             {
                 0
             }
@@ -841,14 +841,14 @@ test_verify_one_file! {
 
         trait Tr {
             fn stuff(&self) -> (res: u8)
-                ensures res % 2 == 0;
+                ensures af(res % 2 == 0);
         }
 
         struct X { t: u8 }
 
         impl Tr for X {
             fn stuff(&self) -> (res: u8)
-                ensures 0 <= res <= self.t
+                ensures af(0 <= res <= self.t)
             {
                 0
             }
@@ -871,14 +871,14 @@ test_verify_one_file! {
 
         trait Tr {
             fn stuff(&self) -> (res: u8)
-                ensures res % 2 == 0;
+                ensures af(res % 2 == 0);
         }
 
         struct X { t: u8 }
 
         impl Tr for X {
             fn stuff(&self) -> (res: u8)
-                ensures 0 <= res <= self.t
+                ensures af(0 <= res <= self.t)
             {
                 0
             }
@@ -909,7 +909,7 @@ test_verify_one_file! {
 
         impl Tr for X {
             fn stuff(&self) -> (res: u8)
-                ensures 0 <= res <= self.t
+                ensures af(0 <= res <= self.t)
             {
                 0
             }
@@ -952,24 +952,24 @@ test_verify_one_file! {
             spec fn rel(&self, other: &Self) -> bool;
 
             proof fn reflexive(a: &Self)
-                ensures a.rel(a);
+                ensures af(a.rel(a));
 
             proof fn symmetric(a: &Self, b: &Self)
-                ensures a.rel(b) ==> b.rel(a);
+                ensures af(a.rel(b) ==> b.rel(a));
 
             proof fn transitive(a: &Self, b: &Self, c: &Self)
                 requires a.rel(b), b.rel(c)
-                ensures a.rel(c);
+                ensures af(a.rel(c));
 
             proof fn fns_correct(a: &Self, b: &Self)
                 ensures
                     // call_ensures is a verus verus_builtin that means
                     // "this is a valid input-output pair for the function Self::eq"
-                    call_ensures(Self::eq, (a, b), true) ==> a.rel(b),
-                    call_ensures(Self::eq, (a, b), false) ==> !a.rel(b),
+                    af(call_ensures(Self::eq, (a, b), true) ==> a.rel(b)),
+                    af(call_ensures(Self::eq, (a, b), false) ==> !a.rel(b)),
 
-                    call_ensures(Self::ne, (a, b), true) ==> !a.rel(b),
-                    call_ensures(Self::ne, (a, b), false) ==> a.rel(b);
+                    af(call_ensures(Self::ne, (a, b), true) ==> !a.rel(b)),
+                    af(call_ensures(Self::ne, (a, b), false) ==> a.rel(b));
         }
 
         // Example usage
@@ -984,13 +984,13 @@ test_verify_one_file! {
 
         impl VPartialEq for Mod2 {
             fn eq(&self, other: &Self) -> (b: bool)
-                ensures b == (self@ == other@),
+                ensures af(b == (self@ == other@)),
             {
                 self.u % 2 == other.u % 2
             }
 
             fn ne(&self, other: &Self) -> (b: bool)
-                ensures b == (self@ != other@),
+                ensures af(b == (self@ != other@)),
             {
                 self.u % 2 != other.u % 2
             }
@@ -1038,18 +1038,18 @@ test_verify_one_file! {
             spec fn rel(&self, other: &Self) -> bool;
 
             proof fn reflexive(a: &Self)
-                ensures a.rel(a);
+                ensures af(a.rel(a));
 
             proof fn symmetric(a: &Self, b: &Self)
-                ensures a.rel(b) ==> b.rel(a);
+                ensures af(a.rel(b) ==> b.rel(a));
 
             proof fn transitive(a: &Self, b: &Self, c: &Self)
                 requires a.rel(b), b.rel(c)
-                ensures a.rel(c);
+                ensures af(a.rel(c));
 
             proof fn fns_correct(a: &Self, b: &Self)
                 ensures
-                    call_ensures(Self::ne, (a, b), true) ==> !a.rel(b); // FAILS
+                    af(call_ensures(Self::ne, (a, b), true) ==> !a.rel(b)); // FAILS
         }
 
         // Example usage
@@ -1064,13 +1064,13 @@ test_verify_one_file! {
 
         impl VPartialEq for Mod2 {
             fn eq(&self, other: &Self) -> (b: bool)
-                ensures b == (self@ == other@),
+                ensures af(b == (self@ == other@)),
             {
                 self.u % 2 == other.u % 2
             }
 
             fn ne(&self, other: &Self) -> (b: bool)
-                ensures b == (self@ == other@),
+                ensures af(b == (self@ == other@)),
             {
                 self.u % 2 == other.u % 2
             }
@@ -1111,7 +1111,7 @@ test_verify_one_file! {
     #[test] trait_default_method_call_ensures verus_code! {
         trait Tr {
             fn hello(i: u64, j: u64)
-                ensures i == j,
+                ensures af(i == j),
             {
                 assume(false);
             }
@@ -1126,7 +1126,7 @@ test_verify_one_file! {
 
         impl<A> Tr for Y<A> {
             fn hello(i: u64, j: u64)
-                ensures i >= 5,
+                ensures af(i >= 5),
             {
                 assume(false);
             }
@@ -1159,7 +1159,7 @@ test_verify_one_file! {
             spec fn stuff(i: u64, j: u64) -> bool { i == j }
 
             fn hello(i: u64, j: u64)
-                ensures Self::stuff(i, j)
+                ensures af(Self::stuff(i, j))
             {
                 assume(false);
             }
@@ -1172,7 +1172,7 @@ test_verify_one_file! {
         struct Y<A> { a: A }
         impl<A> Tr for Y<A> {
             fn hello(i: u64, j: u64)
-                ensures i >= 5, // and implied stuff()
+                ensures af(i >= 5), // and implied stuff()
             {
                 assume(false);
             }
@@ -1188,7 +1188,7 @@ test_verify_one_file! {
             spec fn stuff(i: u64, j: u64) -> bool { i == j + 1 }
 
             fn hello(i: u64, j: u64)
-                ensures i >= 5, // and implied stuff()
+                ensures af(i >= 5), // and implied stuff()
             {
                 assume(false);
             }
@@ -1343,8 +1343,8 @@ test_verify_one_file! {
             requires
                 forall |i| 0 <= i < v.len() ==> call_requires(f, (&v[i],)),
             ensures
-                result.len() == v.len(),
-                forall |i| 0 <= i < v.len() ==> call_ensures(f, (&v[i],), #[trigger] result[i])
+                af(result.len() == v.len()),
+                af(forall |i| 0 <= i < v.len() ==> call_ensures(f, (&v[i],), #[trigger] result[i]))
         {
             assume(false);
             Vec::new()
@@ -1352,7 +1352,7 @@ test_verify_one_file! {
 
         fn double(x: &u8) -> (res: u8)
             requires 0 <= *x < 128,
-            ensures res == 2 * (*x),
+            ensures af(res == 2 * (*x)),
         {
             2 * (*x)
         }
@@ -1462,7 +1462,7 @@ test_verify_one_file_with_options! {
     #[test] test_returns_clause2 ["vstd", "exec_allows_no_decreases_clause"] => verus_code! {
         fn llama(x: u8) -> (b: bool)
             requires x == 4 || x == 7 || x == 9,
-            ensures x == 4 || x == 7
+            ensures af(x == 4 || x == 7)
             returns (x == 4)
         {
             if x == 9 {
@@ -1532,7 +1532,7 @@ test_verify_one_file_with_options! {
             spec fn ret(&self, i: u8) -> Self;
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures self.ens(i, &s),
+                ensures af(self.ens(i, &s)),
                 returns self.ret(i);
         }
 
@@ -1549,7 +1549,7 @@ test_verify_one_file_with_options! {
             }
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures !(20 <= i < 30),
+                ensures af(!(20 <= i < 30)),
             {
                 if self.j as u64 + i as u64 >= 250 || (20 <= i && i < 30) {
                     loop { }
@@ -1590,7 +1590,7 @@ test_verify_one_file_with_options! {
             spec fn ens(&self, i: u8, s: &Self) -> bool;
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures self.ens(i, &s);
+                ensures af(self.ens(i, &s));
         }
 
         // ok
@@ -1601,7 +1601,7 @@ test_verify_one_file_with_options! {
             spec fn ens(&self, i: u8, s: &Self) -> bool { self.j + i < 250 }
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures !(20 <= i < 30),
+                ensures af(!(20 <= i < 30)),
                 returns (X { j: (self.j + i) as u8 }),
             {
                 if self.j as u64 + i as u64 >= 250 || (20 <= i && i < 30) {
@@ -1629,7 +1629,7 @@ test_verify_one_file_with_options! {
     #[test] call_ensures_returns_on_default_method_impl ["exec_allows_no_decreases_clause"] => verus_code! {
         trait Tr : Sized {
             fn test(&self, i: u8) -> (s: &Self)
-                ensures 20 <= i < 30,
+                ensures af(20 <= i < 30),
                 returns
                     self
             {
@@ -1644,7 +1644,7 @@ test_verify_one_file_with_options! {
         struct Y { }
         impl Tr for Y {
             fn test(&self, i: u8) -> (s: &Self)
-                ensures 15 <= i < 25,
+                ensures af(15 <= i < 25),
             {
                 if !(20 <= i && i < 25) { loop { } }
                 self
@@ -1699,7 +1699,7 @@ test_verify_one_file! {
         impl Foo {
             proof fn lemma_clone()
                 ensures
-                    forall |a: Self, b: Self| call_ensures(Clone::clone, (&a,), b) ==> a == b,
+                    af(forall |a: Self, b: Self| call_ensures(Clone::clone, (&a,), b) ==> a == b),
             { assume(false); }
         }
     } => Err(err) => assert_vir_error_msg(err, "cannot use function `test_crate::Foo::clone` which is ignored")
@@ -1716,7 +1716,7 @@ test_verify_one_file! {
         impl<T: Clone> Clone for X<T> {
             fn clone(&self) -> (s: Self)
                 ensures
-                    call_ensures(T::clone, (&self.t,), s.t)
+                    af(call_ensures(T::clone, (&self.t,), s.t))
             {
                 let t_clone = T::clone;
                 let new_t = t_clone(&self.t);
@@ -1733,7 +1733,7 @@ test_verify_one_file! {
 
         fn foo(x: u64) -> (a: u64)
             requires foo_req(x),
-            ensures foo_ens(x, a),
+            ensures af(foo_ens(x, a)),
         {
             assume(false);
             20
@@ -1761,7 +1761,7 @@ test_verify_one_file! {
 
         fn foo(x: u64)
             requires foo_req(x),
-            ensures foo_ens(x, 0),
+            ensures af(foo_ens(x, 0)),
         {
             assume(false);
         }
@@ -1832,7 +1832,7 @@ test_verify_one_file! {
 
             fn foo(&self) -> (a: Self)
                 requires self.foo_req(),
-                ensures self.foo_ens(a);
+                ensures af(self.foo_ens(a));
         }
 
         struct X { u: u64 }
@@ -1854,7 +1854,7 @@ test_verify_one_file! {
             spec fn foo_ens(&self, a: Self) -> bool;
 
             fn foo(&self) -> (res: Self)
-                ensures res.u == 0
+                ensures af(res.u == 0)
             {
                 assume(false);
                 Y { u: 0 }
