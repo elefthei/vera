@@ -78,14 +78,14 @@ test_verify_one_file! {
 
         broadcast proof fn lemma_s_obeys_eq_spec()
             ensures
-                #[trigger] af(obeys_eq_spec::<P>()),
+                af(#[trigger] obeys_eq_spec::<P>()),
         {
             reveal(obeys_eq_spec_properties);
         }
 
         broadcast proof fn lemma_s_obeys_concrete_eq()
             ensures
-                #[trigger] af(obeys_concrete_eq::<P>()),
+                af(#[trigger] obeys_concrete_eq::<P>()),
         {
             reveal(obeys_concrete_eq);
         }

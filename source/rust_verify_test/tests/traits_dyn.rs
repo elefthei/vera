@@ -130,7 +130,7 @@ test_verify_one_file! {
 
         broadcast proof fn promote_f<A: T>(a: &A)
             ensures
-                #[trigger] af(a.f() < 10),
+                af(#[trigger] a.f() < 10),
         {
             a.about_f();
         }
@@ -166,7 +166,7 @@ test_verify_one_file! {
 
         broadcast proof fn promote_f<A: T>(a: &A)
             ensures
-                #[trigger] af(a.f() < 10),
+                af(#[trigger] a.f() < 10),
         {
             a.about_f();
         }
@@ -198,7 +198,7 @@ test_verify_one_file! {
 
         broadcast proof fn promote_f<A: T>(tracked a: &A)
             ensures
-                #[trigger] af(a.f() < 10),
+                af(#[trigger] a.f() < 10),
         {
             a.about_f();
         }
@@ -238,7 +238,7 @@ test_verify_one_file! {
 
         broadcast proof fn promote_false<A: False>(a: Opt<A>)
             ensures
-                #[trigger] af(f::<A>(&a)),
+                af(#[trigger] f::<A>(&a)),
                 af(false),
         {
             A::ensure_false();

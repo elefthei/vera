@@ -928,7 +928,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] dont_resolve_ghost_field ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -969,7 +969,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] dont_resolve_ghost_field2 ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>)
-            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
