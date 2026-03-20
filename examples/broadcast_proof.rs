@@ -13,7 +13,7 @@ verus! {
             a % c == 0,
             b % c == 0,
         ensures
-            (a + b) % c == 0,
+            af((a + b) % c == 0),
     {
       admit();
     }
@@ -59,7 +59,7 @@ verus! {
         p1.modulo == p2.modulo,
         p2 == p1.add(v).add(v),
       ensures
-        p2.aligned()
+        af(p2.aligned())
     {
       // assert((p1.i + v + v) % p2.modulo == 0) by (nonlinear_arith)
       //   requires
@@ -109,8 +109,8 @@ verus! {
         requires
           p.aligned(), v.aligned(), p.modulo == v.modulo,
         ensures
-          (#[trigger] p.add(v)).aligned(),
-          p.add(v).modulo == lib::same_or_arbitrary(p.modulo, v.modulo),
+          af((#[trigger] p.add(v)).aligned()),
+          af(p.add(v).modulo == lib::same_or_arbitrary(p.modulo, v.modulo)),
       {
         super::lib::mod_add_zero(p.i as int, v.i as int, p.modulo as int);
       }
@@ -119,8 +119,8 @@ verus! {
         requires
           p.aligned(), v.aligned(), p.modulo == v.modulo,
         ensures
-          (#[trigger] p.mul(v)).aligned(),
-          p.mul(v).modulo == lib::same_or_arbitrary(p.modulo, v.modulo),
+          af((#[trigger] p.mul(v)).aligned()),
+          af(p.mul(v).modulo == lib::same_or_arbitrary(p.modulo, v.modulo)),
       {
         // TODO
         admit();
@@ -146,7 +146,7 @@ verus! {
         p1.aligned(), v.aligned(), p1.modulo == v.modulo,
         p2 == p1.add(v).add(v),
       ensures
-        p2.aligned()
+        af(p2.aligned())
     {
     }
 
@@ -164,7 +164,7 @@ verus! {
         p1.aligned(), v.aligned(), p1.modulo == v.modulo,
         p2 == p1.add(v).add(v),
       ensures
-        p2.aligned()
+        af(p2.aligned())
     {
     broadcast use Multiple::group_properties;
     }
@@ -175,7 +175,7 @@ verus! {
         p1.aligned(), v.aligned(), p1.modulo == v.modulo,
         p2 == p1.mul(v).add(v),
       ensures
-        p2.aligned()
+        af(p2.aligned())
     {
     broadcast use Multiple::group_properties;
     }

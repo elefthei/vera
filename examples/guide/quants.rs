@@ -342,9 +342,9 @@ spec fn dummy(i: int) -> bool;
 
 proof fn prove_forall()
     ensures
-        forall|i: int, j: int|
+        af(forall|i: int, j: int|
             #![trigger dummy(i), dummy(j)]
-            is_distinct(i, j) ==> is_distinct(j, i),
+            is_distinct(i, j) ==> is_distinct(j, i)),
 {
     // proving the forall just works; the trigger is irrelevant
 }
@@ -362,7 +362,7 @@ proof fn use_exists(x: int)
 // ANCHOR: hoist
 proof fn hoisted_forall(i: int, j: int)
     ensures
-        is_distinct(i, j) ==> is_distinct(j, i),
+        af(is_distinct(i, j) ==> is_distinct(j, i)),
 {
 }
 
@@ -379,7 +379,7 @@ proof fn lemma_even_f(i: int)
     requires
         is_even(i),
     ensures
-        f(i),
+        af(f(i)),
 {
 }
 
@@ -387,7 +387,7 @@ proof fn lemma_even_f(i: int)
 // ANCHOR: test_even_f_fail1
 proof fn test_even_f()
     ensures
-        forall|i: int| is_even(i) ==> f(i), // FAILS because we don't call the lemma
+        af(forall|i: int| is_even(i) ==> f(i)), // FAILS because we don't call the lemma
 {
 }
 // ANCHOR_END: test_even_f_fail1
@@ -397,7 +397,7 @@ proof fn test_even_f()
 // ANCHOR: test_even_f_fail2
 proof fn test_even_f()
     ensures
-        forall|i: int| is_even(i) ==> f(i),
+        af(forall|i: int| is_even(i) ==> f(i)),
 {
     lemma_even_f(i); // ERROR: i is not in scope here
 }
@@ -407,7 +407,7 @@ proof fn test_even_f()
 // ANCHOR: test_even_f
 proof fn test_even_f()
     ensures
-        forall|i: int| is_even(i) ==> f(i),
+        af(forall|i: int| is_even(i) ==> f(i)),
 {
     assert forall|i: int| is_even(i) implies f(i) by {
         // First, i is in scope here
@@ -425,7 +425,7 @@ proof fn lemma_g_proves_f(i: int, j: int)
     requires
         g(i, j),
     ensures
-        f(i),
+        af(f(i)),
 {
 }
 
@@ -435,7 +435,7 @@ proof fn test_g_proves_f(i: int)
     requires
         exists|j: int| g(i, j),
     ensures
-        f(i),
+        af(f(i)),
 {
     lemma_g_proves_f(i, j); // ERROR: j is not in scope here
 }
@@ -447,7 +447,7 @@ proof fn test_g_proves_f(i: int)
     requires
         exists|j: int| g(i, j),
     ensures
-        f(i),
+        af(f(i)),
 {
     lemma_g_proves_f(i, choose|j: int| g(i, j));
 }
@@ -459,8 +459,8 @@ fn binary_search(v: &Vec<u64>, k: u64) -> (r: usize)
         forall|i: int, j: int| 0 <= i <= j < v.len() ==> v[i] <= v[j],
         exists|i: int| 0 <= i < v.len() && k == v[i],
     ensures
-        r < v.len(),
-        k == v[r as int],
+        af(r < v.len()),
+        af(k == v[r as int]),
 {
     let mut i1: usize = 0;
     let mut i2: usize = v.len() - 1;

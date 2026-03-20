@@ -35,14 +35,14 @@ impl Queue {
     }
 
     fn new() -> (q: Queue)
-        ensures q.view().len() == 0,
+        ensures af(q.view().len() == 0),
     {
         Queue { data: Vec::new() }
     }
 
     fn enqueue(&mut self, val: u64)
         ensures
-            self.view() == old(self).view().push(val),
+            af(self.view() == old(self).view().push(val)),
     {
         self.data.push(val);
     }
@@ -51,20 +51,20 @@ impl Queue {
         requires
             old(self).view().len() > 0,
         ensures
-            val == old(self).view().first(),
-            self.view() == old(self).view().subrange(1, old(self).view().len() as int),
+            af(val == old(self).view().first()),
+            af(self.view() == old(self).view().subrange(1, old(self).view().len() as int)),
     {
         self.data.remove(0)
     }
 
     fn len(&self) -> (l: usize)
-        ensures l == self.view().len(),
+        ensures af(l == self.view().len()),
     {
         self.data.len()
     }
 
     fn is_empty(&self) -> (b: bool)
-        ensures b == (self.view().len() == 0),
+        ensures af(b == (self.view().len() == 0)),
     {
         self.data.len() == 0
     }

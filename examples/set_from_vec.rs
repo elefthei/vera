@@ -13,14 +13,14 @@ impl VecSet {
 
     pub fn new() -> (s: Self)
         ensures
-            s@ =~= Set::<u64>::empty(),
+            af(s@ =~= Set::<u64>::empty()),
     {
         VecSet { vt: Vec::new() }
     }
 
     pub fn insert(&mut self, v: u64)
         ensures
-            self@ =~= old(self)@.insert(v),
+            af(self@ =~= old(self)@.insert(v)),
     {
         self.vt.push(v);
         proof {
@@ -31,7 +31,7 @@ impl VecSet {
 
     pub fn contains(&self, v: u64) -> (contained: bool)
         ensures
-            contained == self@.contains(v),
+            af(contained == self@.contains(v)),
     {
         for i in iter: 0..self.vt.len()
             invariant

@@ -15,7 +15,7 @@ spec fn result_of_computation() -> u64 {
 
 fn expensive_computation() -> (res: u64)
     ensures
-        res == result_of_computation(),
+        af(res == result_of_computation()),
 {
     1 + 1
 }
@@ -40,7 +40,7 @@ fn memoized_computation(cell: &InvCell<Option<u64>>) -> (res: u64)
     requires
         cell_is_valid(cell),
     ensures
-        res == result_of_computation(),
+        af(res == result_of_computation()),
 {
     let c = cell.get();
     match c {

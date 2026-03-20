@@ -23,7 +23,7 @@ fn get_len<A>(list: &List<A>) -> (r: u64)
     requires
         len(list) <= 0xffffffffffffffff,
     ensures
-        r == len(list),
+        af(r == len(list)),
 {
     let mut n: u64 = 0;
     let mut iter = list;
@@ -55,7 +55,7 @@ fn mk_range(start: u32, length: u32) -> (r: List<u32>)
     requires
         start + length <= 0xffff_ffff,
     ensures
-        len::<u32>(&r) == length,
+        af(len::<u32>(&r) == length),
     decreases length,
 {
     if length == 0 {

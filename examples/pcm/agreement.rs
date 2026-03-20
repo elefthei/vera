@@ -115,8 +115,8 @@ impl<T> AgreementResource<T> {
 
     pub proof fn alloc(c: T) -> (tracked result: AgreementResource<T>)
         ensures
-            result.inv(),
-            result@ == c,
+            af(result.inv()),
+            af(result@ == c),
     {
         let r_value = AgreementResourceValue::<T>::new(c);
         let tracked r = Resource::<AgreementResourceValue::<T>>::alloc(r_value);
@@ -128,11 +128,11 @@ impl<T> AgreementResource<T> {
         requires
             old(self).inv(),
         ensures
-            self.inv(),
-            result.inv(),
-            self.id() == result.id() == old(self).id(),
-            self@ == result@,
-            self@ == old(self)@,
+            af(self.inv()),
+            af(result.inv()),
+            af(self.id() == result.id() == old(self).id()),
+            af(self@ == result@),
+            af(self@ == old(self)@),
     {
         let tracked r = duplicate(&self.r);
         AgreementResource::<T> { r }
@@ -147,9 +147,9 @@ impl<T> AgreementResource<T> {
             other.inv(),
             old(self).id() == other.id(),
         ensures
-            self.id() == old(self).id(),
-            self@ == old(self)@,
-            self@ == other@,
+            af(self.id() == old(self).id()),
+            af(self@ == old(self)@),
+            af(self@ == other@),
     {
         self.r.validate_2(&other.r);
     }

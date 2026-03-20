@@ -31,21 +31,21 @@ struct TemplateCar<V> {
 impl<V> TemplateCar<V> {
     fn template_new(v: V) -> (result: TemplateCar<V>)
         ensures
-            result.passengers == 205 && result.the_v == v,
+            af(result.passengers == 205 && result.the_v == v),
     {
         TemplateCar::<V> { four_doors: false, passengers: 205, the_v: v }
     }
 
     fn template_get_passengers(&self) -> (result: u64)
         ensures
-            result == self.passengers,
+            af(result == self.passengers),
     {
         self.passengers
     }
 
     fn template_get_v(self) -> (result: V)
         ensures
-            result == self.the_v,
+            af(result == self.the_v),
     {
         self.the_v
     }

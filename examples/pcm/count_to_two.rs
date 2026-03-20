@@ -122,9 +122,9 @@ impl CounterSharedState {
             oneshot0_inv_half@ is HalfRightToComplete,
             oneshot1_inv_half@ is HalfRightToComplete,
         ensures
-            result.wf(),
-            result.get_oneshot_id(0) == oneshot0_inv_half.id(),
-            result.get_oneshot_id(1) == oneshot1_inv_half.id(),
+            af(result.wf()),
+            af(result.get_oneshot_id(0) == oneshot0_inv_half.id()),
+            af(result.get_oneshot_id(1) == oneshot1_inv_half.id()),
     {
         // Create the atomic variable to be shared among threads.
         let (x, Tracked(x_perm)): (PAtomicU32, Tracked<PermissionU32>) = PAtomicU32::new(0);
@@ -161,7 +161,7 @@ impl CounterSharedState {
             oneshot0_complete@ is Complete,
             oneshot1_complete@ is Complete,
         ensures
-            x == 2,
+            af(x == 2),
     {
         let x_value: u32;
         open_atomic_invariant!(self.inv.borrow() => inner => {
@@ -219,8 +219,8 @@ pub fn thread_routine(
         shared_state.wf(),
         oneshot_thread_half.id() == shared_state.get_oneshot_id(which_thread),
     ensures
-        return_permission@.id() == shared_state.get_oneshot_id(which_thread),
-        return_permission@@ is Complete,
+        af(return_permission@.id() == shared_state.get_oneshot_id(which_thread)),
+        af(return_permission@@ is Complete),
 {
     let tracked mut oneshot_thread_half = oneshot_thread_half;
     open_atomic_invariant!(shared_state.inv.borrow() => inner => {
@@ -261,7 +261,7 @@ pub fn thread_routine(
 // threads, the result is 2.
 pub fn count_to_two() -> (result: Result<u32, ()>)
     ensures
-        result is Ok ==> result.unwrap() == 2,
+        af(result is Ok ==> result.unwrap() == 2),
 {
     // Create two one-shots, one for each thread we're going to
     // fork. Calling `create_oneshot` provides two permissions to

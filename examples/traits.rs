@@ -15,7 +15,7 @@ trait T<A> {
         requires
             self.req(*a),
         ensures
-            self.ens(*a, ra),
+            af(self.ens(*a, ra)),
     ;
 }
 
@@ -59,7 +59,7 @@ fn p<A, Z: T<A>>(a: &A, z: &Z) -> (rz: A)
     requires
         z.req(*a),
     ensures
-        z.ens(*a, rz),
+        af(z.ens(*a, rz)),
 {
     z.f(a)
 }

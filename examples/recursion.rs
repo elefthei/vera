@@ -28,7 +28,7 @@ spec fn arith_sum_u64(i: u64) -> u64
 
 proof fn arith_sum_int_nonneg(i: nat)
     ensures
-        arith_sum_int(i as int) >= 0,
+        af(arith_sum_int(i as int) >= 0),
     decreases i,
 {
     if i > 0 {
@@ -61,7 +61,7 @@ proof fn arith_sum_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        arith_sum_int(i as int) <= arith_sum_int(j as int),
+        af(arith_sum_int(i as int) <= arith_sum_int(j as int)),
     decreases j,
 {
     if i < j {
@@ -73,7 +73,7 @@ fn compute_arith_sum(n: u64) -> (sum: u64)
     requires
         n < 100,
     ensures
-        arith_sum_int(n as int) == sum,
+        af(arith_sum_int(n as int) == sum),
 {
     let mut sum: u64 = 0;
     for i in 0..n

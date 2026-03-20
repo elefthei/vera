@@ -23,7 +23,7 @@ which should usually be true):
 
 pub broadcast axiom fn f64_can_add_anything(a: f64, b: f64)
     ensures
-        #[trigger] a.add_req(b);
+        af(#[trigger] a.add_req(b));
 
 /*
 The axiom above doesn't guarantee non-NaN results -- it's possible to add large positive numbers to
@@ -42,8 +42,8 @@ pub broadcast axiom fn f64_add_positive_spec(a: f64, b: f64)
         !b.is_sign_negative_spec(),
     ensures
         #![trigger a.add_spec(b)]
-        !a.add_spec(b).is_nan_spec(),
-        !a.add_spec(b).is_sign_negative_spec();
+        af(!a.add_spec(b).is_nan_spec()),
+        af(!a.add_spec(b).is_sign_negative_spec());
 
 pub broadcast axiom fn f64_add_positive_exec(a: f64, b: f64)
     requires
@@ -52,7 +52,7 @@ pub broadcast axiom fn f64_add_positive_exec(a: f64, b: f64)
         !a.is_sign_negative_spec(),
         !b.is_sign_negative_spec(),
     ensures
-        #[trigger] a.add_req(b);
+        af(#[trigger] a.add_req(b));
 
 use vstd::std_specs::ops::add_ensures;
 
@@ -63,7 +63,7 @@ pub broadcast axiom fn f64_add_positive_ensures(a: f64, b: f64, o: f64)
         !a.is_sign_negative_spec(),
         !b.is_sign_negative_spec(),
     ensures
-        #[trigger] add_ensures::<f64>(a, b, o) ==> o == a.add_spec(b);
+        af(#[trigger] add_ensures::<f64>(a, b, o) ==> o == a.add_spec(b));
 
 pub broadcast group f64_add_positive {
     f64_add_positive_spec,

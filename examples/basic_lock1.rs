@@ -47,7 +47,7 @@ impl<T> Lock<T> {
     }
 
     fn new(t: T) -> (lock: Self)
-        ensures lock.wf()
+        ensures af(lock.wf())
     {
         let (atomic, Tracked(atomic_perm)) = PAtomicBool::new(false);
         let (cell, Tracked(cell_perm)) = PCell::new(t);
@@ -60,7 +60,7 @@ impl<T> Lock<T> {
 
     fn acquire(&self) -> (points_to: Tracked<cell::PointsTo<T>>)
         requires self.wf(),
-        ensures points_to@.id() == self.cell.id(), points_to@.is_init()
+        ensures af(points_to@.id() == self.cell.id()), af(points_to@.is_init())
     {
         loop
             invariant self.wf(),

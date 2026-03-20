@@ -32,7 +32,7 @@ proof fn my_proof_fun(x: int, y: int) -> (sum: int)
         x < 100,
         y < 100,
     ensures
-        sum < 200,
+        af(sum < 200),
 {
     x + y
 }

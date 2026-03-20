@@ -682,7 +682,7 @@ RwLock {
             forall(|bucket: BucketId| bucket < RC_WIDTH ==> pre.count_all_refs(bucket) === post.count_all_refs(bucket)),
             post.ref_counts === pre.ref_counts,
         ensures
-            post.ref_count_invariant(),
+            af(post.ref_count_invariant()),
     {
 //        assert forall |bucket: BucketId| bucket < RC_WIDTH
 //            implies post.ref_counts[bucket] === post.count_all_refs(bucket) by {

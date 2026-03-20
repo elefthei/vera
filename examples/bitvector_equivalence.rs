@@ -40,10 +40,10 @@ proof fn equivalence_proof_increment_bv(a: u32, b: u32, n: u32)
         a & sub(1u32 << n, 1) == b & sub(1u32 << n, 1),  // equal_lower_n_bits(a,b,n)
         get_bit!(a, n) == get_bit!(b, n),
     ensures
-        a & sub(1u32 << add(n, 1), 1) == b & sub(
+        af(a & sub(1u32 << add(n, 1), 1) == b & sub(
             1u32 << add(n, 1),
             1,
-        ),  // equal_lower_n_bits(a,b,n+1)
+        )),  // equal_lower_n_bits(a,b,n+1)
 {
 }
 
@@ -56,7 +56,7 @@ proof fn equivalence_proof_increment(a: u32, b: u32, n: u32)
         equal_lower_n_bits(a, b, n),
         get_bit!(a, n) == get_bit!(b, n),
     ensures
-        equal_lower_n_bits(a, b, add(n, 1)),
+        af(equal_lower_n_bits(a, b, add(n, 1))),
 {
     equivalence_proof_increment_bv(a, b, n);
 }
@@ -68,7 +68,7 @@ proof fn equivalence_proof_lower_n(a: u32, b: u32, n: u32)
         n <= 32,
         forall|i: u32| #![auto] (i < n ==> (get_bit!(a, i) == get_bit!(b, i))),
     ensures
-        equal_lower_n_bits(a, b, n),
+        af(equal_lower_n_bits(a, b, n)),
     decreases n,
 {
     if n == 0 {
@@ -84,7 +84,7 @@ proof fn equivalence_proof(a: u32, b: u32)
     requires
         forall|i: u32| #![auto] i < 32 ==> (get_bit!(a, i) == get_bit!(b, i)),
     ensures
-        a == b,
+        af(a == b),
 {
     equivalence_proof_lower_n(a, b, 32);
     // at this point, we have `equal_lower_n_bits(a,b,32)`
@@ -141,7 +141,7 @@ proof fn equivalence_proof_bv(a: u32, b: u32)
         get_bit!(a, 30u32) == get_bit!(b, 30u32),
         get_bit!(a, 31u32) == get_bit!(b, 31u32),
     ensures
-        a == b,
+        af(a == b),
 {
 }
 
@@ -149,7 +149,7 @@ proof fn equivalence_proof_2(a: u32, b: u32)
     requires
         forall|i: u32| #![auto] i < 32 ==> (get_bit!(a, i) == get_bit!(b, i)),
     ensures
-        a == b,
+        af(a == b),
 {
     equivalence_proof_bv(a, b);
 }

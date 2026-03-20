@@ -3,7 +3,7 @@ use vstd::prelude::*;
 verus! {
     // basic recursive expression
     fn exec_basic_recursive_expr(i: u64) -> (r: u64)
-        ensures r == i
+        ensures af(r == i)
         decreases i
     {
         if i == 0 { 0 } else { 1 + exec_basic_recursive_expr(i - 1) }

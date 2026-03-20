@@ -59,7 +59,7 @@ spec fn min3(x: int, y: int, z: int) -> int {
 
 fn compute_min3(x: u64, y: u64, z: u64) -> (m: u64)
     ensures
-        m == min3(x as int, y as int, z as int),
+        af(m == min3(x as int, y as int, z as int)),
 {
     let mut m = x;
     if y < m {
@@ -115,7 +115,7 @@ mod M1 {
 
     pub proof fn lemma_min(x: int, y: int)
         ensures
-            min(x,y) <= x && min(x,y) <= y,
+            af(min(x,y) <= x && min(x,y) <= y),
     {}
 }
 
@@ -150,9 +150,9 @@ mod M1 {
 
     pub proof fn lemma_min(x: int, y: int)
         ensures
-            min(x, y) <= x,
-            min(x, y) <= y,
-            min(x, y) == x || min(x, y) == y,
+            af(min(x, y) <= x),
+            af(min(x, y) <= y),
+            af(min(x, y) == x || min(x, y) == y),
     {
     }
 }
@@ -195,9 +195,9 @@ mod M1 {
 
     pub proof fn lemma_min(x: int, y: int)
         ensures
-            min(x, y) <= x,
-            min(x, y) <= y,
-            min(x, y) == x || min(x, y) == y,
+            af(min(x, y) <= x),
+            af(min(x, y) <= y),
+            af(min(x, y) == x || min(x, y) == y),
     {
     }
 
@@ -234,9 +234,9 @@ mod M1 {
 
     pub proof fn lemma_min(x: int, y: int)
         ensures
-            min(x, y) <= x,
-            min(x, y) <= y,
-            min(x, y) == x || min(x, y) == y,
+            af(min(x, y) <= x),
+            af(min(x, y) <= y),
+            af(min(x, y) == x || min(x, y) == y),
     {
     }
 }

@@ -17,7 +17,7 @@ spec fn spec_add_one(x: int) -> int {
 // ANCHOR: exec_const_syntax
 exec const C: u64
     ensures
-        C == 7,
+        af(C == 7),
 {
     7
 }
@@ -30,14 +30,14 @@ spec fn f() -> int {
 
 const fn e() -> (u: u64)
     ensures
-        u == f(),
+        af(u == f()),
 {
     1
 }
 
 exec const E: u64
     ensures
-        E == 2,
+        af(E == 2),
 {
     assert(f() == 1);
     1 + e()
@@ -51,7 +51,7 @@ fn add_one(x: u8) -> (ret: u8)
     requires
         x < 0xff,
     ensures
-        ret == x + ONE,  // use "ONE" in spec code
+        af(ret == x + ONE),  // use "ONE" in spec code
 {
     x + ONE  // use "ONE" in exec code
 
@@ -68,7 +68,7 @@ spec const SPEC_USIZE_BYTES: usize = layout::size_of_as_usize::<usize>();
 #[verifier::when_used_as_spec(SPEC_USIZE_BYTES)]
 exec const USIZE_BYTES: usize
     ensures
-        USIZE_BYTES as nat == layout::size_of::<usize>(),
+        af(USIZE_BYTES as nat == layout::size_of::<usize>()),
 {
     8
 }

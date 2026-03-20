@@ -6,13 +6,13 @@ use vstd::prelude::*;
 
 verus! {
     fn fail_a_post_expr() -> (r: u64)
-        ensures r == 1
+        ensures af(r == 1)
     {
         0
     }
     
     fn fail_a_post_stmt(r: &mut u64)
-        ensures *r == 1
+        ensures af(*r == 1)
     {
         *r = 0;
     }
