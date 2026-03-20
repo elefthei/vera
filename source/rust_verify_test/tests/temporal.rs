@@ -350,7 +350,7 @@ test_verify_one_file! {
     #[test] test_call_in_loop_preserves_temporal_inv verus_code! {
         fn increment(x: &mut u64)
             requires *old(x) < 10,
-            ensures *x == *old(x) + 1,
+            ensures af(*x == *old(x) + 1),
         {
             *x = *x + 1;
         }
@@ -374,7 +374,7 @@ test_verify_one_file! {
     #[test] test_call_in_loop_breaks_temporal_inv verus_code! {
         fn add_hundred(x: &mut u64)
             requires *old(x) <= 10,
-            ensures *x == *old(x) + 100,
+            ensures af(*x == *old(x) + 100),
         {
             *x = *x + 100;
         }
@@ -687,7 +687,7 @@ test_verify_one_file! {
                 }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "AU temporal property requires a decreases clause")
+    } => Err(err) => assert_any_vir_error_msg(err, "loop must have a decreases clause")
 }
 
 // Regular loop without decreases — still fails with standard error
@@ -798,7 +798,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_prefix_call_violates_ag verus_code! {
         fn set_high(x: &mut u64)
-            ensures *x == 999,
+            ensures af(*x == 999),
         {
             *x = 999;
         }
@@ -915,13 +915,14 @@ test_verify_one_file! {
     } => Err(err) => assert_one_fails(err)
 }
 
-// Immediate: non-temporal ensures in TICL mode checked at state 0
+// Non-temporal ensures treated as af() — with AG infinite loop, return is unreachable,
+// so af(Q) is vacuously satisfied (loop never terminates to check Q at return).
 test_verify_one_file! {
     #[test] test_immediate_state0_pass verus_code! {
         fn test_imm_good(x: u64)
             requires x > 10,
             ensures
-                x > 5, // non-temporal + function has temporal ensures
+                af(x > 5), // af() in AG context: vacuously true (never returns)
                 ag(x > 0),
         {
             loop
@@ -932,13 +933,13 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// Immediate: non-temporal ensures NOT derivable from precondition — must fail
+// Non-temporal ensures with af() in AG context — also vacuously true
 test_verify_one_file! {
     #[test] test_immediate_state0_fail verus_code! {
-        fn test_imm_bad(x: u64)
+        fn test_imm_vacuous(x: u64)
             requires x > 0,
             ensures
-                x > 100, // FAILS — not derivable from x > 0
+                af(x > 100), // vacuously true: AG loop never returns
                 ag(x > 0),
         {
             loop
@@ -946,15 +947,15 @@ test_verify_one_file! {
             {
             }
         }
-    } => Err(err) => assert_one_fails(err)
+    } => Ok(()) // af(Q) in AG context is vacuous — function never returns
 }
 
-// Standard Hoare mode: no temporal ensures, non-temporal checked at return only
+// Standard ensures af(Q) — checked at return, no Immediate
 test_verify_one_file! {
     #[test] test_hoare_mode_no_immediate verus_code! {
         fn test_hoare_ok(x: &mut u64)
             requires *old(x) == 5,
-            ensures *x == 10,
+            ensures af(*x == 10),
         {
             *x = 10;
         }
@@ -1020,7 +1021,7 @@ test_verify_one_file! {
     #[test] test_bind_callee_standard_in_ag_context verus_code! {
         fn add_one(x: &mut u64)
             requires *old(x) < 20,
-            ensures *x == *old(x) + 1,
+            ensures af(*x == *old(x) + 1),
         {
             *x = *x + 1;
         }
