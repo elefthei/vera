@@ -715,7 +715,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] tracked_places_lifetime_error2 ["new-mut-ref", "--no-lifetime"] => verus_code! {
         proof fn id<A>(tracked a: A) -> (tracked ret: A)
-            ensures ret === a
+            ensures af(ret === a)
         { a }
 
         fn test() {
@@ -736,7 +736,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] tracked_places_lifetime_error3 ["new-mut-ref", "--no-lifetime"] => verus_code! {
         proof fn id<A>(tracked a: A) -> (tracked ret: A)
-            ensures ret === a
+            ensures af(ret === a)
         { a }
 
         fn test() {
@@ -928,7 +928,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] dont_resolve_ghost_field ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>)
-            ensures #[trigger] has_resolved(pair) ==> has_resolved(pair.t)
+            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -969,7 +969,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] dont_resolve_ghost_field2 ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>)
-            ensures #[trigger] has_resolved(pair) ==> has_resolved(pair.t)
+            ensures #[trigger] af(has_resolved(pair) ==> has_resolved(pair.t))
         {
         }
 
@@ -1058,21 +1058,21 @@ test_verify_one_file_with_options! {
     #[test] wrapped_params ["new-mut-ref"] => verus_code! {
         fn f(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             proof { *x = Ghost(x.view() + 1); }
         }
 
         fn f2(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             f(Tracked(x));
         }
 
         fn f3(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             f(Tracked(&mut *x));
         }
@@ -1092,7 +1092,7 @@ test_verify_one_file_with_options! {
 
         fn f_fails(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             proof { *x = Ghost(x.view() + 1); }
             assert(false); // FAILS
@@ -1100,7 +1100,7 @@ test_verify_one_file_with_options! {
 
         fn f2_fails(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             f(Tracked(x));
             assert(false); // FAILS
@@ -1108,7 +1108,7 @@ test_verify_one_file_with_options! {
 
         fn f3_fails(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             f(Tracked(&mut *x));
             assert(false); // FAILS
@@ -1135,7 +1135,7 @@ test_verify_one_file_with_options! {
     #[test] wrapped_params_reborrow ["new-mut-ref"] => verus_code! {
         fn f(Tracked(x): Tracked<&mut Ghost<int>>)
             requires x.view() < 20,
-            ensures final(x).view() == old(x).view() + 1,
+            ensures af(final(x).view() == old(x).view() + 1),
         {
             proof { *x = Ghost(x.view() + 1); }
         }
@@ -1570,7 +1570,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn f(tracked x: &mut u64)
-            ensures *x == 4
+            ensures af(*x == 4)
         {
             *x = 4;
         }
@@ -1624,7 +1624,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn f(tracked x: &mut u64)
-            ensures *x == 4
+            ensures af(*x == 4)
         {
             *x = 4;
         }

@@ -37,7 +37,7 @@ test_verify_one_file! {
 
         fn test5(a: u8, b: u8) -> (k: u8)
             requires a + b < 256,
-            ensures a + b < 257,
+            ensures af(a + b < 257),
             returns (a + b) as u8,
         {
             return a; // FAILS
@@ -45,7 +45,7 @@ test_verify_one_file! {
 
         fn test6(a: u8, b: u8) -> (k: u8)
             requires a + b < 256,
-            ensures a + b < 250,
+            ensures af(a + b < 250),
             returns (a + b) as u8,
         {
             return a + b; // FAILS
@@ -53,7 +53,7 @@ test_verify_one_file! {
 
         proof fn proof_test5(a: u8, b: u8) -> (k: u8)
             requires a + b < 256,
-            ensures a + b < 257,
+            ensures af(a + b < 257),
             returns (a + b) as u8,
         {
             return a; // FAILS
@@ -61,7 +61,7 @@ test_verify_one_file! {
 
         proof fn proof_test6(a: u8, b: u8) -> (k: u8)
             requires a + b < 256,
-            ensures a + b < 250,
+            ensures af(a + b < 250),
             returns (a + b) as u8,
         {
             return (a + b) as u8; // FAILS
@@ -108,7 +108,7 @@ test_verify_one_file! {
         }
 
         fn test(x: u8)
-            ensures false, // FAILS
+            ensures af(false), // FAILS
             returns (),
         {
         }
@@ -158,7 +158,7 @@ test_verify_one_file_with_options! {
 
         impl Tr for X {
             fn test(&self) -> (some_ret_value: &Self)
-                ensures self.i == 5
+                ensures af(self.i == 5)
             {
                 if self.i != 5 { loop { } }
                 self
@@ -225,7 +225,7 @@ test_verify_one_file! {
             spec fn ret(&self, i: u8) -> Self;
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures self.ens(i, &s),
+                ensures af(self.ens(i, &s)),
                 returns self.ret(i);
         }
 
@@ -255,7 +255,7 @@ test_verify_one_file_with_options! {
             spec fn ret(&self, i: u8) -> Self;
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures self.ens(i, &s),
+                ensures af(self.ens(i, &s)),
                 returns self.ret(i);
         }
 
@@ -329,7 +329,7 @@ test_verify_one_file_with_options! {
             }
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures s.j == self.j,
+                ensures af(s.j == self.j),
             {
                 if self.j as u64 + i as u64 >= 256 {
                     loop { }
@@ -376,7 +376,7 @@ test_verify_one_file_with_options! {
             spec fn ens(&self, i: u8, s: &Self) -> bool;
 
             fn test(&self, i: u8) -> (s: Self)
-                ensures self.ens(i, &s);
+                ensures af(self.ens(i, &s));
         }
 
         // ok
@@ -452,7 +452,7 @@ test_verify_one_file! {
             x < (1u64 << 52),
             y < (1u64 << 52),
         ensures
-            z < (1u128 << 104),
+            af(z < (1u128 << 104)),
         returns (x * y) as u128
         {
             assume(false); // Omit proof for brevity

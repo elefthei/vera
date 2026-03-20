@@ -132,7 +132,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] postcondition_missing_old ["new-mut-ref"] => verus_code! {
         fn test(x: &mut u64)
-            ensures *x == 20,
+            ensures af(*x == 20),
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "to dereference a mutable reference parameter in a postcondition, disambiguate by wrapping it in either `old` or `final`")
@@ -142,7 +142,7 @@ test_verify_one_file_with_options! {
     #[test] postcondition_missing_old_closure ["new-mut-ref"] => verus_code! {
         fn test() {
             let clos = |x: &mut u64|
-                ensures *x == 20,
+                ensures af(*x == 20),
             {
             };
         }
@@ -152,7 +152,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] postcondition_missing_old_for_return_is_ok ["new-mut-ref"] => verus_code! {
         fn test(x: &mut u64) -> (y: &mut u64)
-            ensures *y == *old(x) && *final(y) == *final(x),
+            ensures af(*y == *old(x) && *final(y) == *final(x)),
         {
             x
         }
@@ -162,7 +162,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] postcondition_missing_old_for_tuple ["new-mut-ref"] => verus_code! {
         fn test(x: (&mut u64, &mut u64))
-            ensures *x.1 == 20,
+            ensures af(*x.1 == 20),
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "to dereference a mutable reference parameter in a postcondition, disambiguate by wrapping it in either `old` or `final`")
@@ -172,7 +172,7 @@ test_verify_one_file_with_options! {
     #[test] postcondition_old_fin_tuple_ok ["new-mut-ref"] => verus_code! {
         fn test(x: (&mut u64, &mut u64))
             requires *x.1 < 10,
-            ensures *final(x.1) == *old(x.1) + 1
+            ensures af(*final(x.1) == *old(x.1) + 1)
         {
             *x.1 = *x.1 + 1;
         }
@@ -184,7 +184,7 @@ test_verify_one_file_with_options! {
         // I intend for this to also be ok but `old` is currently restricted to &mut -> &mut
         fn test2(x: (&mut u64, &mut u64))
             requires *x.1 < 10,
-            ensures *final(x.1) == *old(x).1 + 1
+            ensures af(*final(x.1) == *old(x).1 + 1)
         {
             *x.1 = *x.1 + 1;
         }
@@ -194,7 +194,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] old_containing_fin ["new-mut-ref"] => verus_code! {
         fn test2(x: &mut u64)
-            ensures *old(final(x)) == 20
+            ensures af(*old(final(x)) == 20)
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "The result of `final` must be dereferenced")
@@ -204,7 +204,7 @@ test_verify_one_file_with_options! {
     #[test] fin_containing_old ["new-mut-ref"] => verus_code! {
         // bizarre thing to write, but there's no reason to disallow it
         fn test2(x: &mut u64)
-            ensures *final(old(x)) == 20
+            ensures af(*final(old(x)) == 20)
         {
             *x = 20;
         }
@@ -216,8 +216,8 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn leak_mut_ref() -> (res: &'static mut u64)
             ensures
-                *res == 2,
-                *final(res) == 19, // It's obviously impossible to predict this
+                af(*res == 2),
+                af(*final(res) == 19), // It's obviously impossible to predict this
         {
             loop { }
         }
@@ -226,10 +226,10 @@ test_verify_one_file_with_options! {
             requires
                 *old(*old(x)) == 0,
             ensures
-                mut_ref_current(mut_ref_current(x)) == 0,
-                mut_ref_future(mut_ref_current(x)) == 1,
-                mut_ref_current(mut_ref_future(x)) == 3,
-                mut_ref_future(mut_ref_future(x)) == 19,
+                af(mut_ref_current(mut_ref_current(x)) == 0),
+                af(mut_ref_future(mut_ref_current(x)) == 1),
+                af(mut_ref_current(mut_ref_future(x)) == 3),
+                af(mut_ref_future(mut_ref_future(x)) == 19),
         {
             **x = 1;
             *x = leak_mut_ref();
@@ -240,10 +240,10 @@ test_verify_one_file_with_options! {
             requires
                 *old(*old(x)) == 0,
             ensures
-                *old(*old(x)) == 0,
-                *final(*old(x)) == 1,
-                *old(*final(x)) == 3,
-                *final(*final(x)) == 19,
+                af(*old(*old(x)) == 0),
+                af(*final(*old(x)) == 1),
+                af(*old(*final(x)) == 3),
+                af(*final(*final(x)) == 19),
         {
             **x = 1;
             *x = leak_mut_ref();
@@ -255,10 +255,10 @@ test_verify_one_file_with_options! {
             requires
                 *old(*old(x)) == 0,
             ensures
-                **old(x) == 0,
-                *final(*old(x)) == 1,
-                **final(x) == 3,
-                *final(*final(x)) == 19,
+                af(**old(x) == 0),
+                af(*final(*old(x)) == 1),
+                af(**final(x) == 3),
+                af(*final(*final(x)) == 19),
         {
             **x = 1;
             *x = leak_mut_ref();
@@ -434,7 +434,7 @@ test_verify_one_file_with_options! {
     #[test] unwrap_params ["new-mut-ref"] => verus_code! {
         fn test(Tracked(x): Tracked<&mut Ghost<int>>)
             requires *x == 0,
-            ensures final(x)@ == old(x)@ + 3,
+            ensures af(final(x)@ == old(x)@ + 3),
         {
             proof {
                 *x = Ghost(3);

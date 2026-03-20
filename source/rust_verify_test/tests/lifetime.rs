@@ -354,7 +354,7 @@ test_verify_one_file! {
     #[test] lifetime_bounds_proof verus_code! {
         #[verifier(external_body)]
         pub proof fn proof_to_ref<'a, T: 'a>(tracked t: T) -> (tracked t2: &'a T)
-            ensures t == *t2
+            ensures af(t == *t2)
         {
             unimplemented!();
         }
@@ -402,7 +402,7 @@ test_verify_one_file! {
     #[test] lifetime_bounds_exec verus_code! {
         #[verifier(external_body)]
         pub fn exec_to_ref<'a, T: 'a>(t: T) -> (t2: &'a T)
-            ensures t == *t2
+            ensures af(t == *t2)
         {
             // definitely panic; we wouldn't want to actually implement this
             panic!();
@@ -655,7 +655,7 @@ test_verify_one_file! {
             requires
                 0 <= i < v.len()
             ensures
-                r == &v[i as int]
+                af(r == &v[i as int])
         {
             &v[i]
         }
@@ -664,7 +664,7 @@ test_verify_one_file! {
             requires
                 0 <= i < v.len()
             ensures
-                r == &v[i as int]
+                af(r == &v[i as int])
         {
             &(*v)[i]
         }
@@ -974,7 +974,7 @@ test_verify_one_file! {
             let tracked t: X;
             let b = false;
 
-            let r = || ensures false {
+            let r = || ensures af(false) {
                 proof {
                     match (b, t) {
                         (true, _) => {
@@ -1008,7 +1008,7 @@ test_verify_one_file! {
         fn test4(b: bool) {
             let tracked t: X;
 
-            let r = || ensures !b {
+            let r = || ensures af(!b) {
                 proof {
                     if b {
                         match t {
@@ -1079,7 +1079,7 @@ test_verify_one_file! {
 
             #[verifier::external_body]
             fn len(&self) -> (l: u64)
-                ensures l == self.seq().len()
+                ensures af(l == self.seq().len())
             {
                 unimplemented!();
             }
@@ -1087,7 +1087,7 @@ test_verify_one_file! {
             #[verifier::external_body]
             fn push(&mut self, elem: u64)
                 ensures
-                    self.seq() == old(self).seq().push(elem)
+                    af(self.seq() == old(self).seq().push(elem))
             {
                 unimplemented!();
             }
@@ -1123,7 +1123,7 @@ test_verify_one_file! {
 
             #[verifier::external_body]
             fn len(&self) -> (l: u64)
-                ensures l == self.seq().len()
+                ensures af(l == self.seq().len())
             {
                 unimplemented!();
             }
@@ -1132,7 +1132,7 @@ test_verify_one_file! {
         impl std::ops::AddAssign<u64> for X {
             #[verifier::external_body]
             fn add_assign(&mut self, rhs: u64)
-                ensures self.seq() == old(self).seq().push(rhs)
+                ensures af(self.seq() == old(self).seq().push(rhs))
             {
                 unimplemented!();
             }
@@ -1477,7 +1477,7 @@ test_verify_one_file! {
 
         impl<T: Tr + ?Sized> Sr for T {
             fn trait_func_s(&self) -> (r: bool)
-                ensures r == true,
+                ensures af(r == true),
             {
                 true
             }
@@ -1538,7 +1538,7 @@ test_verify_one_file! {
 
         trait VerusClone: View + Sized {
             fn verus_clone(&self) -> (r: Self)
-                ensures self@ == r@;
+                ensures af(self@ == r@);
         }
 
         #[verifier::exec_allows_no_decreases_clause]

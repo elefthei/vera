@@ -316,7 +316,7 @@ test_verify_one_file_with_options! {
     #[test] ret_mode ["--no-external-by-default"] => code! {
         #[verifier::returns(spec)] /* vattr */
         fn ret_spec() -> u128 {
-            ensures(|i: u128| i == 3);
+            ensures(|i: u128|  af(i == 3));
             #[verifier::spec] let a: u128 = 3;
             a
         }
@@ -332,7 +332,7 @@ test_verify_one_file_with_options! {
     #[test] ret_mode_fail2 ["--no-external-by-default"] => code! {
         #[verifier::returns(spec)] /* vattr */
         fn ret_spec() -> u128 {
-            ensures(|i: u128| i == 3);
+            ensures(|i: u128|  af(i == 3));
             #[verifier::spec] let a: u128 = 3;
             a
         }
@@ -428,7 +428,7 @@ test_verify_one_file_with_options! {
     #[test] test_mut_ref_field_fail ["--no-external-by-default"] => FIELD_UPDATE.to_string() + code_str! {
         fn muts_exec(a: &mut u64) {
             requires(*old(a) < 30);
-            ensures(*a == *old(a) + 1);
+            ensures af((*a == *old(a) + 1));
             *a = *a + 1;
         }
 
@@ -451,7 +451,7 @@ test_verify_one_file_with_options! {
         #[verifier::proof]
         fn f(#[verifier::proof] x: &mut bool, #[verifier::proof] b: bool) {
             requires(b);
-            ensures(*x);
+            ensures af((*x));
 
             *x = b;
         }
@@ -472,7 +472,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file! {
     #[test] test_mut_arg_fail2 verus_code! {
         proof fn f(x: &mut bool)
-            ensures *x
+            ensures af(*x)
         {
             *x = true;
         }
@@ -558,7 +558,7 @@ test_verify_one_file! {
         #[verifier::proof]
         fn lemma(#[verifier::proof] node: Node) {
             requires(node.v < 10);
-            ensures(node.v * 2 < 20);
+            ensures af((node.v * 2 < 20));
         }
 
         #[verifier::proof]
@@ -576,7 +576,7 @@ test_verify_one_file! {
             #[verifier::proof]
             fn lemma(&self) {
                 requires(self.v < 10);
-                ensures(self.v * 2 < 20);
+                ensures af((self.v * 2 < 20));
             }
 
             #[verifier::proof]
@@ -593,7 +593,7 @@ test_verify_one_file! {
         impl Node {
             proof fn lemma(tracked self) {
                 requires(self.v < 10);
-                ensures(self.v * 2 < 20);
+                ensures af((self.v * 2 < 20));
             }
 
             proof fn other(tracked self) {
@@ -1178,9 +1178,9 @@ test_verify_one_file! {
                 *old(g) > 100,
                 old(t).0 > 100,
             ensures
-                *g == *old(g) + *old(g),
-                *g > 200,
-                *t == *old(t),
+                af(*g == *old(g) + *old(g)),
+                af(*g > 200),
+                af(*t == *old(t)),
         {
             assert(*g >= 100);
             proof {
@@ -1526,7 +1526,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] axiom_with_body verus_code! {
         axiom fn foo()
-            ensures true
+            ensures af(true)
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "an `axiom` should not have a body")
@@ -1535,7 +1535,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] nonaxiom_without_body verus_code! {
         proof fn foo()
-            ensures false;
+            ensures af(false);
     } => Err(err) => assert_vir_error_msg(err, "a `proof` function must have a body")
 }
 
