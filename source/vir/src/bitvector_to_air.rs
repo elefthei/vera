@@ -627,6 +627,21 @@ fn bv_exp_to_expr(ctx: &Ctx, state: &mut State, exp: &Exp) -> Result<BvExpr, Vir
                 ));
             }
         },
+        ExpX::Temporal(op, inner, goal) => {
+            // Strip temporal wrapper for BV context:
+            //   af(Q) = AU(true, Q) → recurse on Q
+            //   ag(Q) → recurse on Q
+            //   au(φ, Q) → recurse on Q (goal)
+            match op {
+                crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
+                    let r = goal.as_ref().unwrap_or(inner);
+                    return bv_exp_to_expr(ctx, state, r);
+                }
+                _ => {
+                    return bv_exp_to_expr(ctx, state, inner);
+                }
+            }
+        }
         ExpX::Interp(_) => {
             panic!("Found an interpreter expression {:?} outside the interpreter", exp)
         }

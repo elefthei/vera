@@ -656,6 +656,18 @@ fn expand_exp_rec(
         ExpX::WithTriggers(_, e) | ExpX::UnaryOpr(UnaryOpr::Box(_) | UnaryOpr::Unbox(_), e) => {
             expand_exp_rec(ctx, ectx, state, e, did_split_yet, negate)
         }
+        ExpX::Temporal(op, inner, goal) => {
+            // Strip temporal wrapper: expand the first-order property inside
+            match op {
+                crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
+                    let r = goal.as_ref().unwrap_or(inner);
+                    expand_exp_rec(ctx, ectx, state, r, did_split_yet, negate)
+                }
+                _ => {
+                    expand_exp_rec(ctx, ectx, state, inner, did_split_yet, negate)
+                }
+            }
+        }
         _ => leaf(state, CanExpandFurther::No(None)),
     }
 }
