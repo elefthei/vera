@@ -76,7 +76,7 @@ proof fn next_refines_next(pre: A::State, post: A::State) {
     requires(
         pre.invariant() && post.invariant() && interp(pre).invariant() && A::State::next(pre, post),
     );
-    ensures(B::State::next(interp(pre), interp(post)));
+    ensures(af(B::State::next(interp(pre), interp(post))));
     reveal(A::State::next);
     match choose|step: A::Step| A::State::next_by(pre, post, step) {
         A::Step::add(n) => {
@@ -98,7 +98,7 @@ proof fn next_refines_next_with_macro(pre: A::State, post: A::State) {
     requires(
         pre.invariant() && post.invariant() && interp(pre).invariant() && A::State::next(pre, post),
     );
-    ensures(B::State::next(interp(pre), interp(post)));
+    ensures(af(B::State::next(interp(pre), interp(post))));
     case_on_next!{pre, post, A => {
         add(n) => {
             assert(0u32 === 0u32); // test verus syntax
@@ -109,7 +109,7 @@ proof fn next_refines_next_with_macro(pre: A::State, post: A::State) {
 
 proof fn init_refines_init_with_macro(post: A::State) {
     requires(post.invariant() && A::State::init(post));
-    ensures(B::State::init(interp(post)));
+    ensures(af(B::State::init(interp(post))));
     case_on_init!{post, A => {
         initialize() => {
             B::show::initialize(interp(post));

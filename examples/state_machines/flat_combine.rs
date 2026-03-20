@@ -221,7 +221,7 @@ tokenized_state_machine! {
 
             /*assert_forall_by(|i: nat| {
                 requires(post.client_waiting(i));
-                ensures(post.request_stored(i) || post.response_stored(i) || post.combiner_has(i));
+                ensures(af(post.request_stored(i) || post.response_stored(i) || post.combiner_has(i)));
                 if i == j {
                     assert(post.request_stored(i));
                 } else {
