@@ -513,7 +513,7 @@ test_verify_one_file! {
             requires
                 a(x)
             ensures
-                af(#![all_triggers] b(x) && c(x))
+                #![all_triggers] af(b(x) && c(x))
             // a(x) ==> b(x) && c(x)
         {
             admit();
@@ -536,7 +536,7 @@ test_verify_one_file! {
 
         pub broadcast proof fn test_ext<A>(s1: Set<A>, s2: Set<A>)
             ensures
-                af(#![all_triggers] (s1 =~= s2) <==> (forall|a: A| my_contains(s1, a) == my_contains(s2, a))),
+                #![all_triggers] af((s1 =~= s2) <==> (forall|a: A| my_contains(s1, a) == my_contains(s2, a))),
         {
             admit();
         }

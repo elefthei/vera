@@ -749,7 +749,8 @@ fn verus_item_to_vir<'tcx, 'a>(
                         TemporalItem::Eg => vir::ast::TemporalOp::EG,
                         _ => unreachable!(),
                     };
-                    let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?.expect_expr();
+                    let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
+                        .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
                     mk_expr(ExprX::Temporal(op, vir_arg, None))
                 }
                 // Binary: au(p, q), an(p, q), eu(p, q), en(p, q)
@@ -767,8 +768,10 @@ fn verus_item_to_vir<'tcx, 'a>(
                         TemporalItem::En => vir::ast::TemporalOp::EN,
                         _ => unreachable!(),
                     };
-                    let vir_arg1 = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?.expect_expr();
-                    let vir_arg2 = expr_to_vir(bctx, &args[1], ExprModifier::REGULAR)?.expect_expr();
+                    let vir_arg1 = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
+                        .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
+                    let vir_arg2 = expr_to_vir(bctx, &args[1], ExprModifier::REGULAR)?
+                        .consume(bctx, bctx.types.expr_ty_adjusted(&args[1]));
                     mk_expr(ExprX::Temporal(op, vir_arg1, Some(vir_arg2)))
                 }
             }

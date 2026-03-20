@@ -774,8 +774,13 @@ fn visit_exp(ctx: &Ctx, state: &mut State, exp: &Exp) -> Exp {
         ExpX::Interp(_) => panic!("unexpected ExpX::Interp"),
         ExpX::FuelConst(_) => exp.clone(),
         ExpX::Temporal(op, e1, e2) => {
-            let e1 = visit_exp(ctx, state, e1);
-            let e2 = e2.as_ref().map(|e| visit_exp(ctx, state, e));
+            // Temporal operators take and return Bool propositions.
+            // Coerce children to native (Bool) so that when `req_ens_to_air`
+            // strips the temporal wrapper, the extracted expression has the
+            // correct native type (matching what `visit_exps_native` would
+            // have produced for the unwrapped expression).
+            let e1 = visit_exp_native(ctx, state, e1);
+            let e2 = e2.as_ref().map(|e| visit_exp_native(ctx, state, e));
             mk_exp_typ(&exp.typ, ExpX::Temporal(*op, e1, e2))
         }
     }

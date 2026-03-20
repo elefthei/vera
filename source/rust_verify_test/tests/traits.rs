@@ -1794,7 +1794,7 @@ test_verify_one_file! {
         #[verifier::external_body]
         broadcast proof fn f_not_g<A: T>()
             ensures
-                #[trigger] af(t::<A>()),
+                af(#[trigger] t::<A>()),
                 af(g::<A>()),
         {
         }
@@ -1892,7 +1892,7 @@ test_verify_one_file! {
             // note the external_body isn't necessary here
             #[verifier::external_body]
             pub broadcast proof fn proves_false_requiring_trait_bound<T: Tr>()
-                ensures #[trigger] af(T::f() == !T::f()),
+                ensures af(#[trigger] T::f() == !T::f()),
             {
                 T::bad();
             }
@@ -1942,7 +1942,7 @@ test_verify_one_file! {
         #[verifier::external_body]
         pub broadcast proof fn proves_false_requiring_trait_bound<T: Tr>()
             ensures
-                #[trigger] af(T::f() == !T::f()),
+                af(#[trigger] T::f() == !T::f()),
         { }
 
         struct X { }
@@ -3308,7 +3308,7 @@ test_verify_one_file! {
         #[verifier::external_body]
         broadcast proof fn axiom_f<A: T>()
             ensures
-                #[trigger] af(t::<A>()),
+                af(#[trigger] t::<A>()),
         {
         }
 
@@ -3913,16 +3913,16 @@ test_verify_one_file! {
             impl Q<&S> for QQ { }
 
             proof fn p_prop_0<TQ: Q<S>>(s: S)
-                ensures #[trigger] af(TQ::e(s) == 200) {
+                ensures af(#[trigger] TQ::e(s) == 200) {
                 assert(s.k() == 200);
                 assert(TQ::e(s) == 200); // FAILS
             }
 
             pub broadcast proof fn p_prop_1(s: S)
-                ensures #[trigger] af(QQ::e(s) == 200) {}
+                ensures af(#[trigger] QQ::e(s) == 200) {}
 
             pub broadcast proof fn p_prop_2(s: S)
-                ensures #[trigger] af(QQ::e(&s) == 300) {}
+                ensures af(#[trigger] QQ::e(&s) == 300) {}
         }
 
         mod m2 {
