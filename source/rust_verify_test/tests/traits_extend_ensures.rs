@@ -7,14 +7,14 @@ test_verify_one_file! {
     #[test] test_basic verus_code! {
         trait Tr {
             fn stuff() -> (res: (u8, u8))
-                ensures 0 <= res.0 < 20;
+                ensures af(0 <= res.0 < 20);
         }
 
         struct X { }
 
         impl Tr for X {
             fn stuff() -> (res: (u8, u8))
-                ensures 25 <= res.1 < 40,
+                ensures af(25 <= res.1 < 40),
             {
                 return (10, 90); // FAILS
             }
@@ -45,7 +45,7 @@ test_verify_one_file! {
 
         impl Tr for X {
             fn stuff() -> (res: (u8, u8))
-                ensures 25 <= res.1 < 40,
+                ensures af(25 <= res.1 < 40),
             {
                 return (10, 90); // FAILS
             }
@@ -69,7 +69,7 @@ test_verify_one_file! {
         trait Tr {
             fn stuff(x: u8, y: u8) -> (res: u8)
                 requires x + 2 * y <= 200,
-                ensures res <= 220;
+                ensures af(res <= 220);
         }
 
         struct X { }
@@ -77,7 +77,7 @@ test_verify_one_file! {
         impl Tr for X {
             // args flipped
             fn stuff(y: u8, x: u8) -> (foo: u8)
-                ensures foo == y + 2 * x,
+                ensures af(foo == y + 2 * x),
             {
                 return y + 2 * x;
             }
@@ -94,7 +94,7 @@ test_verify_one_file! {
         impl Tr for Y {
             // args flipped
             fn stuff(y: u8, x: u8) -> (foo: u8)
-                ensures 200 <= foo <= 240,
+                ensures af(200 <= foo <= 240),
                     y + 2 * x <= 200
             {
                 return 100; // FAILS
@@ -113,7 +113,7 @@ test_verify_one_file! {
             // args flipped
             fn stuff(y: u8, x: u8) -> (foo: u8)
                 ensures
-                    x + 2 * y <= 200
+                    af(x + 2 * y <= 200)
             {
                 return 100; // FAILS
             }
@@ -136,7 +136,7 @@ test_verify_one_file! {
 
         impl Tr for X {
             fn stuff<T>(x: T) -> (res: T)
-                ensures res == x
+                ensures af(res == x)
             {
                 return x;
             }
@@ -159,7 +159,7 @@ test_verify_one_file! {
 
         impl<A, B, C, D, E, F> Tr<A, bool> for X<A, B, C, D, E, F> {
             fn stuff<Q>(x: Q, y: &A, z: &bool) -> (res: Q)
-                ensures res == x
+                ensures af(res == x)
             {
                 return x;
             }
@@ -176,14 +176,14 @@ test_verify_one_file! {
     #[test] test_basic_proof_mode verus_code! {
         trait Tr {
             proof fn stuff() -> (res: (u8, u8))
-                ensures 0 <= res.0 < 20;
+                ensures af(0 <= res.0 < 20);
         }
 
         struct X { }
 
         impl Tr for X {
             proof fn stuff() -> (res: (u8, u8))
-                ensures 25 <= res.1 < 40,
+                ensures af(25 <= res.1 < 40),
             {
                 return (10, 90); // FAILS
             }
@@ -219,11 +219,11 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_trait_arg verus_code! {
         trait T<A> {
-            proof fn f(a: &A) ensures true;
+            proof fn f(a: &A) ensures af(true);
         }
         struct S;
         impl<B> T<B> for S {
-            proof fn f(b: &B) ensures true {  }
+            proof fn f(b: &B) ensures af(true) {  }
         }
     } => Ok(())
 }
@@ -234,14 +234,14 @@ test_verify_one_file! {
 
         trait Tr<B> {
             proof fn stuff(a: B, b: B) -> (res: (B, B, B))
-                ensures res.0 == res.1;
+                ensures af(res.0 == res.1);
         }
 
         struct X<B> { b: B }
 
         impl<B> Tr<B> for X<B> {
             proof fn stuff(a: B, b: B) -> (res: (B, B, B))
-                ensures res.1 == res.2
+                ensures af(res.1 == res.2)
             {
                 return (a, a, b); // FAILS
             }
@@ -251,7 +251,7 @@ test_verify_one_file! {
 
         impl<B> Tr<B> for X2<B> {
             proof fn stuff(a: B, b: B) -> (res: (B, B, B))
-                ensures res.1 == res.2
+                ensures af(res.1 == res.2)
             {
                 return (a, b, b); // FAILS
             }
@@ -268,7 +268,7 @@ test_verify_one_file! {
 
         impl Tr<u8> for Z {
             proof fn stuff(a: u8, b: u8) -> (res: (u8, u8, u8))
-                ensures res.1 == res.2
+                ensures af(res.1 == res.2)
             {
                 return (0, 0, 1); // FAILS
             }
@@ -299,14 +299,14 @@ test_verify_one_file! {
         trait Tr<B: Compare> {
             proof fn stuff(a: B, b: B, c: B) -> (res: (B, B, B))
                 requires a.comp(&b), b.comp(&c),
-                ensures res.0.comp(&res.1);
+                ensures af(res.0.comp(&res.1));
         }
 
         struct X<B> { b: B }
 
         impl<B: Compare> Tr<B> for X<B> {
             proof fn stuff(a: B, b: B, c: B) -> (res: (B, B, B))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, a, b); // FAILS
             }
@@ -316,7 +316,7 @@ test_verify_one_file! {
 
         impl<B: Compare> Tr<B> for X2<B> {
             proof fn stuff(a: B, b: B, c: B) -> (res: (B, B, B))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, b, b); // FAILS
             }
@@ -326,7 +326,7 @@ test_verify_one_file! {
 
         impl<B: Compare> Tr<B> for X3<B> {
             proof fn stuff(a: B, b: B, c: B) -> (res: (B, B, B))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, b, c);
             }
@@ -351,7 +351,7 @@ test_verify_one_file! {
 
         impl Tr<u8> for Z {
             proof fn stuff(a: u8, b: u8, c: u8) -> (res: (u8, u8, u8))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (1, 1, 0); // FAILS
             }
@@ -377,7 +377,7 @@ test_verify_one_file! {
         trait Tr<B: Compare> {
             proof fn stuff(a: B, b: B, c: B) -> (res: (B, B, B))
                 requires a.comp(&b), b.comp(&c),
-                ensures res.0.comp(&res.1);
+                ensures af(res.0.comp(&res.1));
         }
 
         struct X<B> { b: B }
@@ -392,7 +392,7 @@ test_verify_one_file! {
 
         impl<B: Compare> Tr<X<B>> for Y<B> {
             proof fn stuff(a: X<B>, b: X<B>, c: X<B>) -> (res: (X<B>, X<B>, X<B>))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, a, b); // FAILS
             }
@@ -402,7 +402,7 @@ test_verify_one_file! {
 
         impl<B: Compare> Tr<X<B>> for Y2<B> {
             proof fn stuff(a: X<B>, b: X<B>, c: X<B>) -> (res: (X<B>, X<B>, X<B>))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, a, b); // FAILS
             }
@@ -412,7 +412,7 @@ test_verify_one_file! {
 
         impl<B: Compare> Tr<X<B>> for Y3<B> {
             proof fn stuff(a: X<B>, b: X<B>, c: X<B>) -> (res: (X<B>, X<B>, X<B>))
-                ensures res.1.comp(&res.2)
+                ensures af(res.1.comp(&res.2))
             {
                 return (a, b, c);
             }
@@ -440,7 +440,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2;
         }
@@ -454,7 +454,7 @@ test_verify_one_file! {
                 requires
                     (verus_builtin::default_ensures)(true),
                 ensures
-                    r <= i,
+                    af(r <= i),
             {
                 i / 2
             }
@@ -466,7 +466,7 @@ test_verify_one_file! {
     #[test] test_disallow_default_ensures3 verus_code! {
         fn f(i: u32) -> (r: u32)
             ensures
-                r <= i,
+                af(r <= i),
             default_ensures
                 r == i / 2,
         {
@@ -479,7 +479,7 @@ test_verify_one_file! {
     #[test] test_disallow_default_ensures4 verus_code! {
         fn f(i: u32) -> (r: u32)
             ensures
-                r <= i,
+                af(r <= i),
         {
             assert((verus_builtin::default_ensures)(true));
             i / 2
@@ -492,7 +492,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i;
+                    af(r <= i);
         }
         impl T for u8 {
             fn f(i: u32) -> (r: u32)
@@ -510,7 +510,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
             {
                 i / 2
             }
@@ -531,7 +531,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2, // FAILS
             {
@@ -546,7 +546,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (f: u32)
                 ensures
-                    f <= i,
+                    af(f <= i),
                 default_ensures
                     f == i / 2,
             {
@@ -561,7 +561,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2,
             {
@@ -577,7 +577,7 @@ test_verify_one_file! {
         }
         impl T for i16 {
             fn f(i: u32) -> (r: u32)
-                ensures r == i / 5
+                ensures af(r == i / 5)
             {
                 i / 5
             }
@@ -611,7 +611,7 @@ test_verify_one_file! {
         trait T {
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2,
             {
@@ -627,7 +627,7 @@ test_verify_one_file! {
         }
         impl T for i16 {
             fn f(i: u32) -> (r: u32)
-                ensures r == i / 5
+                ensures af(r == i / 5)
             {
                 i / 5
             }
@@ -681,7 +681,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T;
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2;
         }
@@ -697,7 +697,7 @@ test_verify_one_file! {
         }
         impl T for i16 {
             fn f(i: u32) -> (r: u32)
-                ensures r == i / 5
+                ensures af(r == i / 5)
             {
                 i / 5
             }
@@ -710,7 +710,7 @@ test_verify_one_file! {
             }
         }
         assume_specification[ <bool as T>::f ](i: u32) -> (r: u32)
-            ensures r == i / 7
+            ensures af(r == i / 7)
         ;
         fn generic<A: T>() {
             let r = A::f(6);
@@ -761,7 +761,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T;
             fn f(i: u32) -> (r: u32)
                 ensures
-                    r <= i,
+                    af(r <= i),
                 default_ensures
                     r == i / 2;
         }
@@ -777,7 +777,7 @@ test_verify_one_file! {
         }
         impl T for i16 {
             fn f(i: u32) -> (r: u32)
-                ensures r == i / 5
+                ensures af(r == i / 5)
             {
                 i / 5
             }
@@ -790,7 +790,7 @@ test_verify_one_file! {
             }
         }
         assume_specification[ <bool as T>::f ](i: u32) -> (r: u32)
-            ensures r == i / 7
+            ensures af(r == i / 7)
         ;
         fn generic<A: T>() {
             assert(forall|r| call_ensures(A::f, (6,), r) ==> r <= 6);
