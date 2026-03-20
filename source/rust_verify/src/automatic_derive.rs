@@ -4,7 +4,8 @@ use rustc_hir::HirId;
 use rustc_span::Span;
 use std::sync::Arc;
 use vir::ast::{
-    BinaryOp, Expr, ExprX, FunctionX, Mode, Place, PlaceX, SpannedTyped, VirErr, VirErrAs,
+    BinaryOp, Constant, Expr, ExprX, FunctionX, Mode, Place, PlaceX, SpannedTyped, TemporalOp,
+    VirErr, VirErrAs,
 };
 
 /// Traits with special handling
@@ -144,7 +145,7 @@ fn clone_add_post_condition<'tcx>(
     }
 
     if uses_copy {
-        // Add `ensures ret == self`
+        // Add `ensures af(ret == self)` — temporal wrapping required for exec functions
         let self_var = self_var.unwrap();
         let ret_var = SpannedTyped::new(
             &self_var.span,
@@ -158,7 +159,20 @@ fn clone_add_post_condition<'tcx>(
         );
 
         let eq_expr = cleanup_span_ids(ctxt, span, hir_id, &eq_expr);
-        functionx.ensure.0 = Arc::new(vec![eq_expr]);
+
+        // Wrap in af(Q) = Temporal(AU, true, Q) for temporal postcondition
+        let ens_span = eq_expr.span.clone();
+        let true_expr = SpannedTyped::new(
+            &ens_span,
+            &vir::ast_util::bool_typ(),
+            ExprX::Const(Constant::Bool(true)),
+        );
+        let af_expr = SpannedTyped::new(
+            &ens_span,
+            &vir::ast_util::bool_typ(),
+            ExprX::Temporal(TemporalOp::AU, true_expr, Some(eq_expr)),
+        );
+        functionx.ensure.0 = Arc::new(vec![af_expr]);
     } else {
         warn_unsupported();
     }

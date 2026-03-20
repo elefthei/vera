@@ -291,6 +291,58 @@ test_verify_one_file! {
     } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eu` is not yet supported for verification")
 }
 
+// === Non-temporal ensures rejection tests ===
+
+// Exec function with non-temporal ensures must be rejected
+test_verify_one_file! {
+    #[test] test_nontemporal_ensures_exec_rejected verus_code! {
+        fn test_exec(x: u64) -> (ret: u64)
+            ensures ret == x,
+        {
+            x
+        }
+    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+}
+
+// Proof function with non-temporal ensures must be rejected
+test_verify_one_file! {
+    #[test] test_nontemporal_ensures_proof_rejected verus_code! {
+        proof fn test_proof(x: int)
+            ensures x >= 0,
+        {
+            assume(false);
+        }
+    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+}
+
+// Spec functions cannot have ensures at all (separate well-formedness check),
+// so the temporal-only check naturally doesn't apply to them.
+
+// Exec function with temporal ensures (af) is accepted
+test_verify_one_file! {
+    #[test] test_temporal_ensures_exec_accepted verus_code! {
+        fn test_exec_af(x: u64) -> (ret: u64)
+            ensures af(ret == x),
+        {
+            x
+        }
+    } => Ok(())
+}
+
+// Proof note wrapping temporal ensures is accepted
+test_verify_one_file! {
+    #[test] test_temporal_ensures_with_proof_note_accepted verus_code! {
+        proof fn test_proof_note(a: int, b: int) -> (ret: int)
+            requires a <= b,
+            ensures
+                #![verifier::proof_note("Test note")]
+                af(ret <= a + b),
+        {
+            a + b
+        }
+    } => Ok(())
+}
+
 // === Additional VCGen coverage ===
 
 // Multiple temporal ensures clauses — AG requires temporal invariant
