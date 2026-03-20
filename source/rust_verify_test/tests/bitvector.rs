@@ -199,7 +199,7 @@ test_verify_one_bv_file! {
     #[test] test10_fails verus_code! {
         #[verifier(bit_vector)]
         proof fn f2() { // FAILS
-            ensures(forall |i: u64| (1u64 << i) > 0); // Although this line should be reported instead of the above line, since Z3 does not return model which we utilize for error reporting, just use the above line
+            ensures(af(forall |i: u64| (1u64 << i) > 0)); // Although this line should be reported instead of the above line, since Z3 does not return model which we utilize for error reporting, just use the above line
         }
     } => Err(err) => assert_one_fails(err)
 }
@@ -397,7 +397,7 @@ test_verify_one_bv_file! {
             amt < 64u64,
             val <= upper_bound,
         ensures
-            (val >> amt) <= (upper_bound >> amt)
+            af((val >> amt) <= (upper_bound >> amt))
         {}
     } => Ok(())
 }
@@ -698,7 +698,7 @@ test_verify_one_bv_file! {
     #[test] test_double_arch_fail64_req_ens verus_code! {
         proof fn test_only_32_2(a: usize) by(bit_vector)
             requires (a as u32) != a
-            ensures false
+            ensures af(false)
         { }
     } => Err(err) => assert_fails_bv_64bit(err)
 }
@@ -1439,7 +1439,7 @@ test_verify_one_file! {
 
         proof fn myproof() by (bit_vector)
             ensures
-                get_bit64(1u64, 0),
+                af(get_bit64(1u64, 0)),
         {}
 
         spec fn set_bit64(u: u64, index: u64, bit: bool) -> u64 {
@@ -1455,9 +1455,9 @@ test_verify_one_file! {
                 bv_new == set_bit64(bv_old, index, bit),
                 index < 64,
             ensures
-                get_bit64(bv_new, index) == bit,
-                forall|loc2: u64|
-                    (loc2 < 64 && loc2 != index) ==> (get_bit64(bv_new, loc2) == get_bit64(bv_old, loc2)),
+                af(get_bit64(bv_new, index) == bit),
+                af(forall|loc2: u64|
+                    (loc2 < 64 && loc2 != index) ==> (get_bit64(bv_new, loc2) == get_bit64(bv_old, loc2))),
         {
         }
 

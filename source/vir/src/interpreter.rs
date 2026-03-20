@@ -1860,7 +1860,16 @@ fn eval_expr_internal(ctx: &Ctx, state: &mut State, exp: &Exp) -> Result<Exp, Vi
         VarAt(..) | VarLoc(..) | Loc(..) | Old(..) | StaticVar(..) => ok,
         ExecFnByName(_) => ok,
         FuelConst(_) => ok,
-        Temporal(..) => ok,
+        Temporal(op, inner, goal) => {
+            // Recurse into temporal subexpressions so that spec functions
+            // (e.g., in bitvector ensures) are inlined before BV conversion.
+            let inner = eval_expr_internal(ctx, state, inner)?;
+            let goal = match goal {
+                Some(g) => Some(eval_expr_internal(ctx, state, g)?),
+                None => None,
+            };
+            exp_new(Temporal(op.clone(), inner, goal))
+        }
     };
     let res = r?;
     state.depth -= 1;
