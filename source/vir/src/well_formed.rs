@@ -27,6 +27,18 @@ struct Ctxt<'a> {
     no_cheating: bool,
 }
 
+/// Check whether an ensures expression is (or wraps) a temporal operator.
+/// Peels through transparent wrappers like `ProofNote` and `CustomErr` that
+/// may surround the underlying `ExprX::Temporal(...)`.
+fn is_temporal_ensures(expr: &Expr) -> bool {
+    match &expr.x {
+        ExprX::Temporal(..) => true,
+        ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
+        ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
+        _ => false,
+    }
+}
+
 /// Details from well-formedness checking.
 pub struct CheckDetails {
     /// For each function, collects proof notes that fail due to `--no-cheating`.
@@ -1315,6 +1327,23 @@ fn check_function<Emit: EmitError>(
         let msg = "'ensures' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
         check_expr(ctxt, function, ens, disallow_private_access, Area::PostState, emit)?;
+
+        // For exec/proof functions, the top-level ensures expression must use a temporal
+        // operator. Spec functions are pure math (pre → post immediately), so they are exempt.
+        // Also exempt:
+        //   - vstd functions (standard library hasn't been ported to temporal)
+        //   - external_body functions (axioms — no body to verify temporally)
+        if matches!(function.x.mode, Mode::Exec | Mode::Proof) {
+            let is_vstd = matches!(&function.x.owning_module, Some(path) if path.is_vstd_path());
+            let is_external_body = function.x.attrs.is_external_body;
+            if !is_vstd && !is_external_body && !is_temporal_ensures(ens) {
+                return Err(error(
+                    &ens.span,
+                    "exec/proof function ensures must use a temporal operator \
+                     (e.g., `ensures af(Q)` instead of `ensures Q`)",
+                ));
+            }
+        }
     }
     if let Some(r) = &function.x.returns {
         if matches!(*function.x.ret.x.typ, TypX::Opaque { .. }) {

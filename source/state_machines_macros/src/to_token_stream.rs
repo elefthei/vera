@@ -1197,7 +1197,7 @@ fn lemma_update_body(bundle: &SMBundle, l: &Lemma, func: &mut ImplItemFn) {
         Stmt::Expr(
             Expr::Verbatim(quote_vstd! { vstd =>
                 #vstd::prelude::ensures(
-                    post.invariant()
+                    #vstd::prelude::au(true, post.invariant())
                 )
             }),
             Some(token::Semi { spans: [l.func.span()] }),
