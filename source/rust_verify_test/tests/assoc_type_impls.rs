@@ -7,7 +7,7 @@ test_verify_one_file! {
     #[test] trait_poly verus_code! {
         use vstd::{prelude::*};
         proof fn p<A: View>(x: A) -> (r: (A::V, A::V))
-            ensures r.1 == x.view(),
+            ensures af(r.1 == x.view()),
         {
             (x.view(), x.view())
         }
@@ -34,7 +34,7 @@ test_verify_one_file! {
     #[test] trait_poly_fail verus_code! {
         use vstd::{prelude::*};
         proof fn p<A: View>(x: A) -> (r: (A::V, A::V))
-            ensures r.1 == x.view(),
+            ensures af(r.1 == x.view()),
         {
             (x.view(), x.view())
         }
@@ -201,7 +201,7 @@ fn trait_assoc_type_bound_code(pass: bool) -> String {
 
             proof fn foo(t: Self::T)
                 requires Self::req(t),
-                ensures t.a(); // FAILS
+                ensures af(t.a()); // FAILS
         }
     }) + (if pass {
         verus_code_str! {
@@ -251,12 +251,12 @@ test_verify_one_file! {
 
             proof fn foo(t: Self::T)
                 requires t.a(),
-                ensures Self::ens(t);
+                ensures af(Self::ens(t));
         }
 
         proof fn bar<BB: B>(t: BB::T)
             requires t.a(),
-            ensures BB::ens(t),
+            ensures af(BB::ens(t)),
         {
             BB::foo(t);
         }
@@ -393,7 +393,7 @@ test_verify_one_file! {
                 (*x + *y) as u8
             }
             fn g(x: &Self::X, y: &Self::Y) -> (r: Self::Y)
-                ensures r == *x as u16 + *y / 2
+                ensures af(r == *x as u16 + *y / 2)
             {
                 *x as u16 + *y / 2
             }
@@ -456,12 +456,12 @@ test_verify_one_file! {
 
         #[verifier::external_body]
         proof fn p_u8(u: u8)
-            ensures p(u)
+            ensures af(p(u))
         {
         }
 
         broadcast proof fn b<A: T<X = u8>>(x: A::X, a: A)
-            ensures #[trigger] q(a, x) && p(x)
+            ensures #[trigger] af(q(a, x) && p(x))
         {
             p_u8(x);
         }
@@ -513,8 +513,8 @@ test_verify_one_file! {
         impl U for bool { type X = u16; }
 
         trait T { proof fn f() -> int; }
-        impl<A: U<X = u8>> T for A { proof fn f() -> (r: int) ensures r == 100 { 100 } }
-        impl T for bool { proof fn f() -> (r: int) ensures r == 200 { 200 } }
+        impl<A: U<X = u8>> T for A { proof fn f() -> (r: int) ensures af(r == 100) { 100 } }
+        impl T for bool { proof fn f() -> (r: int) ensures af(r == 200) { 200 } }
 
         proof fn test() {
             let x = <char as T>::f();

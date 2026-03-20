@@ -159,9 +159,9 @@ const TEST_RET: &str = verus_code_str! {
             a <= b,
         ensures
             #![verifier::proof_note("Test label #3")]
-            ret <= a + b,
-            ret <= a + a, // FAILS
-            ret <= b + b,
+            af(ret <= a + b),
+            af(ret <= a + a), // FAILS
+            af(ret <= b + b),
     {
         a + b
     }
@@ -192,7 +192,7 @@ test_verify_one_file! {
         fn example(x: u64, y: u64) -> (z: u64)
             ensures
                 #![verifier::proof_note("Property 732")]
-                z == x + y,
+                af(z == x + y),
         {
             x
         }
@@ -227,9 +227,9 @@ test_verify_one_file! {
             requires
                 a <= b,
             ensures
-                ret <= a + b,
-                ret <= a + a,
-                ret <= b + b,
+                af(ret <= a + b),
+                af(ret <= a + a),
+                af(ret <= b + b),
         {
             let mut x = test_ret(a, a);
             x = test_ret(x, x);
@@ -335,7 +335,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_fail_return_value_parameter_same_name verus_code! {
         fn foo(x: u64) -> (x: bool)
-            ensures x || !x
+            ensures af(x || !x)
         {
             x > 10
         }
@@ -353,7 +353,7 @@ test_verify_one_file! {
         }
 
         fn test1() -> (b: Foo)
-            ensures get_b(b)
+            ensures af(get_b(b))
         {
             Foo { b: true }
         }
@@ -608,7 +608,7 @@ test_verify_one_file! {
             ensures
                 // mut params are always evaluated to their original
                 // value in postconditions
-                x < 10,
+                af(x < 10),
         {
             assert(x < 20);
             x = 100;
@@ -619,7 +619,7 @@ test_verify_one_file! {
             requires
                 x < 10;
             ensures
-                x == 100, // FAILS
+                af(x == 100), // FAILS
         {
             assert(x < 20);
             x = 100;
@@ -691,7 +691,7 @@ test_verify_one_file! {
         trait Marshalable {
             spec fn is_marshalable(&self) -> bool;
             exec fn _is_marshalable(&self) -> (res: bool)
-                ensures res == self.is_marshalable(),
+                ensures af(res == self.is_marshalable()),
             ;
         }
     } => Ok(())

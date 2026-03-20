@@ -14,7 +14,7 @@ test_verify_one_file! {
             requires
                 obeys_cmp_spec::<T>(),
             ensures
-                r <==> x.eq_spec(y),
+                af(r <==> x.eq_spec(y)),
         {
             reveal(obeys_cmp_partial_ord);
             reveal(obeys_cmp_ord);
@@ -32,7 +32,7 @@ test_verify_one_file! {
             requires
                 obeys_cmp_spec::<T>(),
             ensures
-                r <==> x.eq_spec(y),
+                af(r <==> x.eq_spec(y)),
         {
             reveal(obeys_cmp_partial_ord);
             reveal(obeys_cmp_ord);
@@ -59,7 +59,7 @@ test_verify_one_file! {
         impl PartialEq for P {
             fn eq(&self, other: &P) -> (b: bool)
                 ensures
-                    b <==> self == other
+                    af(b <==> self == other)
             {
                 self.0 == other.0 && self.1 == other.1
             }
@@ -78,14 +78,14 @@ test_verify_one_file! {
 
         broadcast proof fn lemma_s_obeys_eq_spec()
             ensures
-                #[trigger] obeys_eq_spec::<P>(),
+                #[trigger] af(obeys_eq_spec::<P>()),
         {
             reveal(obeys_eq_spec_properties);
         }
 
         broadcast proof fn lemma_s_obeys_concrete_eq()
             ensures
-                #[trigger] obeys_concrete_eq::<P>(),
+                #[trigger] af(obeys_concrete_eq::<P>()),
         {
             reveal(obeys_concrete_eq);
         }
@@ -107,7 +107,7 @@ test_verify_one_file! {
             requires
                 obeys_concrete_eq::<T>(),
             ensures
-                b <==> x == y,
+                af(b <==> x == y),
         {
             reveal(obeys_concrete_eq);
             x.eq(y)
