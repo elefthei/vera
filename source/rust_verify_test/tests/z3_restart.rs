@@ -55,7 +55,7 @@ test_verify_one_file! {
                 0 <= x,
                 0 < d,
             ensures
-                0 <= x / d,
+                af(0 <= x / d),
         {
         }
     } => Ok(())
@@ -68,11 +68,11 @@ test_verify_one_file! {
         #[verifier(spinoff_prover)] /* vattr */
         proof fn bit_or32_auto()
             ensures
-                forall|a: u32, b: u32| #[trigger] (a | b) == b | a,
-                forall|a: u32, b: u32, c:u32| #[trigger] ((a | b) | c) == a | (b | c),
-                forall|a: u32| #[trigger] (a | a) == a,
-                forall|a: u32| #[trigger] (a | 0) == a,
-                forall|a: u32| #[trigger] (a | 0xffff_ffffu32) == 0xffff_ffffu32,
+                af(forall|a: u32, b: u32| #[trigger] (a | b) == b | a),
+                af(forall|a: u32, b: u32, c:u32| #[trigger] ((a | b) | c) == a | (b | c)),
+                af(forall|a: u32| #[trigger] (a | a) == a),
+                af(forall|a: u32| #[trigger] (a | 0) == a),
+                af(forall|a: u32| #[trigger] (a | 0xffff_ffffu32) == 0xffff_ffffu32),
         {
         }
     } => Ok(())
@@ -99,7 +99,7 @@ test_verify_one_file! {
                 x > y,
                 3 <= z,
             ensures
-                y * z > x // FAILS
+                af(y * z > x) // FAILS
         {
         }
     } => Err(e) => assert_one_fails(e)
@@ -113,7 +113,7 @@ test_verify_one_file! {
         #[verifier(spinoff_prover)] /* vattr */
         pub proof fn commutative<V>(a: Multiset<V>, b: Multiset<V>)
             ensures
-                a.add(b) === b.add(a),
+                af(a.add(b) === b.add(a)),
         {
             assert(a.add(b) =~= b.add(a));
         }
@@ -121,8 +121,8 @@ test_verify_one_file! {
         #[verifier(spinoff_prover)] /* vattr */
         pub proof fn associative<V>(a: Multiset<V>, b: Multiset<V>, c: Multiset<V>)
             ensures
-                a.add(b.add(c)) ===
-                a.add(b).add(c)
+                af(a.add(b.add(c)) ===
+                a.add(b).add(c))
         {
             assert(a.add(b.add(c)) =~=
                 a.add(b).add(c));
@@ -131,8 +131,8 @@ test_verify_one_file! {
         #[verifier(spinoff_prover)] /* vattr */
         pub proof fn insert2<V>(a: V, b: V)
             ensures
-                Multiset::empty().insert(a).insert(b) ===
-                Multiset::empty().insert(b).insert(a)
+                af(Multiset::empty().insert(a).insert(b) ===
+                Multiset::empty().insert(b).insert(a))
         {
             assert(
                 Multiset::empty().insert(a).insert(b) =~=
@@ -152,7 +152,7 @@ test_verify_one_file! {
         #[verifier(spinoff_prover)] /* vattr */
         pub proof fn add_sub_cancel<V>(a: Multiset<V>, b: Multiset<V>)
             ensures
-                a.add(b).sub(b) === a,
+                af(a.add(b).sub(b) === a),
         {
             assert(a.add(b).sub(b) =~= a);
         }
@@ -162,7 +162,7 @@ test_verify_one_file! {
             requires
                 b.subset_of(a),
             ensures
-                a.sub(b).add(b) === a
+                af(a.sub(b).add(b) === a)
         {
             assert(a.sub(b).add(b) =~= a);
             assert(false) // FAILS

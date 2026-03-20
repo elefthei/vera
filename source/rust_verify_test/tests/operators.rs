@@ -118,7 +118,7 @@ test_verify_one_file! {
         impl PartialEq<S> for S {
             fn eq(&self, rhs: &S) -> (ret: bool)
                 ensures
-                    ret <==> (self.0 != rhs.0)
+                    af(ret <==> (self.0 != rhs.0))
             {
                 self.0 != rhs.0
             }
@@ -180,7 +180,7 @@ test_verify_one_file! {
             type Output = usize;
             fn sub(self, rhs: S) -> (ret: usize)
                 ensures
-                    ret == self.0 - rhs.0 - 10
+                    af(ret == self.0 - rhs.0 - 10)
             {
                 assert(self.0 >= 20 && rhs.0 <= 10);
                 self.0 - rhs.0 - 10
@@ -259,7 +259,7 @@ test_verify_one_file! {
         impl PartialEq for S {
             fn eq(&self, other: &S) -> (ret: bool)
                 ensures
-                    !ret
+                    af(!ret)
             {
                 false
             }
@@ -299,7 +299,7 @@ test_verify_one_file! {
         // This does not take effect since structural equality has higher priority than the trait spec.
         pub assume_specification[ S::eq ](lhs: &S, rhs: &S) -> (ret: bool)
             ensures
-                ret == false,
+                af(ret == false),
         ;
 
         fn test(s1: S, s2: S)

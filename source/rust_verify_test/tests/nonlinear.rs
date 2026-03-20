@@ -17,7 +17,7 @@ test_verify_one_file! {
                 0 <= x,
                 0 <= y,
             ensures
-                x * y <= x_bound * y_bound,
+                af(x * y <= x_bound * y_bound),
         {
         }
     } => Ok(())
@@ -31,7 +31,7 @@ test_verify_one_file! {
                 0 <= x,
                 0 <= y,
             ensures
-                0 <= x * y,
+                af(0 <= x * y),
         {
         }
     } => Ok(())
@@ -45,7 +45,7 @@ test_verify_one_file! {
                 x <= y,
                 0 <= z,
             ensures
-                x * z <= y * z,
+                af(x * z <= y * z),
         {
         }
     } => Ok(())
@@ -59,7 +59,7 @@ test_verify_one_file! {
                 0 <= x,
                 0 < d,
             ensures
-                0 <= x / d,
+                af(0 <= x / d),
         {
         }
     } => Ok(())
@@ -73,7 +73,7 @@ test_verify_one_file! {
                 x <= y,
                 0 <= z,
             ensures
-                x * z < y * z, // FAILS
+                af(x * z < y * z), // FAILS
         {
         }
     } => Err(e) => assert_one_fails(e)
@@ -87,7 +87,7 @@ test_verify_one_file! {
                 x > y,
                 3 <= z,
             ensures
-                y * z > x, // FAILS
+                af(y * z > x), // FAILS
         {
         }
     } => Err(e) => assert_one_fails(e)
