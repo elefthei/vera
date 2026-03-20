@@ -394,9 +394,8 @@ test_verify_one_file! {
         #[verifier::opaque]
         spec fn f() -> int { 1 }
         proof fn e() -> (u: u64)
-            ensures
-                u == f(),
-                u == 1
+            ensures af(u == f()),
+                af(u == 1),
         {
             reveal(f);
             1
@@ -452,12 +451,12 @@ test_verify_one_file! {
                 pub const X: usize = 3;
                 pub const Y: usize = 1usize << A::X;
                 exec const B: u8
-                    ensures Self::B < 10
+                    ensures af(Self::B < 10),
                 {
                     7
                 }
                 exec const C: u8
-                    ensures Self::C < 10 // FAILS
+                    ensures af(Self::C < 10), // FAILS
                 {
                     77
                 }
@@ -486,7 +485,7 @@ test_verify_one_file! {
 
         impl A {
             const fn get_a(&self) -> (ret: u64)
-                ensures ret == self.u
+                ensures af(ret == self.u),
             {
                 self.u
             }
@@ -499,7 +498,7 @@ test_verify_one_file! {
             }
 
             const fn get_a_fail(&self) -> (ret: u64)
-                ensures ret != self.u
+                ensures af(ret != self.u),
             {
                 return self.u; // FAILS
             }

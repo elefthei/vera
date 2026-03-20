@@ -89,8 +89,7 @@ test_verify_one_file_with_options! {
         fn get_len<A>(list: &List<A>) -> (r: u64)
             requires
                 len(list) <= 0xffffffffffffffff,
-            ensures
-                r == len(list),
+            ensures af(r == len(list)),
         {
             let mut n: u64 = 0;
             let mut done = false;
@@ -139,8 +138,7 @@ test_verify_one_file_with_options! {
         fn get_len<A>(list: &List<A>) -> (r: u64)
             requires
                 len(list) <= 0xffffffffffffffff,
-            ensures
-                r == len(list),
+            ensures af(r == len(list)),
         {
             let mut n: u64 = 0;
             let mut done = false;
@@ -189,8 +187,7 @@ test_verify_one_file_with_options! {
         fn get_len<A>(list: &List<A>) -> (r: u64)
             requires
                 len(list) <= 0xffffffffffffffff,
-            ensures
-                r == len(list),
+            ensures af(r == len(list)),
         {
             let mut n: u64 = 0;
             let mut done = false;
@@ -227,7 +224,7 @@ test_verify_one_file! {
         }
 
         fn test() -> (ret: u64)
-            ensures ret == 10
+            ensures af(ret == 10),
         {
             match Hand::Left {
                 Hand::Left => 10,
