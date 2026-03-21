@@ -3,17 +3,21 @@
 // Round-robin scheduler example.
 //
 // This example demonstrates a simple round-robin scheduler over a FIFO queue.
-// The AG property proven: the queue is always non-empty (AG(len > 0)).
+// It proves the full fairness property AG(AF(now(peek == x))):
+//   - AG: the loop runs forever
+//   - AF(now(peek == x)): in each cycle, x eventually reaches the head
+//   - now(): x at the head is a state predicate — it holds at loop-body START
+//     when x is first in the queue, not at body END after x moves to back
 //
-// TODO: The full fairness property AG(AF(queue.peek() == x)) requires
-// a VCGen that checks the AF goal at the START of each loop iteration
-// (where Q holds when x is at the front), not at the END (where x has
-// been moved to the back). See the TODO in round_robin() for details.
+// The ghost accumulator in VCGen tracks whether Q held at ANY intermediate
+// state during the loop body iteration. This allows the weakened decreases
+// check (now_reached ∨ m↓) to pass even when Q is false at body end.
 //
 // Temporal VCGen:
 //   - `ensures ag(...)` is decomposed into leaf obligations
 //   - Loop `invariant` serves as the temporal refinement mapping R
 //   - For the AG layer: no `decreases` → infinite loop, R→φ checked
+//   - For AG(AF(now(Q))): ghost accumulator tracks Q at every intermediate state
 //   - Structural rules handle prefix code and loop boundaries automatically
 
 use vstd::prelude::*;
@@ -84,22 +88,22 @@ impl Queue {
 /// - now(): x at the head is a state predicate (holds at loop-body START
 ///   when x is first in the queue, not at body END after x moves to back)
 ///
-/// Currently proves the weaker AG(queue.len() > 0) because:
-/// The weakened decreases check Q ∨ m↓ only checks at body END where
-/// peek ≠ x (x was moved to back). Full fairness needs now() semantics
-/// where Q is checked at ANY intermediate state, not just body end.
+/// The ghost accumulator tracks whether peek == x held at any intermediate
+/// state during the loop body. Combined with index_of(x) as decreasing
+/// metric, this proves x always eventually reaches the front.
 fn round_robin(queue: &mut Queue, x: u64)
     requires
         old(queue).view().len() > 1,
-        x == old(queue).peek_spec(),
+        old(queue).view().contains(x),
     ensures
         ag(queue.view().len() > 0),
-        // TODO: Full fairness property once now() VCGen checks intermediate states:
-        // ag(af(now(queue.peek_spec() == x))),
+        ag(af(now(queue.peek_spec() == x))),
 {
     loop
         invariant
             queue.view().len() > 1,
+            queue.view().contains(x),
+        decreases queue.view().index_of(x),
     {
         let val = queue.dequeue();
         queue.enqueue(val);
