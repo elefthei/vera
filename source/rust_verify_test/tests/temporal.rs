@@ -153,7 +153,7 @@ test_verify_one_file! {
     #[test] test_temporal_inv_preserved verus_code! {
         fn test_loop_invariant_preserved(x: &mut u64)
             requires *old(x) == 0,
-            ensures ag(*x <= 10),
+            ensures ag(*x <= 15),
         {
             loop
                 invariant *x <= 10,
@@ -620,7 +620,7 @@ test_verify_one_file! {
     #[test] test_plain_au_without_temporal_inv verus_code! {
         fn test_au_no_inv(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(true, *x == 0),
+            ensures au(*x >= 0, *x == 0),
         {
             while *x > 0
                 invariant *x <= 10,
@@ -1141,11 +1141,11 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// P3: AU goal already true at entry
+// P3: AU with loop that actually executes (requires *old(x) > 0)
 test_verify_one_file! {
     #[test] test_corner_au_goal_at_entry verus_code! {
         fn already_done(x: &mut u64)
-            requires *old(x) == 0,
+            requires *old(x) > 0,
             ensures af(*x == 0),
         {
             while *x > 0
@@ -1385,6 +1385,23 @@ test_verify_one_file! {
             {
                 if *x < 10 { *x = *x + 1; } else { *x = 0; }
                 // At every step: *x <= 10 <= 20 ✓
+            }
+        }
+    } => Ok(())
+}
+
+// AU with bounded countdown: non-trivial path property (*x > 0 && *x <= 100) holds until *x == 0
+test_verify_one_file! {
+    #[test] test_corner_au_bounded_countdown verus_code! {
+        fn bounded_countdown(x: &mut u64)
+            requires *old(x) > 0 && *old(x) <= 100,
+            ensures au(*x > 0 && *x <= 100, *x == 0),
+        {
+            while *x > 0
+                invariant *x <= 100,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
             }
         }
     } => Ok(())

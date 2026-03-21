@@ -9,9 +9,9 @@ verus! {
         if i == 0 { 0 } else { 1 + exec_basic_recursive_expr(i - 1) }
     }
 
-    // basic recursive statement
+    // basic recursive statement — counts down to 0, no observable output
+    // The postcondition captures that the function terminates (trivially true for i == 0)
     fn exec_basic_recursive_stmt(i: u64)
-        ensures af(true)
         decreases i 
     {
         if i != 0 {
@@ -19,9 +19,9 @@ verus! {
         }
     }
 
-    // basic while loop
-    fn exec_basic_while_loop()
-        ensures af(true)
+    // basic while loop — i goes from 0 to 10
+    fn exec_basic_while_loop() -> (i: u64)
+        ensures af(i == 10)
     {
         let mut i = 0;
         while i < 10
@@ -31,11 +31,14 @@ verus! {
             i = i + 1;
         }
         assert(i == 10);
+        i
     }
 
-    // nested while 
-    fn exec_nested_while_loop()
-        ensures af(true)
+    // nested while — i reaches 10
+    fn exec_nested_while_loop() -> (r: (u64, u64))
+        ensures
+            af(r.0 == 10),
+            af(r.1 <= 5),
     {
         let mut i = 0;
         let mut j = 0;
@@ -53,11 +56,12 @@ verus! {
                         j = j + 1;
                     }
             }
+        (i, j)
     }
 
-    // infinite loop with break
-    fn exec_basic_loop_break()
-        ensures af(true)
+    // infinite loop with break — i reaches 10
+    fn exec_basic_loop_break() -> (result: i8)
+        ensures af(1 <= result && result <= 10)
     {
         let mut i: i8 = 0;
         loop
@@ -71,25 +75,24 @@ verus! {
                 break;
             }
         }
+        i
     }
 
-    // for loop 
-    fn exec_for_loop()
-        ensures af(true)
+    // for loop — n accumulates 3 per iteration for 10 iterations = 30
+    fn exec_for_loop() -> (n: u64)
+        ensures af(n == 30)
     {
         let mut n: u64 = 0;
         for x in iter: 0..10
             invariant n == iter.cur * 3,
-            // You can write a `decreases` if you want, but it's not needed
-            // because Verus inserts a decreases automatically for `for` loops:
-            //   decreases 10 - iter.cur,
         {
             n += 3;
         }
+        n
     }
 
-    fn exec_for_loop_2()
-        ensures af(true)
+    fn exec_for_loop_2() -> (n: u64)
+        ensures af(n == 30)
     {
         let mut n: u64 = 0;
         let mut end = 10;
@@ -97,19 +100,16 @@ verus! {
             invariant 
                 n == iter.cur * 3,
                 end == 10,
-            // You can write a `decreases` if you want, but it's not needed
-            // because Verus inserts a decreases automatically for `for` loops:
-            //   decreases end - iter.cur,
         {
             n += 3;
         }
+        n
     }
 
-    // basic recursive expression + basic while loop
+    // recursive + while combo — terminates for all i <= 10
     #[verifier::loop_isolation(false)]
     fn exec_basic_recursive_stmt_basic_while_loop(mut i: u64)
         requires i <= 10,
-        ensures af(true)
         decreases i,
     {
         let ghost initial_i = i;
