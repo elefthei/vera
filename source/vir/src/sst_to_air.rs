@@ -1728,6 +1728,9 @@ struct State {
     /// Depth counter for loop nesting — prefix assertions only fire outside all loops.
     /// Incremented at start of Loop handler, decremented at end.
     in_loop_depth: u32,
+    /// AG(φ) properties that must be asserted at every intermediate state inside
+    /// an AG loop body. Empty outside AG loops.
+    ag_state_obligations: Vec<Exp>,
 }
 
 impl State {
@@ -2090,6 +2093,24 @@ fn emit_prefix_assertions(
     Ok(stmts)
 }
 
+/// Emit AG property assertions at every intermediate state inside an AG loop body.
+/// AG(φ) means φ holds at EVERY state — including intermediate states within
+/// the loop body, not just at loop entry/exit boundaries.
+fn emit_ag_state_assertions(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    let mut stmts = Vec::new();
+    for obligation_exp in &state.ag_state_obligations {
+        let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
+        let err = error(span, "AG property must hold at every intermediate state");
+        stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2375,6 +2396,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // (af(Q) → Q, ag(Q) → Q). The assumption above establishes R.
             // Prefix obligations below check φ in the continuation k x.
             result.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AG soundness: check AG property at every intermediate state
+            result.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             result
         }
         StmX::Assert(assert_id, error, expr) => {
@@ -2588,6 +2611,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let mut stmts = stm_to_stmts(ctx, state, &assume_var(&stm.span, x, rhs))?;
             // TICL ag_seq/aul_seq: prefix obligations after init assignment
             stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AG soundness: check AG property at every intermediate state
+            stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             stmts
         }
         StmX::Assign { lhs: Dest { dest, is_init: false }, rhs } => {
@@ -2682,6 +2707,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
 
             // TICL ag_seq/aul_seq: prefix obligations after mutation
             stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AG soundness: check AG property at every intermediate state
+            stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
 
             stmts
         }
@@ -2902,6 +2929,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let mut invs_entry = Arc::new(invs_entry);
             let mut invs_exit = Arc::new(invs_exit);
 
+            // Save AG obligations so we can restore after processing this loop body.
+            // This handles nested loops correctly — inner loops get their own obligations.
+            let saved_ag_obligations = std::mem::take(&mut state.ag_state_obligations);
+
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
             // No separate temporal_invariant annotation needed.
@@ -2923,6 +2954,18 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     }
                 }
                 is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop;
+
+                // AG soundness: collect AG properties for intermediate state checking.
+                // Inside an AG loop body, every intermediate state must satisfy φ.
+                if is_ag_loop {
+                    let ag_props: Vec<Exp> = state.temporal_context.propositions.iter()
+                        .filter_map(|o| match o {
+                            Proposition::Always { property, .. } => Some(property.clone()),
+                            _ => None,
+                        })
+                        .collect();
+                    state.ag_state_obligations = ag_props;
+                }
             } else {
                 is_utility_loop_in_temporal = false;
             }
@@ -3256,6 +3299,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 stmts.push(snapshot);
             }
             state.in_loop_depth -= 1;
+            // Restore AG obligations from before this loop (handles nesting correctly).
+            state.ag_state_obligations = saved_ag_obligations;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3670,6 +3715,7 @@ pub(crate) fn body_stm_to_air(
         has_infinite_temporal_loop: false,
         temporal_prefix_obligations,
         in_loop_depth: 0,
+        ag_state_obligations: Vec::new(),
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
