@@ -94,14 +94,14 @@ test_verify_one_file! {
         }
 
         fn test_add_u32_and_never() -> u32 {
-            ensures(|r: u32|  af(r < 3));
+            ensures(|r: u32|  af(done(r < 3)));
             let x: u32 = {return 1; 3};
             let y: u32 = {return 2;};
             x + y
         }
 
         fn test_final_stmt_return() -> u8 {
-            ensures(|y: u8|  af(y == 5));
+            ensures(|y: u8|  af(done(y == 5)));
             return 5;
         }
 
@@ -138,20 +138,20 @@ test_verify_one_file! {
         }
 
         fn never_in_return() -> (i: u8)
-            ensures af(i == 3)
+            ensures af(done(i == 3))
         {
             return { return 3; 5 };
         }
 
         fn return_return() -> (i: u8)
-            ensures af(i == 3)
+            ensures af(done(i == 3))
         {
             return 3;
             return 5;
         }
 
         fn return_return2() -> (i: u8)
-            ensures af(i == 3)
+            ensures af(done(i == 3))
         {
             return 3;
             5
@@ -172,7 +172,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] postconditions_fail_in_returns_in_conditional verus_code! {
         fn postcondition_fail_if(b: bool)
-            ensures af(false)
+            ensures af(done(false))
         {
             let x = if b {
                 5
@@ -183,7 +183,7 @@ test_verify_one_file! {
         }
 
         fn postcondition_fail_else(b: bool)
-            ensures af(false)
+            ensures af(done(false))
         {
             let x = if b {
                 return; // FAILS
@@ -194,7 +194,7 @@ test_verify_one_file! {
         }
 
         fn postcondition_fail_if_value(b: bool) -> (i: u8)
-            ensures af(i == 4)
+            ensures af(done(i == 4))
         {
             let x = if b {
                 return 7; // FAILS
@@ -205,7 +205,7 @@ test_verify_one_file! {
         }
 
         fn postcondition_fail_else_value(b: bool) -> (i: u8)
-            ensures af(i == 4)
+            ensures af(done(i == 4))
         {
             let x = if b {
                 5
@@ -322,7 +322,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] return_in_let_fail verus_code! {
         fn test_add_u32_and_never() -> (r: u32)
-            ensures af(r > 3)
+            ensures af(done(r > 3))
         {
             let x: u32 = {
               return 1; // FAILS
@@ -337,7 +337,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] final_stmt_return_fail verus_code! {
         fn test_final_stmt_return() -> (y: u8)
-            ensures af(y == 6)
+            ensures af(done(y == 6))
         {
             return 5; // FAILS
         }
@@ -386,7 +386,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] misc_never_returns_fail verus_code! {
         fn never_in_conditional(b: bool) -> (y: u8)
-            ensures af(y == 7)
+            ensures af(done(y == 7))
         {
             let mut x = 7;
             if {
@@ -403,7 +403,7 @@ test_verify_one_file! {
         }
 
         fn never_in_return() -> (i: u8)
-            ensures af(i == 5)
+            ensures af(done(i == 5))
         {
             return {
                 return 3; // FAILS
@@ -412,14 +412,14 @@ test_verify_one_file! {
         }
 
         fn return_return() -> (i: u8)
-            ensures af(i == 5)
+            ensures af(done(i == 5))
         {
             return 3; // FAILS
             return 5;
         }
 
         fn return_return2() -> (i: u8)
-            ensures af(i == 5)
+            ensures af(done(i == 5))
         {
             return 3; // FAILS
             5
@@ -691,7 +691,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] side_effects_in_arg_call verus_code! {
         fn foo(x: u64, y: u64) -> (ret: (u64, u64))
-            ensures af(ret == (x, y))
+            ensures af(done(ret == (x, y)))
         {
             (x, y)
         }
