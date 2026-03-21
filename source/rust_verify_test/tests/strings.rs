@@ -90,7 +90,7 @@ test_verify_one_file! {
         use vstd::string::*;
         fn test_substring_passes<'a>() -> (ret: &'a str)
             ensures
-                af(ret@.subrange(0,5) =~= ("Hello")@)
+                af(done(ret@.subrange(0,5) =~= ("Hello")@))
         {
             proof {
                 reveal_strlit("Hello");
@@ -102,7 +102,7 @@ test_verify_one_file! {
 
         fn test_substring_passes2<'a>() -> (ret: &'a str)
             ensures
-                af(ret@.subrange(0,5) =~= ("Hello")@)
+                af(done(ret@.subrange(0,5) =~= ("Hello")@))
         {
             let x = ("Hello World");
 
@@ -121,7 +121,7 @@ test_verify_one_file! {
         use vstd::string::*;
         fn test_substring_fails<'a>() -> (ret: &'a str)
             ensures
-                af(ret@.subrange(0,5) =~= ("Hello")@) // FAILS
+                af(done(ret@.subrange(0,5) =~= ("Hello")@)) // FAILS
         {
             proof {
                 reveal_strlit("Hello");
@@ -303,7 +303,7 @@ test_verify_one_file! {
         use vstd::string::*;
         fn test_len_return_passes<'a>() -> (ret: usize)
             ensures
-                af(ret == 4)
+                af(done(ret == 4))
         {
             proof {
                 reveal_strlit("abcd");
@@ -518,7 +518,7 @@ test_verify_one_file! {
                 x.is_ascii(),
                 x@.len() > 10
             ensures
-                af(ret@.len() > 10)
+                af(done(ret@.len() > 10))
         {
             x.as_bytes_vec()
         }
@@ -535,7 +535,7 @@ test_verify_one_file! {
             requires
                 x@.len() > 10
             ensures
-                af(ret@.len() > 10)
+                af(done(ret@.len() > 10))
         {
             x.as_bytes() // FAILS
         }
@@ -550,7 +550,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
 
         fn foo() -> (ret: String)
-            ensures af(ret@ === ("hello world")@)
+            ensures af(done(ret@ === ("hello world")@))
         {
             proof {
                 reveal_strlit("hello world");
@@ -574,7 +574,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
 
         fn foo() -> (ret: String)
-            ensures af(ret@ !== ("hello worlds")@)
+            ensures af(done(ret@ !== ("hello worlds")@))
         {
             proof {
                 reveal_strlit("hello worlds");
@@ -598,7 +598,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
 
         fn foo() -> (ret: String)
-            ensures af(ret@ === ("hello world")@)
+            ensures af(done(ret@ === ("hello world")@))
         {
             proof {
                 reveal_strlit("hello world");
@@ -622,7 +622,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
 
         fn foo() -> (ret: String)
-            ensures af(ret@ !== ("hello worlds")@)
+            ensures af(done(ret@ !== ("hello worlds")@))
         {
             proof {
                 reveal_strlit("hello worlds");

@@ -458,7 +458,7 @@ test_verify_one_file! {
         }
 
         fn mutate_int2(i: &mut u8, j: &mut u8)
-            ensures af(*i == *j)
+            ensures af(done(*i == *j))
             no_unwind
         {
             *i = 100;
@@ -488,22 +488,22 @@ test_verify_one_file! {
         }
 
         fn mutate_int4_meet_all(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 10), af(*b == 30), af(*c == 10), af(*d == 10)
+            ensures af(done(*a == 10)), af(done(*b == 30)), af(done(*c == 10)), af(done(*d == 10))
             no_unwind
         { assume(false); }
 
         fn mutate_int4_fail_x(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 20), af(*b == 30), af(*c == 20), af(*d == 20)
+            ensures af(done(*a == 20)), af(done(*b == 30)), af(done(*c == 20)), af(done(*d == 20))
             no_unwind
         { assume(false); }
 
         fn mutate_int4_fail_y(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 10), af(*b == 30), af(*c == 10), af(*d == 11)
+            ensures af(done(*a == 10)), af(done(*b == 30)), af(done(*c == 10)), af(done(*d == 11))
             no_unwind
         { assume(false); }
 
         fn mutate_int4_fail_z(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 10), af(*b == 30), af(*c == 11), af(*d == 11)
+            ensures af(done(*a == 10)), af(done(*b == 30)), af(done(*c == 11)), af(done(*d == 11))
             no_unwind
         { assume(false); }
 
@@ -576,7 +576,7 @@ test_verify_one_file! {
         }
 
         fn mutate_int2(i: &mut u8, j: &mut u8)
-            ensures af(*i == *j)
+            ensures af(done(*i == *j))
             no_unwind
         {
             *i = 100;
@@ -594,17 +594,17 @@ test_verify_one_file! {
         }
 
         fn mutate_int4_meet_all(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 10), af(*b == 30), af(*c == 10), af(*d == 10)
+            ensures af(done(*a == 10)), af(done(*b == 30)), af(done(*c == 10)), af(done(*d == 10))
             no_unwind
         { assume(false); }
 
         fn mutate_int4_fail_x(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 20), af(*b == 30), af(*c == 20), af(*d == 20)
+            ensures af(done(*a == 20)), af(done(*b == 30)), af(done(*c == 20)), af(done(*d == 20))
             no_unwind
         { assume(false); }
 
         fn mutate_int4_fail_y(a: &mut u8, b: &mut u8, c: &mut u8, d: &mut u8)
-            ensures af(*a == 10), af(*b == 30), af(*c == 10), af(*d == 11)
+            ensures af(done(*a == 10)), af(done(*b == 30)), af(done(*c == 10)), af(done(*d == 11))
             no_unwind
         { assume(false); }
 
@@ -646,7 +646,7 @@ test_verify_one_file! {
         }
 
         fn set_to(i: &mut u8, x: u8, y: u8) -> (ret: u8)
-            ensures af(*i == x), af(ret == y)
+            ensures af(done(*i == x)), af(done(ret == y))
             no_unwind
         {
             *i = x;
@@ -700,7 +700,7 @@ test_verify_one_file! {
         }
 
         fn set_to(i: &mut u8, x: u8, y: u8) -> (ret: u8)
-            ensures af(*i == x), af(ret == y)
+            ensures af(done(*i == x)), af(done(ret == y))
             no_unwind
         {
             *i = x;
@@ -736,7 +736,7 @@ test_verify_one_file! {
         }
 
         fn set_to(i: &mut u8, x: u8, y: u8) -> (ret: u8)
-            ensures af(*i == x), af(ret == y)
+            ensures af(done(*i == x)), af(done(ret == y))
             no_unwind
         {
             *i = x;
@@ -772,7 +772,7 @@ test_verify_one_file! {
 
         impl Y {
             fn set_to(&mut self, x: u8, y: u8) -> (ret: u8)
-                ensures af(self.0 == x), af(ret == y)
+                ensures af(done(self.0 == x)), af(done(ret == y))
                 no_unwind
             {
                 self.0 = x;
@@ -811,7 +811,7 @@ test_verify_one_file! {
 
         impl Y {
             fn set_to(&mut self, x: u8, y: u8) -> (ret: u8)
-                ensures af(self.0 == x), af(ret == y)
+                ensures af(done(self.0 == x)), af(done(ret == y))
                 no_unwind
             {
                 self.0 = x;
@@ -850,7 +850,7 @@ test_verify_one_file! {
 
         impl Y {
             fn set_to(&mut self, x: u8, y: u8) -> (ret: u8)
-                ensures af(self.0 == x), af(ret == y)
+                ensures af(done(self.0 == x)), af(done(ret == y))
                 no_unwind
             {
                 self.0 = x;
@@ -1046,11 +1046,11 @@ test_verify_one_file! {
             }
         }
 
-        fn get_i() -> (res: u8) ensures af(res == 10) { 10 }
-        fn get_i_bad() -> (res: u8) ensures af(res == 102) { 102 }
+        fn get_i() -> (res: u8) ensures af(done(res == 10)) { 10 }
+        fn get_i_bad() -> (res: u8) ensures af(done(res == 102)) { 102 }
 
-        fn get_j() -> (res: u8) ensures af(res == 25) { 25 }
-        fn get_j_bad() -> (res: u8) ensures af(res == 102) { 102 }
+        fn get_j() -> (res: u8) ensures af(done(res == 25)) { 25 }
+        fn get_j_bad() -> (res: u8) ensures af(done(res == 102)) { 102 }
 
         fn test1(y: &mut Y)
             requires 20 <= old(y).x.j < 30, 0 <= old(y).x.i < 15
@@ -1252,11 +1252,11 @@ test_verify_one_file! {
             }
         }
 
-        fn get_i() -> (res: u8) ensures af(res == 10) { 10 }
-        fn get_i_bad() -> (res: u8) ensures af(res == 102) { 102 }
+        fn get_i() -> (res: u8) ensures af(done(res == 10)) { 10 }
+        fn get_i_bad() -> (res: u8) ensures af(done(res == 102)) { 102 }
 
-        fn get_j() -> (res: u8) ensures af(res == 25) { 25 }
-        fn get_j_bad() -> (res: u8) ensures af(res == 102) { 102 }
+        fn get_j() -> (res: u8) ensures af(done(res == 25)) { 25 }
+        fn get_j_bad() -> (res: u8) ensures af(done(res == 102)) { 102 }
 
         fn test1() {
             let mut y = Y { x: X { i: 12, j: 25 } };
@@ -1912,8 +1912,8 @@ test_verify_one_file! {
 
         fn mutate_int2(i: &mut u8, j: &mut u8)
             ensures
-                af(*i == 14),
-                af(*j == 16)
+                af(done(*i == 14)),
+                af(done(*j == 16))
             no_unwind
         {
             *i = 14;
@@ -1939,8 +1939,8 @@ test_verify_one_file! {
 
         proof fn proof_mutate_int2(tracked i: &mut u8, tracked j: &mut u8)
             ensures
-                af(*i == 14),
-                af(*j == 16)
+                af(done(*i == 14)),
+                af(done(*j == 16))
         {
             assume(false);
         }
@@ -2004,7 +2004,7 @@ test_verify_one_file! {
         }
 
         proof fn mutate_int2(tracked i: &mut u8, tracked j: &mut u8)
-            ensures af(*i == *j)
+            ensures af(done(*i == *j))
         {
             assume(false);
         }
@@ -2244,7 +2244,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to_20(x: &mut u64, y: u64)
-            ensures af(*final(x) == 20)
+            ensures af(done(*final(x) == 20))
             no_unwind
         {
             *x = 20;
@@ -2270,7 +2270,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to_20(x: &mut u64, y: u64)
-            ensures af(*final(x) == 20)
+            ensures af(done(*final(x) == 20))
             no_unwind
         {
             *x = 20;
@@ -2304,7 +2304,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to(a: &mut u64, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
             no_unwind
         {
             *a = b;
@@ -2358,7 +2358,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to(a: &mut u64, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
             no_unwind
         {
             *a = b;
@@ -2405,7 +2405,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to(a: &mut u64, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
             no_unwind
         {
             *a = b;
@@ -2451,7 +2451,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to(a: &mut u64, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
             no_unwind
         {
             *a = b;
@@ -2470,7 +2470,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn tra_set_to(tracked a: &mut u64, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
         {
             assume(false);
         }
@@ -2507,7 +2507,7 @@ test_verify_one_file_with_options! {
         }
 
         fn set_to(Tracked(a): Tracked<&mut u64>, b: u64)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
             no_unwind
         {
             assume(false);

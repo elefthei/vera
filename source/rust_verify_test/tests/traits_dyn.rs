@@ -8,7 +8,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         trait T {
             spec fn b(&self) -> u8 { 5 }
-            fn f(&self) -> (r: u8) ensures af(r <= self.b());
+            fn f(&self) -> (r: u8) ensures af(done(r <= self.b()));
         }
         impl T for u8 {
             spec fn b(&self) -> u8 { *self }
@@ -55,7 +55,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T;
 
             spec fn b(&self) -> u8;
-            fn f(&self) -> (r: u8) ensures af(r <= self.b());
+            fn f(&self) -> (r: u8) ensures af(done(r <= self.b()));
         }
 
         impl T for u8 {
@@ -111,7 +111,7 @@ test_verify_one_file! {
         trait T {
             proof fn bogus(&self)
                 ensures
-                    af(false);
+                    af(done(false));
         }
         proof fn test() {
             let d: &dyn T = arbitrary();
@@ -125,12 +125,12 @@ test_verify_one_file! {
     #[test] dyn_proof_must_be_inhabited1b verus_code! {
         trait T {
             spec fn f(&self) -> nat;
-            proof fn about_f(&self) ensures af(self.f() < 10);
+            proof fn about_f(&self) ensures af(done(self.f() < 10));
         }
 
         broadcast proof fn promote_f<A: T>(a: &A)
             ensures
-                af(#[trigger] a.f() < 10),
+                af(done(#[trigger] a.f() < 10)),
         {
             a.about_f();
         }
@@ -147,7 +147,7 @@ test_verify_one_file! {
         trait T {
             proof fn bogus(tracked &self)
                 ensures
-                    af(false);
+                    af(done(false));
         }
         proof fn test() {
             let d: &dyn T = arbitrary();
@@ -161,12 +161,12 @@ test_verify_one_file! {
     #[test] dyn_proof_must_be_inhabited2b verus_code! {
         trait T {
             spec fn f(&self) -> nat;
-            proof fn about_f(tracked &self) ensures af(self.f() < 10);
+            proof fn about_f(tracked &self) ensures af(done(self.f() < 10));
         }
 
         broadcast proof fn promote_f<A: T>(a: &A)
             ensures
-                af(#[trigger] a.f() < 10),
+                af(done(#[trigger] a.f() < 10)),
         {
             a.about_f();
         }
@@ -179,7 +179,7 @@ test_verify_one_file! {
         trait T {
             proof fn bogus(tracked &self)
                 ensures
-                    af(false);
+                    af(done(false));
         }
         proof fn test() {
             let tracked d: &dyn T = arbitrary();
@@ -193,12 +193,12 @@ test_verify_one_file! {
     #[test] dyn_proof_must_be_inhabited3b verus_code! {
         trait T {
             spec fn f(&self) -> nat;
-            proof fn about_f(tracked &self) ensures af(self.f() < 10);
+            proof fn about_f(tracked &self) ensures af(done(self.f() < 10));
         }
 
         broadcast proof fn promote_f<A: T>(tracked a: &A)
             ensures
-                af(#[trigger] a.f() < 10),
+                af(done(#[trigger] a.f() < 10)),
         {
             a.about_f();
         }
@@ -233,20 +233,20 @@ test_verify_one_file! {
         spec fn f<A: ?Sized>(a: &Opt<A>) -> bool { true }
 
         trait False {
-            proof fn ensure_false() where Self: Sized ensures af(false);
+            proof fn ensure_false() where Self: Sized ensures af(done(false));
         }
 
         broadcast proof fn promote_false<A: False>(a: Opt<A>)
             ensures
-                af(#[trigger] f::<A>(&a)),
-                af(false),
+                af(done(#[trigger] f::<A>(&a))),
+                af(done(false)),
         {
             A::ensure_false();
         }
 
         proof fn incorrect<A: False + ?Sized>()
             ensures
-                af(false),
+                af(done(false)),
         {
             broadcast use promote_false;
             assert(f::<A>(&Opt::None));
@@ -255,7 +255,7 @@ test_verify_one_file! {
 
         proof fn bad()
             ensures
-                af(false),
+                af(done(false)),
         {
             incorrect::<dyn False>();
         }
@@ -319,7 +319,7 @@ test_verify_one_file! {
         trait T {
             proof fn f(tracked &self, tracked d: &dyn T)
                 ensures
-                    af(false);
+                    af(done(false));
         }
         impl T for u8 {
             proof fn f(tracked &self, tracked d: &dyn T) {
@@ -355,7 +355,7 @@ test_verify_one_file! {
 
         proof fn p(s: &S)
             ensures
-                af(false),
+                af(done(false)),
             decreases s
         {
             p(&(s.0).f())
@@ -363,7 +363,7 @@ test_verify_one_file! {
 
         proof fn test()
             ensures
-                af(false),
+                af(done(false)),
         {
             p(&arbitrary());
         }
@@ -380,7 +380,7 @@ test_verify_one_file! {
 
         proof fn p(s: &S)
             ensures
-                af(false),
+                af(done(false)),
             decreases s
         {
             p(&(s.0).f())
@@ -388,7 +388,7 @@ test_verify_one_file! {
 
         proof fn test()
             ensures
-                af(false),
+                af(done(false)),
         {
             p(&arbitrary());
         }

@@ -6,7 +6,7 @@ use common::*;
 test_verify_one_file! {
     #[test] regression_114_unrelated_precondition verus_code! {
         fn get_bool() -> (b: bool)
-            ensures af(b == true)
+            ensures af(done(b == true))
         {
             true
         }

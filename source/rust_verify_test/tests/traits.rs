@@ -402,7 +402,7 @@ test_verify_one_file! {
         }
 
         proof fn test()
-            ensures af(false)
+            ensures af(done(false))
         {
             assert(h() == g::<bool, S<bool>>() + 1);
             assert(h() == h() + 3);
@@ -670,9 +670,9 @@ test_verify_one_file! {
     #[test] test_termination_5_fail_10 verus_code! {
         struct S<A>(A);
 
-        trait T1 { proof fn f1() ensures af(false); }
+        trait T1 { proof fn f1() ensures af(done(false)); }
         trait T2 { type X; }
-        trait T3 { proof fn f3() ensures af(false); }
+        trait T3 { proof fn f3() ensures af(done(false)); }
 
         impl T1 for bool {
             proof fn f1() {
@@ -690,7 +690,7 @@ test_verify_one_file! {
             }
         }
 
-        proof fn test() ensures af(false) {
+        proof fn test() ensures af(done(false)) {
             <S<int> as T3>::f3();
         }
     } => Err(err) => assert_vir_error_msg(err, "found a cyclic self-reference in a definition")
@@ -785,7 +785,7 @@ test_verify_one_file! {
         }
 
         proof fn test()
-            ensures af(false)
+            ensures af(done(false))
         {
             assert(h() == g::<bool, S<bool>>() + 1);
             assert(h() == h() + 3);
@@ -1194,7 +1194,7 @@ test_verify_one_file! {
     #[test] test_verify_2 verus_code! {
         trait T {
             fn f(&self)
-                ensures af(false); // TRAIT
+                ensures af(done(false)); // TRAIT
         }
         struct S {}
         impl T for S {
@@ -1246,7 +1246,7 @@ test_verify_one_file! {
         trait T {
             spec fn ens(&self) -> bool;
             fn f(&self)
-                ensures af(self.ens()); // TRAIT
+                ensures af(done(self.ens())); // TRAIT
         }
         struct S {}
         impl T for S {
@@ -1285,7 +1285,7 @@ test_verify_one_file! {
 
             fn f(&self, a: &A) -> (ra: A)
                 requires self.req(*a)
-                ensures af(self.ens(*a, ra)); // TRAIT
+                ensures af(done(self.ens(*a, ra))); // TRAIT
         }
 
         struct B {
@@ -1326,7 +1326,7 @@ test_verify_one_file! {
 
         fn p<A, Z: T<A>>(a: &A, z: &Z) -> (rz: A)
             requires z.req(*a)
-            ensures af(z.ens(*a, rz))
+            ensures af(done(z.ens(*a, rz)))
         {
             z.f(a)
         }
@@ -1346,7 +1346,7 @@ test_verify_one_file! {
 
             fn f(a: &A) -> (ra: A)
                 requires Self::req(*a)
-                ensures af(Self::ens(*a, ra)); // TRAIT
+                ensures af(done(Self::ens(*a, ra))); // TRAIT
         }
 
         struct B {
@@ -1387,7 +1387,7 @@ test_verify_one_file! {
 
         fn p<A, Z: T<A>>(a: &A) -> (rz: A)
             requires Z::req(*a)
-            ensures af(Z::ens(*a, rz))
+            ensures af(done(Z::ens(*a, rz)))
         {
             Z::f(a)
         }
@@ -1460,7 +1460,7 @@ test_verify_one_file! {
         }
 
         proof fn test() -> (b: bool)
-            ensures af(b)
+            ensures af(done(b))
         {
 
             let i: u8 = 10;
@@ -1486,7 +1486,7 @@ test_verify_one_file! {
         }
 
         proof fn test() -> (b: bool)
-            ensures af(b)
+            ensures af(done(b))
         {
 
             let i: u8 = 10;
@@ -1516,7 +1516,7 @@ test_verify_one_file! {
         }
 
         proof fn test() -> (b: bool)
-            ensures af(b) // FAILS
+            ensures af(done(b)) // FAILS
         {
 
             let i: u8 = 10;
@@ -1546,7 +1546,7 @@ test_verify_one_file! {
         }
 
         proof fn test() -> (b: bool)
-            ensures af(b) // FAILS
+            ensures af(done(b)) // FAILS
         {
 
             let s = S(10, 20);
@@ -1563,7 +1563,7 @@ test_verify_one_file! {
 
             fn banana(&self)
                 requires self.apple(true)
-                ensures af(true);
+                ensures af(done(true));
         }
 
         struct S<A, B>(A, B);
@@ -1613,7 +1613,7 @@ test_verify_one_file! {
                     a2 == a2,
                     a3 == a3,
                 ensures
-                    af(r.0 == *a2)
+                    af(done(r.0 == *a2))
                 ;
         }
 
@@ -1652,8 +1652,8 @@ test_verify_one_file! {
 
             fn f<'a>(&'a self, x: &'a Self, b: bool) -> (r: &'a Self)
                 ensures
-                    af(b ==> r === self),
-                    af(!b ==> r === x);
+                    af(done(b ==> r === self)),
+                    af(done(!b ==> r === x));
         }
 
         fn p<A: T>(a1: &A, a2: &A) {
@@ -1689,8 +1689,8 @@ test_verify_one_file! {
         trait T {
             fn f<'a>(&'a self, x: &'a Self, b: bool) -> (r: &'a Self)
                 ensures
-                    af(b ==> r === self),
-                    af(!b ==> r === x); // TRAIT
+                    af(done(b ==> r === self)),
+                    af(done(!b ==> r === x)); // TRAIT
         }
 
         fn p<A: T>(a1: &A, a2: &A) {
@@ -1729,7 +1729,7 @@ test_verify_one_file! {
 
         proof fn foo<S>(x: S, y: S) where S : Tr
             requires x.f() ==> y.f(),
-            ensures af(not_f(y) ==> not_f(x)),
+            ensures af(done(not_f(y) ==> not_f(x))),
         {
         }
 
@@ -1747,7 +1747,7 @@ test_verify_one_file! {
 
             proof fn easy_lemma(bar1: &Self, bar2: &Self)
                 requires bar1.x.f() ==> bar2.x.f(),
-                ensures af(not_f(bar2.x) ==> not_f(bar1.x))
+                ensures af(done(not_f(bar2.x) ==> not_f(bar1.x)))
             {
             }
         }
@@ -1783,7 +1783,7 @@ test_verify_one_file! {
             spec fn f(&self) -> bool;
 
             proof fn p(&self)
-                ensures af(exists|x: &Self| self.f() != x.f());
+                ensures af(done(exists|x: &Self| self.f() != x.f()));
         }
 
         spec fn g<A: T>() -> bool {
@@ -1794,8 +1794,8 @@ test_verify_one_file! {
         #[verifier::external_body]
         broadcast proof fn f_not_g<A: T>()
             ensures
-                af(#[trigger] t::<A>()),
-                af(g::<A>()),
+                af(done(#[trigger] t::<A>())),
+                af(done(g::<A>())),
         {
         }
 
@@ -1859,7 +1859,7 @@ test_verify_one_file! {
 
         #[verifier::external_body]
         broadcast proof fn p<A: T2<S<int>, u16>>(i: int)
-            ensures af(f::<A>(i))
+            ensures af(done(f::<A>(i)))
         {
         }
 
@@ -1914,7 +1914,7 @@ test_verify_one_file! {
         }
 
         pub proof fn other_bad()
-            ensures af(false), // FAILS
+            ensures af(done(false)), // FAILS
         {
             // It is important that the Trait-Impl-Axiom axiom for "impl Tr for X"
             // (axiom (tr_bound%M.Tr. $ TYPE%X.)
@@ -1936,13 +1936,13 @@ test_verify_one_file! {
         pub trait Tr {
             spec fn f() -> bool;
 
-            proof fn bad() ensures af(false); // FAILS
+            proof fn bad() ensures af(done(false)); // FAILS
         }
 
         #[verifier::external_body]
         pub broadcast proof fn proves_false_requiring_trait_bound<T: Tr>()
             ensures
-                af(#[trigger] T::f() == !T::f()),
+                af(done(#[trigger] T::f() == !T::f())),
         { }
 
         struct X { }
@@ -1960,7 +1960,7 @@ test_verify_one_file! {
 const DECREASES_TRAIT_BOUND_COMMON: &str = verus_code_str! {
     trait T {
         proof fn impossible()
-            ensures af(false);
+            ensures af(done(false));
     }
 
     spec fn f<A: T>(i: int) -> bool
@@ -2059,7 +2059,7 @@ test_verify_one_file! {
             spec fn f(&self) -> T;
 
             fn compute_f(&self) -> (t: T)
-                ensures af(t === self.f());
+                ensures af(done(t === self.f()));
         }
 
         struct X { }
@@ -2100,7 +2100,7 @@ test_verify_one_file! {
             spec fn f(&self) -> T;
 
             fn compute_f(&self) -> (t: T)
-                ensures af(t === self.f());
+                ensures af(done(t === self.f()));
         }
 
         struct Z<T> { a: T, b: T }
@@ -2195,7 +2195,7 @@ test_verify_one_file! {
             spec fn f() -> int { S::<bool>::f() }
         }
         proof fn test()
-            ensures af(false)
+            ensures af(done(false))
         {
             assert(S::<bool>::f() == S::<bool>::f() + 1);
         }
@@ -2280,7 +2280,7 @@ test_verify_one_file! {
 
         pub trait U : T + Sized {
             proof fn p1(v: Self)
-                ensures af(v.f() < 10);
+                ensures af(done(v.f() < 10));
 
             proof fn p2(&self) {
                 Self::p1(*self);
@@ -2304,7 +2304,7 @@ test_verify_one_file! {
             spec fn f() -> int;
 
             fn exec_f() -> (i: u64)
-                ensures af(i as int == Self::f());
+                ensures af(done(i as int == Self::f()));
         }
 
         struct X {}
@@ -2366,7 +2366,7 @@ test_verify_one_file! {
 
             proof fn zero_properties()
                 ensures
-                    af(forall|k: Self| k.lt());
+                    af(done(forall|k: Self| k.lt()));
         }
 
         struct KeyInt {
@@ -2384,13 +2384,13 @@ test_verify_one_file! {
     #[test] trait_implement_all_trait_items verus_code! {
         trait T {
             proof fn unprovable(&self)
-                ensures af(false);
+                ensures af(done(false));
         }
         struct S { }
         impl T for S { }
 
         proof fn foo<J: T>(t: J)
-            ensures af(false)
+            ensures af(done(false))
         {
             t.unprovable();
             assert(false);
@@ -2423,7 +2423,7 @@ test_verify_one_file! {
 
         trait Qux {
             proof fn bar(&self, other: &Self)
-                ensures af(self != other); // FAILS
+                ensures af(done(self != other)); // FAILS
         }
 
         struct Y { some_int: u8 }
@@ -2857,7 +2857,7 @@ test_verify_one_file! {
               recommends true;
 
             exec fn execfoo(&self)
-              ensures af(self.specfoo()); // FAILS
+              ensures af(done(self.specfoo())); // FAILS
         }
 
         struct Bar;
@@ -2987,7 +2987,7 @@ test_verify_one_file! {
         trait ATrait {
             exec fn afun(Tracked(aparam): Tracked<&mut AType>)
                 requires *old(aparam) == (AType { v: 41 }),
-                ensures af(*aparam == (AType { v: 41 }));
+                ensures af(done(*aparam == (AType { v: 41 })));
         }
 
         struct AnotherType {}
@@ -3004,7 +3004,7 @@ test_verify_one_file! {
     #[test] trait_argument_names_issue278_1 verus_code! {
         trait T {
             fn f(&self, a: usize) -> (res: usize)
-                ensures af(res == a);
+                ensures af(done(res == a));
         }
 
         struct S { }
@@ -3021,7 +3021,7 @@ test_verify_one_file! {
     #[test] trait_argument_names_issue278_2 verus_code! {
         trait T {
             fn f(&self, a: usize) -> (res: usize)
-                ensures af(res == a);
+                ensures af(done(res == a));
         }
 
         struct S { }
@@ -3038,7 +3038,7 @@ test_verify_one_file! {
     #[test] trait_argument_names_issue278_3 verus_code! {
         trait T {
             fn f(&self, a: usize) -> (res: usize)
-                ensures af(res == a); // FAILS
+                ensures af(done(res == a)); // FAILS
         }
 
         struct S { }
@@ -3163,7 +3163,7 @@ test_verify_one_file! {
         }
 
         pub trait U {
-            fn ff(&self) ensures af(2 + 2 == 4);
+            fn ff(&self) ensures af(done(2 + 2 == 4));
         }
 
         impl U for S {
@@ -3308,7 +3308,7 @@ test_verify_one_file! {
         #[verifier::external_body]
         broadcast proof fn axiom_f<A: T>()
             ensures
-                af(#[trigger] t::<A>()),
+                af(done(#[trigger] t::<A>())),
         {
         }
 
@@ -3326,13 +3326,13 @@ test_verify_one_file! {
 
 test_verify_one_file! {
     #[test] trait_bound_delayed verus_code! {
-        trait T { proof fn q() ensures af(false); }
+        trait T { proof fn q() ensures af(done(false)); }
 
         spec fn f<A>(i: int) -> bool { false }
 
         #[verifier::external_body]
         broadcast proof fn p<A: T>(i: int)
-            ensures af(f::<A>(i))
+            ensures af(done(f::<A>(i)))
         {
         }
 
@@ -3430,14 +3430,14 @@ test_verify_one_file! {
             spec fn a(&self) -> bool;
 
             proof fn foo(&self)
-                ensures af(self.a());
+                ensures af(done(self.a()));
         }
 
         trait B: A {
             spec fn b(&self) -> bool;
 
             proof fn bar(&self)
-                ensures af((self.a() == self.b()) ==> self.b());
+                ensures af(done((self.a() == self.b()) ==> self.b()));
         }
 
         impl A for bool {
@@ -3567,8 +3567,8 @@ test_verify_one_file! {
     #[test] test_default8 verus_code! {
         pub trait T {
             spec fn f() -> int;
-            proof fn g() ensures af(Self::f() > 10);
-            proof fn h() ensures af(Self::f() >= 10) {
+            proof fn g() ensures af(done(Self::f() > 10));
+            proof fn h() ensures af(done(Self::f() >= 10)) {
                 Self::g()
             }
         }
@@ -3635,11 +3635,11 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default11b verus_code! {
         trait T {
-            proof fn f() ensures af(false) { Self::g() }
-            proof fn g() ensures af(false);
+            proof fn f() ensures af(done(false)) { Self::g() }
+            proof fn g() ensures af(done(false));
         }
 
-        proof fn h() ensures af(false) {
+        proof fn h() ensures af(done(false)) {
             <bool as T>::f();
         }
 
@@ -3652,11 +3652,11 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default11c verus_code! {
         trait T {
-            proof fn f<A>() ensures af(false) { Self::g() }
-            proof fn g() ensures af(false);
+            proof fn f<A>() ensures af(done(false)) { Self::g() }
+            proof fn g() ensures af(done(false));
         }
 
-        proof fn h() ensures af(false) {
+        proof fn h() ensures af(done(false)) {
             <bool as T>::f::<u8>();
         }
 
@@ -3669,11 +3669,11 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default11d verus_code! {
         trait T {
-            proof fn f() ensures af(false) { Self::g::<u8>() }
-            proof fn g<A>() ensures af(false);
+            proof fn f() ensures af(done(false)) { Self::g::<u8>() }
+            proof fn g<A>() ensures af(done(false));
         }
 
-        proof fn h() ensures af(false) {
+        proof fn h() ensures af(done(false)) {
             <bool as T>::f();
         }
 
@@ -3686,7 +3686,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default12 verus_code! {
         trait T1 {
-            proof fn f() ensures af(false);
+            proof fn f() ensures af(done(false));
         }
 
         // "trait T2: T1" is equivalent to "trait T2 where Self: T1".
@@ -3698,7 +3698,7 @@ test_verify_one_file! {
         // - disadvantage: even if g() doesn't call Self::f(), it's still a (spurious) cycle
         // - advantage: "Self: T1" is available for instantiating other bounds; see test_default13
         trait T2: T1 {
-            proof fn g() ensures af(false) { Self::f(); }
+            proof fn g() ensures af(done(false)) { Self::f(); }
         }
 
         impl T1 for bool {
@@ -3709,7 +3709,7 @@ test_verify_one_file! {
         }
 
         proof fn h()
-             ensures af(false)
+             ensures af(done(false))
         {
             <bool as T2>::g();
         }
@@ -3736,7 +3736,7 @@ test_verify_one_file! {
     #[test] test_default14 verus_code! {
         trait T: Sized {
             proof fn g()
-                ensures af(false)
+                ensures af(done(false))
             {
                 // For termination's sake, the "Self: T" bound is not available inside methods,
                 // including default methods.
@@ -3754,7 +3754,7 @@ test_verify_one_file! {
         }
 
         proof fn f<A: T>()
-            ensures af(false)
+            ensures af(done(false))
         {
             A::g();
         }
@@ -3764,10 +3764,10 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default15 verus_code! {
         trait T1: Sized {
-            proof fn f1() ensures af(false);
+            proof fn f1() ensures af(done(false));
         }
         trait T2: T1 {
-            proof fn f2() ensures af(false) {
+            proof fn f2() ensures af(done(false)) {
                 <Self as T1>::f1();
             }
         }
@@ -3784,10 +3784,10 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default16 verus_code! {
         trait T1: Sized {
-            proof fn f1() ensures af(false);
+            proof fn f1() ensures af(done(false));
         }
         trait T2<A: T1> {
-            proof fn f2() ensures af(false) {
+            proof fn f2() ensures af(done(false)) {
                 A::f1();
             }
         }
@@ -3804,8 +3804,8 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_default17 verus_code! {
         trait T {
-            proof fn f() ensures af(false) { Self::g(); }
-            proof fn g() ensures af(false) { Self::f(); }
+            proof fn f() ensures af(done(false)) { Self::g(); }
+            proof fn g() ensures af(done(false)) { Self::f(); }
         }
     } => Err(err) => assert_vir_error_msg(err, "recursive function must have a decreases clause")
 }
@@ -3952,10 +3952,10 @@ test_verify_one_file! {
 
             proof fn proof_get_x(t: u64, u: u64)
                 requires t == X,
-                ensures af(u == X);
+                ensures af(done(u == X));
 
             fn exec_get_x(&self) -> (r: u64)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Foo<const X: u64> {
@@ -4044,10 +4044,10 @@ test_verify_one_file! {
 
             proof fn proof_get_x(t: u64, u: u64)
                 requires t == X,
-                ensures af(u == X);
+                ensures af(done(u == X));
 
             fn exec_get_x(&self) -> (r: u64)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Foo {
@@ -4092,7 +4092,7 @@ test_verify_one_file! {
     #[test] const_in_trait_typ_args3 verus_code! {
         pub trait Trait<const X: u64> {
             fn exec_get_x(&self) -> (r: u64)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Foo { }
@@ -4120,7 +4120,7 @@ test_verify_one_file! {
 
         pub trait Trait<const X: usize> {
             fn exec_get_x(&self) -> (r: usize)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Bar<const X: usize> {
@@ -4142,7 +4142,7 @@ test_verify_one_file! {
             type AssocType;
 
             fn exec_get_x(&self) -> (r: usize)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Bar<const X: usize> {
@@ -4323,10 +4323,10 @@ test_verify_one_file! {
             type AssocType;
 
             fn exec_get_x(&self) -> (r: usize)
-                ensures af(r == X);
+                ensures af(done(r == X));
 
             fn exec_get_x_2(a: &Self::AssocType) -> (r: usize)
-                ensures af(r == X);
+                ensures af(done(r == X));
         }
 
         struct Bar<const X: usize> {
@@ -4396,7 +4396,7 @@ test_verify_one_file! {
 
         impl<T: Tr + ?Sized> Blanket for T {
             fn stuff2(&self)
-                ensures af(false)
+                ensures af(done(false))
             {
                 assume(false);
             }
