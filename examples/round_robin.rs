@@ -75,19 +75,27 @@ impl Queue {
 /// Round-robin scheduler: continuously dequeue and re-enqueue elements.
 ///
 /// Maintains AG invariant: the queue always has at least one element.
-/// Note: requires at least 2 elements so that after dequeue (intermediate
-/// state), the queue still has >= 1 element, satisfying AG at all states.
+/// Round-robin fairness: the element currently at the head will always
+/// eventually return to the head after cycling through the queue.
 ///
-/// TODO: The full fairness property AG(AF(queue.peek_spec() == x)) requires
-/// a more sophisticated VCGen that checks the AF goal at loop-body START
-/// (where Q holds when x is at the front) rather than at loop-body END
-/// (where x has been moved to the back). The current weakened decreases
-/// check (Q_end ∨ m↓) is too strong for cyclic progress patterns.
-fn round_robin(queue: &mut Queue)
+/// The fairness property is AG(AF(now(peek == x))):
+/// - AG: the loop runs forever
+/// - AF(now(peek == x)): in each cycle, x eventually reaches the head
+/// - now(): x at the head is a state predicate (holds at loop-body START
+///   when x is first in the queue, not at body END after x moves to back)
+///
+/// Currently proves the weaker AG(queue.len() > 0) because:
+/// The weakened decreases check Q ∨ m↓ only checks at body END where
+/// peek ≠ x (x was moved to back). Full fairness needs now() semantics
+/// where Q is checked at ANY intermediate state, not just body end.
+fn round_robin(queue: &mut Queue, x: u64)
     requires
         old(queue).view().len() > 1,
+        x == old(queue).peek_spec(),
     ensures
         ag(queue.view().len() > 0),
+        // TODO: Full fairness property once now() VCGen checks intermediate states:
+        // ag(af(now(queue.peek_spec() == x))),
 {
     loop
         invariant
