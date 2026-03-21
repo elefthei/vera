@@ -447,7 +447,7 @@ test_verify_one_file_with_options! {
             let y_ref = &mut y;
 
             let clos = |x: u64|
-                ensures af(y == 0)
+                ensures af(done(y == 0))
             {
             };
 

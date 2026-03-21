@@ -367,7 +367,7 @@ test_verify_one_file! {
         spec fn x_spec() -> usize { 1 }
 
         fn x() -> (r: usize)
-            ensures af(r == x_spec()),
+            ensures af(done(r == x_spec())),
         {
             reveal(x_spec);
             1

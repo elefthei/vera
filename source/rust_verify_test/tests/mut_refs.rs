@@ -279,7 +279,7 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
 
         fn resolve<T>(t: T)
-            ensures af(has_resolved(t))
+            ensures af(done(has_resolved(t)))
         { }
 
         fn box_with_mut_ref() {
@@ -1600,32 +1600,32 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] test_params ["new-mut-ref"] => verus_code! {
         fn test1(x: &mut u64)
-            ensures af(mut_ref_current(x) == mut_ref_future(x))
+            ensures af(done(mut_ref_current(x) == mut_ref_future(x)))
         {
         }
 
         fn test2(x: &mut u64)
-            ensures af(mut_ref_future(x) == 20)
+            ensures af(done(mut_ref_future(x) == 20))
         {
             *x = 20;
         }
 
         fn test2_fails(x: &mut u64)
-            ensures af(false)
+            ensures af(done(false))
         {
             *x = 20;
             return; // FAILS
         }
 
         fn test3_fails(x: &mut u64)
-            ensures af(mut_ref_future(x) == 20)
+            ensures af(done(mut_ref_future(x) == 20))
         {
             assert(has_resolved(x)); // FAILS
             *x = 20;
         }
 
         fn test3_fails2(x: &mut u64)
-            ensures af(false),
+            ensures af(done(false)),
         {
             *x = 20;
             return; // FAILS
@@ -1636,28 +1636,28 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] test_params_with_reborrow ["new-mut-ref"] => verus_code! {
         fn test4_1(x: &mut (u64, u64)) -> (ret: &mut u64)
-            ensures af({
+            ensures af(done({
                 mut_ref_future(x).1 == mut_ref_current(x).1 &&
                 mut_ref_current(x).0 == mut_ref_current(ret) &&
                 mut_ref_future(x).0 == mut_ref_future(ret)
-            }),
+            })),
         {
             &mut x.0
         }
 
         fn test4(x: &mut (u64, u64)) -> (ret: &mut u64)
-            ensures af({
+            ensures af(done({
                 mut_ref_future(x).1 == mut_ref_current(x).1 &&
                 mut_ref_current(x).0 == mut_ref_current(ret) &&
                 mut_ref_future(x).0 == mut_ref_future(ret)
-            }),
+            })),
         {
             let r = &mut x.0;
             return r;
         }
 
         fn test4_fails(x: &mut (u64, u64)) -> (ret: &mut u64)
-            ensures af(false),
+            ensures af(done(false)),
         {
             let ret = &mut x.0;
             return ret; // FAILS
@@ -1915,7 +1915,7 @@ test_verify_one_file_with_options! {
 
         impl<'a> X<'a> {
             fn method_call_takes_mut_ref(&mut self, x: u64)
-                ensures af(mut_ref_future(self).x == 20),
+                ensures af(done(mut_ref_future(self).x == 20)),
                 no_unwind
             {
                 self.x = 20;
@@ -2025,7 +2025,7 @@ test_verify_one_file_with_options! {
     #[test] two_phase_borrow_basic ["new-mut-ref"] => verus_code! {
         fn call_takes_mut_ref(a: &mut u64, x: u64)
             requires x < 50
-            ensures af(mut_ref_future(a) == x + 1)
+            ensures af(done(mut_ref_future(a) == x + 1))
         {
             *a = x + 1;
         }
@@ -2096,10 +2096,10 @@ test_verify_one_file_with_options! {
 
         impl X {
             fn method_call(&mut self, x: u64)
-                ensures af(mut_ref_future(self) == (X {
+                ensures af(done(mut_ref_future(self) == (X {
                     a: x,
                     b: mut_ref_current(self).a,
-                }))
+                })))
             {
                 self.b = self.a;
                 self.a = x;
@@ -2183,10 +2183,10 @@ test_verify_one_file_with_options! {
 
         impl X {
             fn method_call(&mut self, x: u64)
-                ensures af(mut_ref_future(self) == (X {
+                ensures af(done(mut_ref_future(self) == (X {
                     a: x,
                     b: mut_ref_current(self).a,
-                }))
+                })))
             {
                 self.b = self.a;
                 self.a = x;
@@ -2330,10 +2330,10 @@ test_verify_one_file_with_options! {
 
         impl X {
             fn method_call(&mut self, x: u64)
-                ensures af(mut_ref_future(self) == (X {
+                ensures af(done(mut_ref_future(self) == (X {
                     a: x,
                     b: mut_ref_current(self).a,
-                }))
+                })))
             {
                 self.b = self.a;
                 self.a = x;
@@ -2421,7 +2421,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] two_phase_proof_code ["new-mut-ref"] => verus_code! {
         proof fn set_to(tracked a: &mut Ghost<int>, tracked b: Ghost<int>)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
         {
             *a = b;
         }
@@ -2922,7 +2922,7 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test4(y: &mut [&mut (u64, u64); 2])
-            ensures af(mut_ref_current(y) == mut_ref_future(y))
+            ensures af(done(mut_ref_current(y) == mut_ref_future(y)))
         {
             let mut y = y;
             (*y[0]).0 += ({ return; 20 });
@@ -2931,7 +2931,7 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test4_fails(y: &mut [&mut (u64, u64); 2])
-            ensures af(false)
+            ensures af(done(false))
         {
             let mut y = y;
             (*y[0]).0 += ({
@@ -2972,8 +2972,8 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         fn test3(a_ref: &mut u64, c_ref: &mut u64)
             ensures
-                af(mut_ref_future(a_ref) == mut_ref_current(a_ref)),
-                af(mut_ref_future(c_ref) == mut_ref_current(c_ref)),
+                af(done(mut_ref_future(a_ref) == mut_ref_current(a_ref))),
+                af(done(mut_ref_future(c_ref) == mut_ref_current(c_ref))),
         {
             call_requires_false(a_ref, (return), c_ref);
         }
@@ -2982,7 +2982,7 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         fn test3_fails(a_ref: &mut u64, c_ref: &mut u64)
             ensures
-                af(false)
+                af(done(false))
         {
             call_requires_false(a_ref, (
                 return // FAILS
@@ -3037,8 +3037,8 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         fn test3(a_ref: &mut u64, c_ref: &mut u64)
             ensures
-                af(mut_ref_future(a_ref) == mut_ref_current(a_ref)),
-                af(mut_ref_future(c_ref) == mut_ref_current(c_ref)),
+                af(done(mut_ref_future(a_ref) == mut_ref_current(a_ref))),
+                af(done(mut_ref_future(c_ref) == mut_ref_current(c_ref))),
         {
             let ct = Ctor(a_ref, (return), c_ref);
         }
@@ -3047,7 +3047,7 @@ test_verify_one_file_with_options! {
         #[allow(unreachable_code)]
         fn test3_fails(a_ref: &mut u64, c_ref: &mut u64)
             ensures
-                af(false)
+                af(done(false))
         {
             let ct = Ctor(a_ref, (
                 return // FAILS
@@ -3143,7 +3143,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(*a == *old(a) + 1),
+            ensures af(done(*a == *old(a) + 1)),
         {
             *a = *a + 1;
         }
@@ -3151,7 +3151,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(*a == *old(a) + 1),
+            ensures af(done(*a == *old(a) + 1)),
         {
             test(a);
         }
@@ -3163,7 +3163,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test(Tracked(a): Tracked<&mut Ghost<u8>>)
             requires old(a)@ < 255,
-            ensures af(a@ == old(a)@ + 1),
+            ensures af(done(a@ == old(a)@ + 1)),
         {
             proof { *a = Ghost((a@ + 1) as u8); }
         }
@@ -3171,7 +3171,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2(Tracked(a): Tracked<&mut Ghost<u8>>)
             requires old(a)@ < 255,
-            ensures af(a@ == old(a)@ + 1),
+            ensures af(done(a@ == old(a)@ + 1)),
         {
             test(Tracked(a));
         }
@@ -3179,7 +3179,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2_fails(Tracked(a): Tracked<&mut Ghost<u8>>)
             requires old(a)@ < 255,
-            ensures af(a@ == old(a)@ + 1),
+            ensures af(done(a@ == old(a)@ + 1)),
         {
             test(Tracked(a));
             assert(false); // FAILS
@@ -3187,7 +3187,7 @@ test_verify_one_file_with_options! {
 
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2_fails2(Tracked(a): Tracked<&mut Ghost<u8>>)
-            ensures af(a@ == old(a)@ + 1),
+            ensures af(done(a@ == old(a)@ + 1)),
         {
             test(Tracked(a)); // FAILS
         }
@@ -3199,7 +3199,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(*final(a) == *old(a) + 1),
+            ensures af(done(*final(a) == *old(a) + 1)),
         {
             *a = *a + 1;
         }
@@ -3207,7 +3207,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(*a == *old(a) + 1),
+            ensures af(done(*a == *old(a) + 1)),
         {
             test(a);
         }
@@ -3219,7 +3219,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(*a == *old(a) + 1),
+            ensures af(done(*a == *old(a) + 1)),
         {
             *a = *a + 1;
         }
@@ -3227,7 +3227,7 @@ test_verify_one_file_with_options! {
         #[verifier::deprecated_postcondition_mut_ref_style(true)]
         fn test2(a: &mut u8)
             requires *old(a) < 255,
-            ensures af(a == a)
+            ensures af(done(a == a))
         {
             test(a);
         }
@@ -3237,7 +3237,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] false_two_phase ["new-mut-ref"] => verus_code! {
         fn set_to(Tracked(a): Tracked<&mut Ghost<int>>, Tracked(b): Tracked<Ghost<int>>)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
         {
             proof { *a = b; }
         }
@@ -3257,7 +3257,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] false_two_phase2 ["new-mut-ref"] => verus_code! {
         fn set_to(Tracked(a): Tracked<&mut Tracked<int>>, Tracked(b): Tracked<int>)
-            ensures af(*final(a) == b)
+            ensures af(done(*final(a) == b))
         {
             proof { *a = Tracked(b); }
         }
@@ -3366,7 +3366,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] overwrite_two_phase_borrow ["new-mut-ref"] => verus_code! {
         fn set_to(a: &mut u64, b: u64)
-            ensures af(*final(a) == b),
+            ensures af(done(*final(a) == b)),
         {
             *a = b;
         }
@@ -4232,7 +4232,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] overwrite_during_indexing2 ["new-mut-ref"] => verus_code! {
         use vstd::prelude::*;
-        fn id<A>(a: A) -> (ret: A) ensures af(ret == a) { a }
+        fn id<A>(a: A) -> (ret: A) ensures af(done(ret == a)) { a }
 
         fn array_index_read() {
             let mut a: [u64; 2] = [0, 1];
@@ -4288,7 +4288,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] overwrite_during_indexing2_fails ["new-mut-ref"] => verus_code! {
         use vstd::prelude::*;
-        fn id<A>(a: A) -> (ret: A) ensures af(ret == a) { a }
+        fn id<A>(a: A) -> (ret: A) ensures af(done(ret == a)) { a }
 
         fn array_index_read() {
             let mut a: [u64; 2] = [0, 1];

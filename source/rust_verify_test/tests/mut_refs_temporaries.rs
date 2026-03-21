@@ -7,10 +7,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_assign ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> ((ret_a, ret_b): (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret_a) == mut_ref_current(a)),
-                af(mut_ref_future(ret_a) == mut_ref_future(a)),
-                af(mut_ref_current(ret_b) == mut_ref_current(b)),
-                af(mut_ref_future(ret_b) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret_a) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret_a) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret_b) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret_b) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -210,10 +210,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_assign_op ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -413,10 +413,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_assign_op_with_overflow ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u8, b: &'b mut u8) -> (ret: (&'a mut u8, &'b mut u8))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -496,24 +496,24 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_move ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
 
         fn update1(a: &mut u64)
-            ensures af(mut_ref_future(a) == 10),
+            ensures af(done(mut_ref_future(a) == 10)),
         {
             *a = 10;
         }
 
         fn update2(a: (&mut u64, &mut u64))
             ensures
-               af(mut_ref_future(a.0) == 20),
-               af(mut_ref_future(a.1) == 30),
+               af(done(mut_ref_future(a.0) == 20)),
+               af(done(mut_ref_future(a.1) == 30)),
         {
             *a.0 = 20;
             *a.1 = 30;
@@ -521,7 +521,7 @@ test_verify_one_file_with_options! {
 
         fn update_add_10(a: &mut u64)
             requires mut_ref_current(a) < 100
-            ensures af(mut_ref_future(a) == mut_ref_current(a) + 10)
+            ensures af(done(mut_ref_future(a) == mut_ref_current(a) + 10))
         {
             *a = *a + 10;
         }
@@ -690,7 +690,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_ctor_update_tail ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.t)))
         {
         }
 
@@ -708,10 +708,10 @@ test_verify_one_file_with_options! {
 
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: Pair<&'a mut u64, &'b mut u64>)
             ensures
-                af(mut_ref_current(ret.a) == mut_ref_current(a)),
-                af(mut_ref_future(ret.a) == mut_ref_future(a)),
-                af(mut_ref_current(ret.b) == mut_ref_current(b)),
-                af(mut_ref_future(ret.b) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.a) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.a) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.b) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.b) == mut_ref_future(b))),
         {
             Pair { a: a, b: b }
         }
@@ -719,14 +719,14 @@ test_verify_one_file_with_options! {
         fn mut_ref_pairs2<'a, 'b, 'c, 'd>(a: &'a mut u64, b: &'b mut u64, c: &'c mut u64, d: &'d mut u64)
             -> ((p1, p2): (Pair<&'a mut u64, &'b mut u64>, Pair<&'c mut u64, &'d mut u64>))
             ensures
-                af(mut_ref_current(p1.a) == mut_ref_current(a)),
-                af(mut_ref_future(p1.a) == mut_ref_future(a)),
-                af(mut_ref_current(p1.b) == mut_ref_current(b)),
-                af(mut_ref_future(p1.b) == mut_ref_future(b)),
-                af(mut_ref_current(p2.a) == mut_ref_current(c)),
-                af(mut_ref_future(p2.a) == mut_ref_future(c)),
-                af(mut_ref_current(p2.b) == mut_ref_current(d)),
-                af(mut_ref_future(p2.b) == mut_ref_future(d)),
+                af(done(mut_ref_current(p1.a) == mut_ref_current(a))),
+                af(done(mut_ref_future(p1.a) == mut_ref_future(a))),
+                af(done(mut_ref_current(p1.b) == mut_ref_current(b))),
+                af(done(mut_ref_future(p1.b) == mut_ref_future(b))),
+                af(done(mut_ref_current(p2.a) == mut_ref_current(c))),
+                af(done(mut_ref_future(p2.a) == mut_ref_future(c))),
+                af(done(mut_ref_current(p2.b) == mut_ref_current(d))),
+                af(done(mut_ref_future(p2.b) == mut_ref_future(d))),
         {
             (Pair { a: a, b: b }, Pair { a: c, b: d })
         }
@@ -1021,11 +1021,11 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_let_stmt ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1)))
         { }
 
         broadcast proof fn stronger_resolver_axiom2<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.t)))
         { }
 
         fn consume<A>(a: A) { }
@@ -1038,24 +1038,24 @@ test_verify_one_file_with_options! {
         }
 
         proof fn id_tg_pair<A, B>(tracked a: A, b: B) -> (tracked ret: TGPair<A, B>)
-            ensures af(ret == (TGPair { t: a, g: b }))
+            ensures af(done(ret == (TGPair { t: a, g: b })))
         {
             TGPair { t: a, g: b }
         }
 
 
         fn id_pair<A, B>(a: A, b: B) -> (ret: (A, B))
-            ensures af(ret == (a, b))
+            ensures af(done(ret == (a, b)))
         {
             (a, b)
         }
 
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -1249,7 +1249,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_let_stmt_with_pattern ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.t)))
         {
         }
 
@@ -1262,14 +1262,14 @@ test_verify_one_file_with_options! {
 
         fn mut_ref_pairs2<'a, 'b, 'c, 'd>(a: &'a mut u64, b: &'b mut u64, c: &'c mut u64, d: &'d mut u64) -> (ret: ((&'a mut u64, &'b mut u64), (&'c mut u64, &'d mut u64)))
             ensures
-                af(mut_ref_current(ret.0.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.0.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.0.1) == mut_ref_future(b)),
-                af(mut_ref_current(ret.1.0) == mut_ref_current(c)),
-                af(mut_ref_future(ret.1.0) == mut_ref_future(c)),
-                af(mut_ref_current(ret.1.1) == mut_ref_current(d)),
-                af(mut_ref_future(ret.1.1) == mut_ref_future(d)),
+                af(done(mut_ref_current(ret.0.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.0.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.0.1) == mut_ref_future(b))),
+                af(done(mut_ref_current(ret.1.0) == mut_ref_current(c))),
+                af(done(mut_ref_future(ret.1.0) == mut_ref_future(c))),
+                af(done(mut_ref_current(ret.1.1) == mut_ref_current(d))),
+                af(done(mut_ref_future(ret.1.1) == mut_ref_future(d))),
         {
             ((a, b), (c, d))
         }
@@ -1530,10 +1530,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_let_stmt_with_mut_pat ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b, A, B>(a: &'a mut A, b: &'b mut B) -> (ret: (&'a mut A, &'b mut B))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -1773,7 +1773,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_match ["new-mut-ref"] => verus_code! {
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.t)))
         {
         }
 
@@ -1786,14 +1786,14 @@ test_verify_one_file_with_options! {
 
         fn mut_ref_pairs2<'a, 'b, 'c, 'd>(a: &'a mut u64, b: &'b mut u64, c: &'c mut u64, d: &'d mut u64) -> (ret: ((&'a mut u64, &'b mut u64), (&'c mut u64, &'d mut u64)))
             ensures
-                af(mut_ref_current(ret.0.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.0.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.0.1) == mut_ref_future(b)),
-                af(mut_ref_current(ret.1.0) == mut_ref_current(c)),
-                af(mut_ref_future(ret.1.0) == mut_ref_future(c)),
-                af(mut_ref_current(ret.1.1) == mut_ref_current(d)),
-                af(mut_ref_future(ret.1.1) == mut_ref_future(d)),
+                af(done(mut_ref_current(ret.0.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.0.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.0.1) == mut_ref_future(b))),
+                af(done(mut_ref_current(ret.1.0) == mut_ref_current(c))),
+                af(done(mut_ref_future(ret.1.0) == mut_ref_future(c))),
+                af(done(mut_ref_current(ret.1.1) == mut_ref_current(d))),
+                af(done(mut_ref_future(ret.1.1) == mut_ref_future(d))),
         {
             ((a, b), (c, d))
         }
@@ -2137,10 +2137,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_match_with_mut ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b, A, B>(a: &'a mut A, b: &'b mut B) -> (ret: (&'a mut A, &'b mut B))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -2436,10 +2436,10 @@ test_verify_one_file_with_options! {
 
         fn mut_ref_pairs<'a, 'b, A, B>(a: &'a mut A, b: &'b mut B) -> (ret: (&'a mut A, &'b mut B))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -2749,12 +2749,12 @@ test_verify_one_file_with_options! {
         use crate::Option::None;
 
         broadcast proof fn stronger_resolve_axiom_opt<A>(opt: Option<A>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(opt) ==> opt is Some ==> has_resolved(opt->Some_0))
+            ensures af(done(#[trigger] has_resolved(opt) ==> opt is Some ==> has_resolved(opt->Some_0)))
         {
         }
 
         broadcast proof fn stronger_resolver_axiom<A, B>(pair: TGPair<A, B>) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.t))
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.t)))
         {
         }
 
@@ -2767,16 +2767,16 @@ test_verify_one_file_with_options! {
 
         fn mut_ref_pairs2<'a, 'b, 'c, 'd>(a: &'a mut u64, b: &'b mut u64, c: &'c mut u64, d: &'d mut u64) -> (ret: (Option<(&'a mut u64, &'b mut u64)>, Option<(&'c mut u64, &'d mut u64)>))
             ensures
-                af(ret.0 is Some),
-                af(ret.1 is Some),
-                af(mut_ref_current(ret.0->Some_0.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0->Some_0.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.0->Some_0.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.0->Some_0.1) == mut_ref_future(b)),
-                af(mut_ref_current(ret.1->Some_0.0) == mut_ref_current(c)),
-                af(mut_ref_future(ret.1->Some_0.0) == mut_ref_future(c)),
-                af(mut_ref_current(ret.1->Some_0.1) == mut_ref_current(d)),
-                af(mut_ref_future(ret.1->Some_0.1) == mut_ref_future(d)),
+                af(done(ret.0 is Some)),
+                af(done(ret.1 is Some)),
+                af(done(mut_ref_current(ret.0->Some_0.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0->Some_0.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.0->Some_0.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.0->Some_0.1) == mut_ref_future(b))),
+                af(done(mut_ref_current(ret.1->Some_0.0) == mut_ref_current(c))),
+                af(done(mut_ref_future(ret.1->Some_0.0) == mut_ref_future(c))),
+                af(done(mut_ref_current(ret.1->Some_0.1) == mut_ref_current(d))),
+                af(done(mut_ref_future(ret.1->Some_0.1) == mut_ref_future(d))),
         {
             (Some((a, b)), Some((c, d)))
         }
@@ -3149,10 +3149,10 @@ test_verify_one_file_with_options! {
     #[test] temporary_place_in_mut_borrow ["new-mut-ref"] => verus_code! {
         fn mut_ref_pairs<'a, 'b>(a: &'a mut (u64, u64), b: &'b mut (u64, u64)) -> (ret: (&'a mut (u64, u64), &'b mut (u64, u64)))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -3471,15 +3471,15 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_in_shared_borrow ["new-mut-ref"] => verus_code! {
         broadcast axiom fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1)));
 
 
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -3689,16 +3689,16 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] temporary_place_unused ["new-mut-ref"] => verus_code! {
         broadcast axiom fn stronger_resolver_axiom<A, B>(pair: (A, B)) // TODO(new_mut_ref)
-            ensures af(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1));
+            ensures af(done(#[trigger] has_resolved(pair) ==> has_resolved(pair.0) && has_resolved(pair.1)));
 
         uninterp spec fn arbitrary<A>() -> A;
 
         fn mut_ref_pairs<'a, 'b>(a: &'a mut u64, b: &'b mut u64) -> (ret: (&'a mut u64, &'b mut u64))
             ensures
-                af(mut_ref_current(ret.0) == mut_ref_current(a)),
-                af(mut_ref_future(ret.0) == mut_ref_future(a)),
-                af(mut_ref_current(ret.1) == mut_ref_current(b)),
-                af(mut_ref_future(ret.1) == mut_ref_future(b)),
+                af(done(mut_ref_current(ret.0) == mut_ref_current(a))),
+                af(done(mut_ref_future(ret.0) == mut_ref_future(a))),
+                af(done(mut_ref_current(ret.1) == mut_ref_current(b))),
+                af(done(mut_ref_future(ret.1) == mut_ref_future(b))),
         {
             (a, b)
         }
@@ -3878,8 +3878,8 @@ test_verify_one_file_with_options! {
     #[test] assign_eval_ordering_with_temporary ["new-mut-ref"] => verus_code! {
         fn mut_ref_id(a: &mut u64) -> (ret: &mut u64)
             ensures
-                af(mut_ref_current(ret) == 30),
-                af(mut_ref_future(a) == mut_ref_future(ret)),
+                af(done(mut_ref_current(ret) == 30)),
+                af(done(mut_ref_future(a) == mut_ref_future(ret))),
         {
             *a = 30;
             a

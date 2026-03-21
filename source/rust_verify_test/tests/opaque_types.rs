@@ -48,7 +48,7 @@ test_verify_one_file! {
         trait DummyTrait{
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
         }
         impl DummyTrait for bool{
             fn foo(&self) -> (ret: bool)
@@ -74,7 +74,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
             fn get_output(&self) -> (ret : Self::Output);
         }
         impl DummyTrait for bool{
@@ -117,7 +117,7 @@ test_verify_one_file! {
         impl<T> DummyTraitA for T {}
         fn foo() -> (ret: impl DummyTraitA)
             ensures
-                af(ret == ret)
+                af(done(ret == ret))
         {
             true
         }
@@ -131,8 +131,8 @@ test_verify_one_file! {
         impl<T> DummyTraitA for T {}
         fn foo() -> (ret: impl DummyTraitA)
             ensures
-                af(ret == ret),
-                af(ret == true),
+                af(done(ret == ret)),
+                af(done(ret == true)),
         {
             true
         }
@@ -152,8 +152,8 @@ test_verify_one_file! {
         }
         fn foo() -> (ret: impl DummyTraitA)
             ensures
-                af(ret == ret),
-                af(ret.get_output() == true),
+                af(done(ret == ret)),
+                af(done(ret.get_output() == true)),
         {
             true
         }
@@ -173,8 +173,8 @@ test_verify_one_file! {
         }
         fn foo() -> (ret: impl DummyTraitA)
             ensures
-                af(ret == ret),
-                af(ret.get_output() == true), // FAILS
+                af(done(ret == ret)),
+                af(done(ret.get_output() == true)), // FAILS
         {
             true
         }
@@ -187,7 +187,7 @@ test_verify_one_file! {
         trait DummyTrait{
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
             spec fn bar(&self) -> bool;
         }
         impl DummyTrait for bool{
@@ -203,7 +203,7 @@ test_verify_one_file! {
         #[verifier::external_body]
         fn return_opaque_variable() -> (ret: impl DummyTrait)
             ensures
-                af(ret.bar() == false),
+                af(done(ret.bar() == false)),
         {
             true
         }
@@ -217,7 +217,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
         }
@@ -237,7 +237,7 @@ test_verify_one_file! {
             x
         }
         assume_specification<T> [ return_opaque_variable::<T> ](x:T) -> (ret: impl DummyTrait<Output = T>)
-            ensures af(ret.bar());
+            ensures af(done(ret.bar()));
     } => Ok(())
 }
 
@@ -248,7 +248,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
         }
@@ -268,7 +268,7 @@ test_verify_one_file! {
             (x, y)
         }
         assume_specification<T> [ return_opaque_variable::<T> ](x:T, y:T) -> (ret: (impl DummyTrait<Output = T>, impl DummyTrait<Output = T>))
-            ensures af(ret.0.bar());
+            ensures af(done(ret.0.bar()));
     } => Ok(())
 }
 
@@ -279,7 +279,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
         }
@@ -299,7 +299,7 @@ test_verify_one_file! {
             x
         }
         assume_specification<T> [ return_opaque_variable::<T> ](x:T) -> (ret: impl DummyTrait)
-            ensures af(ret.bar());
+            ensures af(done(ret.bar()));
     }  => Err(err) => assert_vir_error_msg(err, "assume_specification requires function type signature to match")
 }
 
@@ -310,7 +310,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
             spec fn get_self(&self) -> Self::Output;
@@ -335,7 +335,7 @@ test_verify_one_file! {
             true
         }
         assume_specification [ return_opaque_variable ]() -> (ret: impl DummyTrait<Output = impl DummyTrait>)
-            ensures af(ret.get_self().bar())
+            ensures af(done(ret.get_self().bar()))
             ;
 
         fn test(){
@@ -352,7 +352,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
             spec fn get_self(&self) -> Self::Output;
@@ -377,7 +377,7 @@ test_verify_one_file! {
             true
         }
         assume_specification [ return_opaque_variable ]() -> (ret: impl DummyTrait<Output = impl DummyTrait>)
-            ensures af(ret.get_self().bar())
+            ensures af(done(ret.get_self().bar()))
             ;
     } => Err(err) => assert_vir_error_msg(err, "assume_specification requires function type signature to match")
 }
@@ -389,7 +389,7 @@ test_verify_one_file! {
             type Output;
             fn foo(&self) -> (ret: bool)
             ensures
-                af(ret == false);
+                af(done(ret == false));
 
             spec fn bar(&self) -> bool;
         }
@@ -424,8 +424,8 @@ test_verify_one_file! {
         }
         fn foo() -> (ret:(impl DummyTrait, impl DummyTrait))
             ensures
-                af(ret.0.bar()),
-                af(ret.1.bar()),
+                af(done(ret.0.bar())),
+                af(done(ret.1.bar())),
         {
             (true, true)
         }
@@ -445,15 +445,15 @@ test_verify_one_file! {
         }
         fn foo() -> (ret:(impl DummyTrait, impl DummyTrait))
             ensures
-                af(ret.0.bar()),
-                af(ret.1.bar()),
+                af(done(ret.0.bar())),
+                af(done(ret.1.bar())),
         {
             (true, true)
         }
         fn bar() -> (ret:(impl DummyTrait, impl DummyTrait))
             ensures
-                af(ret.0.bar()),
-                af(ret.1.bar()),
+                af(done(ret.0.bar())),
+                af(done(ret.1.bar())),
         {
             foo()
         }
@@ -485,7 +485,7 @@ test_verify_one_file! {
         }
         fn bar() -> (ret: impl Tr<Y = impl Tr<T = bool>, T = impl Tr<T = bool>>)
             ensures
-                af(ret.ret_y().dummy_spec()), // FAILS
+                af(done(ret.ret_y().dummy_spec())), // FAILS
         {
             boo()
         }
@@ -512,13 +512,13 @@ test_verify_one_file! {
 
         fn boo() -> (ret: impl Tr<T = impl Tr<T = bool>, Y = impl Tr<T = bool>>)
             ensures
-                af(ret.ret_y().dummy_spec()),
+                af(done(ret.ret_y().dummy_spec())),
         {
             true
         }
         fn bar() -> (ret: impl Tr<Y = impl Tr<T = bool>, T = impl Tr<T = bool>>)
             ensures
-                af(ret.ret_y().dummy_spec()),
+                af(done(ret.ret_y().dummy_spec())),
         {
             boo()
         }
@@ -551,7 +551,7 @@ test_verify_one_file! {
         }
         fn bar() -> (ret: impl Tr<Y = impl Tr<T = bool>, T = impl Tr<T = bool>>)
             ensures
-                af(ret.ret_y().dummy_spec()),
+                af(done(ret.ret_y().dummy_spec())),
         {
             boo()
         }
