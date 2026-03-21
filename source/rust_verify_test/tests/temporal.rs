@@ -1225,3 +1225,126 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// ===================================================================
+// FAIL corner case tests (F1-F7)
+// ===================================================================
+
+// F1: AU goal never reached — function terminates but final state ≠ goal
+test_verify_one_file! {
+    #[test] test_corner_fail_goal_not_reached verus_code! {
+        fn goal_not_reached(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(*x == 0), // FAILS
+        {
+            while *x > 5
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            // x == 5, not 0
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// F2: AG violated by callee
+test_verify_one_file! {
+    #[test] test_corner_fail_ag_broken_by_call verus_code! {
+        fn violator(x: &mut u64)
+            requires *old(x) <= 10,
+            ensures af(*x == 999),
+        {
+            *x = 999;
+        }
+
+        fn ag_broken(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10, // FAILS (violated after violator call)
+            {
+                violator(x);
+            }
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// F3: AG with terminating loop — AG requires infinite loop
+test_verify_one_file! {
+    #[test] test_corner_fail_ag_terminates verus_code! {
+        fn ag_terminates(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x >= 0),
+        {
+            while *x < 10
+                invariant *x >= 0,
+                decreases 10 - *x as int,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with an invariant")
+}
+
+// F4: Early return prevents AG (function terminates)
+test_verify_one_file! {
+    #[test] test_corner_fail_ag_early_return verus_code! {
+        fn ag_returns(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x == 0),
+        {
+            *x = 0;
+            return;
+        }
+    } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with an invariant")
+}
+
+// F5: Break in AG loop — AG loop must never exit
+test_verify_one_file! {
+    #[test] test_corner_fail_ag_break verus_code! {
+        fn ag_with_break(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                *x = *x + 1;
+                if *x > 5 {
+                    *x = 0;
+                    break; // FAILS: AG loop must never exit
+                }
+            }
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// F6: AU path property violated at intermediate state
+test_verify_one_file! {
+    #[test] test_corner_fail_au_path_violated verus_code! {
+        fn path_violated(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x > 0, *x == 0),
+        {
+            *x = 0; // FAILS: path property *x > 0 violated before goal *x == 0
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before entering the loop")
+}
+
+// F7: AF with infinite loop (no decreases — should fail)
+test_verify_one_file! {
+    #[test] test_corner_fail_af_infinite_loop verus_code! {
+        fn af_infinite(x: &mut u64)
+            requires *old(x) == 5,
+            ensures af(*x == 0),
+        {
+            loop
+                invariant *x <= 5,
+            {
+                if *x > 0 { *x = (*x - 1) as u64; }
+            }
+        }
+    } => Err(err) => assert_vir_error_msg(err, "loop must have a decreases clause")
+}
