@@ -11,6 +11,7 @@ verus! {
 
     // basic recursive statement
     fn exec_basic_recursive_stmt(i: u64)
+        ensures af(true)
         decreases i 
     {
         if i != 0 {
@@ -19,7 +20,9 @@ verus! {
     }
 
     // basic while loop
-    fn exec_basic_while_loop() {
+    fn exec_basic_while_loop()
+        ensures af(true)
+    {
         let mut i = 0;
         while i < 10
             invariant i <= 10
@@ -31,7 +34,9 @@ verus! {
     }
 
     // nested while 
-    fn exec_nested_while_loop() {
+    fn exec_nested_while_loop()
+        ensures af(true)
+    {
         let mut i = 0;
         let mut j = 0;
         while i < 10 
@@ -51,7 +56,9 @@ verus! {
     }
 
     // infinite loop with break
-    fn exec_basic_loop_break() {
+    fn exec_basic_loop_break()
+        ensures af(true)
+    {
         let mut i: i8 = 0;
         loop
             invariant_except_break i <= 9
@@ -67,7 +74,9 @@ verus! {
     }
 
     // for loop 
-    fn exec_for_loop() {
+    fn exec_for_loop()
+        ensures af(true)
+    {
         let mut n: u64 = 0;
         for x in iter: 0..10
             invariant n == iter.cur * 3,
@@ -79,7 +88,9 @@ verus! {
         }
     }
 
-    fn exec_for_loop_2() {
+    fn exec_for_loop_2()
+        ensures af(true)
+    {
         let mut n: u64 = 0;
         let mut end = 10;
         for x in iter: 0..end 
@@ -98,6 +109,7 @@ verus! {
     #[verifier::loop_isolation(false)]
     fn exec_basic_recursive_stmt_basic_while_loop(mut i: u64)
         requires i <= 10,
+        ensures af(true)
         decreases i,
     {
         let ghost initial_i = i;
