@@ -4809,6 +4809,12 @@ where
         crate::UnOp::En(_binding_0) => {
             skip!(_binding_0);
         }
+        crate::UnOp::Now(_binding_0) => {
+            skip!(_binding_0);
+        }
+        crate::UnOp::Done(_binding_0) => {
+            skip!(_binding_0);
+        }
     }
 }
 pub fn visit_uninterp_mut<V>(v: &mut V, node: &mut crate::Uninterp)

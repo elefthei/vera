@@ -437,6 +437,7 @@ fn req_ens_to_air(
         for (default_ensures, exp) in specs.iter() {
             // TICL bind rule: strip temporal wrappers to get first-order R.
             // af(Q) → Q, ag(Q) → Q, au(φ,Q) → Q.
+            // Also strip now/done wrappers: now(Q) → Q, done(Q) → Q.
             // This must be done at the SST level (not in exp_to_expr) because
             // the BV prover has its own expression converter that can't handle Temporal.
             let exp = match &exp.x {
@@ -448,6 +449,7 @@ fn req_ens_to_air(
                         _ => inner.clone(),
                     }
                 }
+                crate::sst::ExpX::Now(inner) | crate::sst::ExpX::Done(inner) => inner.clone(),
                 _ => exp.clone(),
             };
             let expr_ctxt = if is_singular {

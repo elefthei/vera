@@ -251,6 +251,8 @@ fn outer_reason_by_expr_kind(e: &Expr) -> Option<OuterProphReason> {
             | ExprX::ExecFnByName(_)
             | ExprX::Choose { .. }
             | ExprX::Temporal(..)
+            | ExprX::Now(..)
+            | ExprX::Done(..)
             | ExprX::WithTriggers { .. }
             | ExprX::Assign { .. } // requires more complex checks
             | ExprX::AssignToPlace { .. } // requires more complex checks
@@ -3251,6 +3253,11 @@ fn check_expr_handle_mut_arg(
             } else {
                 Ok((Mode::Spec, proph))
             }
+        }
+        ExprX::Now(e) | ExprX::Done(e) => {
+            let proph =
+                check_expr_has_mode(ctxt, record, typing, Mode::Spec, e, Mode::Spec, outer_proph)?;
+            Ok((Mode::Spec, proph))
         }
     };
     let (mode, proph) = mode_proph?;

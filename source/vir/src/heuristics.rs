@@ -141,6 +141,8 @@ fn insert_auto_ext_equal(ctx: &Ctx, exp: &Exp) -> Exp {
         | ExpX::ExecFnByName(_)
         | ExpX::FuelConst(_)
         | ExpX::Temporal(..)
+        | ExpX::Now(..)
+        | ExpX::Done(..)
         | ExpX::Interp(_) => exp.clone(),
     }
 }

@@ -3676,6 +3676,12 @@ impl Hash for crate::UnOp {
             crate::UnOp::En(_) => {
                 state.write_u8(16u8);
             }
+            crate::UnOp::Now(_) => {
+                state.write_u8(17u8);
+            }
+            crate::UnOp::Done(_) => {
+                state.write_u8(18u8);
+            }
         }
     }
 }

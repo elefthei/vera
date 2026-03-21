@@ -538,6 +538,9 @@ fn gather_terms(ctxt: &mut Ctxt, ctx: &Ctx, exp: &Exp, depth: u64) -> (bool, Ter
                 (is_pure1, term1)
             }
         }
+        ExpX::Now(e) | ExpX::Done(e) => {
+            gather_terms(ctxt, ctx, e, depth + 1)
+        }
     };
     if let TermX::Var(..) = *term {
         return (is_pure, term);

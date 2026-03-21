@@ -2878,6 +2878,16 @@ pub(crate) fn expr_to_stm_opt(
             };
             Ok((stms, Maybe::Some(Value::Exp(mk_exp(ExpX::Temporal(*op, exp1, exp2))))))
         }
+        ExprX::Now(e) => {
+            let (stms, exp) = expr_to_stm_opt(ctx, state, e)?;
+            let exp = to_exp_or_return_never!(exp, stms);
+            Ok((stms, Maybe::Some(Value::Exp(mk_exp(ExpX::Now(exp))))))
+        }
+        ExprX::Done(e) => {
+            let (stms, exp) = expr_to_stm_opt(ctx, state, e)?;
+            let exp = to_exp_or_return_never!(exp, stms);
+            Ok((stms, Maybe::Some(Value::Exp(mk_exp(ExpX::Done(exp))))))
+        }
     }
 }
 

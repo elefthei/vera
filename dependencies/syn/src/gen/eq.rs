@@ -2883,6 +2883,8 @@ impl PartialEq for crate::UnOp {
             (crate::UnOp::An(_), crate::UnOp::An(_)) => true,
             (crate::UnOp::Eu(_), crate::UnOp::Eu(_)) => true,
             (crate::UnOp::En(_), crate::UnOp::En(_)) => true,
+            (crate::UnOp::Now(_), crate::UnOp::Now(_)) => true,
+            (crate::UnOp::Done(_), crate::UnOp::Done(_)) => true,
             _ => false,
         }
     }

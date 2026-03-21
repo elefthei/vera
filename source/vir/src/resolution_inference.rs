@@ -1203,8 +1203,8 @@ impl<'a> Builder<'a> {
             ExprX::ImplicitReborrowOrSpecRead(..) => {
                 panic!("ImplicitReborrowOrSpecRead should have been removed");
             }
-            ExprX::Temporal(..) => {
-                panic!("Temporal should have been rejected by well_formed");
+            ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => {
+                panic!("Temporal/Now/Done should have been rejected by well_formed");
             }
         }
     }

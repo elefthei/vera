@@ -86,6 +86,8 @@ fn expr_get_early_exits_rec(
             | ExprX::ExecFnByName { .. }
             | ExprX::Choose { .. }
             | ExprX::Temporal(..)
+            | ExprX::Now(..)
+            | ExprX::Done(..)
             | ExprX::WithTriggers { .. }
             | ExprX::AssertCompute(..)
             | ExprX::Fuel(..)

@@ -806,6 +806,9 @@ define_keywords! {
     "an"          pub struct An
     "eu"          pub struct Eu
     "en"          pub struct En
+    // verus temporal instant markers
+    "now"         pub struct Now
+    "done"        pub struct Done
 }
 
 define_punctuation! {
@@ -1108,6 +1111,9 @@ macro_rules! Token {
     [an]          => { $crate::token::An };
     [eu]          => { $crate::token::Eu };
     [en]          => { $crate::token::En };
+    // verus temporal instant markers
+    [now]         => { $crate::token::Now };
+    [done]        => { $crate::token::Done };
     [&&&]         => { $crate::token::BigAnd };
     [|||]         => { $crate::token::BigOr };
     [<==>]        => { $crate::token::Equiv };

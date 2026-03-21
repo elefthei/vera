@@ -352,7 +352,7 @@ fn check_trigger_expr(
             ExpX::FuelConst(_) => {
                 panic!("Found FuelConst expression during trigger selection")
             }
-            ExpX::Temporal(..) => {
+            ExpX::Temporal(..) | ExpX::Now(..) | ExpX::Done(..) => {
                 Err(error(&exp.span, "triggers cannot contain temporal operators"))
             }
         },

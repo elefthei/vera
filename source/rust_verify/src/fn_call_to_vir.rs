@@ -774,6 +774,22 @@ fn verus_item_to_vir<'tcx, 'a>(
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[1]));
                     mk_expr(ExprX::Temporal(op, vir_arg1, Some(vir_arg2)))
                 }
+                // Unary: now(expr), done(expr)
+                TemporalItem::Now | TemporalItem::Done => {
+                    unsupported_err_unless!(
+                        args_len == 1,
+                        expr.span,
+                        "expected now/done with one argument",
+                        &args
+                    );
+                    let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
+                        .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
+                    match temporal_item {
+                        TemporalItem::Now => mk_expr(ExprX::Now(vir_arg)),
+                        TemporalItem::Done => mk_expr(ExprX::Done(vir_arg)),
+                        _ => unreachable!(),
+                    }
+                }
             }
         }
         VerusItem::Directive(directive_item) => match directive_item {

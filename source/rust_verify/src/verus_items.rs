@@ -124,6 +124,8 @@ pub(crate) enum TemporalItem {
     An,
     Eu,
     En,
+    Now,
+    Done,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash)]
@@ -463,6 +465,8 @@ fn verus_items_map() -> Vec<(&'static str, VerusItem)> {
         ("verus::verus_builtin::an",                      VerusItem::Temporal(TemporalItem::An)),
         ("verus::verus_builtin::eu",                      VerusItem::Temporal(TemporalItem::Eu)),
         ("verus::verus_builtin::en",                      VerusItem::Temporal(TemporalItem::En)),
+        ("verus::verus_builtin::now",                     VerusItem::Temporal(TemporalItem::Now)),
+        ("verus::verus_builtin::done",                    VerusItem::Temporal(TemporalItem::Done)),
 
         ("verus::verus_builtin::extra_dependency",        VerusItem::Directive(DirectiveItem::ExtraDependency)),
         ("verus::verus_builtin::reveal_hide",             VerusItem::Directive(DirectiveItem::RevealHide)),
