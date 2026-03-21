@@ -1572,3 +1572,43 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === AU path property intermediate state soundness tests ===
+
+// AU path violated at intermediate state — should FAIL
+test_verify_one_file! {
+    #[test] test_soundness_au_path_intermediate verus_code! {
+        fn au_path_intermediate(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x < 100, *x == 0),
+        {
+            while *x > 0
+                invariant *x <= 10,
+                decreases *x,
+            {
+                let old_val = *x;
+                *x = 200;      // FAILS: *x < 100 is false AND *x == 0 is false
+                *x = old_val;
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "AU path property must hold at every intermediate state")
+}
+
+// AU path preserved at intermediate states — should PASS
+test_verify_one_file! {
+    #[test] test_soundness_au_path_ok verus_code! {
+        fn au_path_ok(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x >= 0, *x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+                // At every step: *x >= 0 (path holds) OR *x == 0 (goal reached)
+            }
+        }
+    } => Ok(())
+}

@@ -1681,6 +1681,9 @@ struct State {
     /// AG(φ) properties that must be asserted at every intermediate state inside
     /// an AG loop body. Empty outside AG loops.
     ag_state_obligations: Vec<Exp>,
+    /// AU(φ,ψ) path+goal pairs asserted at every intermediate state inside AU loops.
+    /// Asserts φ ∨ ψ: path holds OR goal already reached.
+    au_path_obligations: Vec<(Exp, Exp)>,
 }
 
 impl State {
@@ -2058,6 +2061,27 @@ fn emit_ag_state_assertions(
     Ok(stmts)
 }
 
+/// Emit AU path property assertions at every intermediate state inside an AU loop body.
+/// AU(φ, ψ) means that at every state along the path, either φ holds (path continues)
+/// or ψ holds (goal already reached). This ensures the path property is maintained
+/// until the goal is achieved.
+fn emit_au_path_assertions(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    let mut stmts = Vec::new();
+    for (path_exp, goal_exp) in &state.au_path_obligations {
+        let phi = exp_to_expr(ctx, path_exp, expr_ctxt)?;
+        let psi = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
+        let phi_or_psi = mk_or(&vec![phi, psi]);
+        let err = error(span, "AU path property must hold at every intermediate state (or goal already reached)");
+        stmts.push(Arc::new(StmtX::Assert(None, err, None, phi_or_psi)));
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2345,6 +2369,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             result.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AG soundness: check AG property at every intermediate state
             result.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AU soundness: check path property at every intermediate state
+            result.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
             result
         }
         StmX::Assert(assert_id, error, expr) => {
@@ -2560,6 +2586,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AG soundness: check AG property at every intermediate state
             stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AU soundness: check path property at every intermediate state
+            stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
             stmts
         }
         StmX::Assign { lhs: Dest { dest, is_init: false }, rhs } => {
@@ -2656,6 +2684,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AG soundness: check AG property at every intermediate state
             stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // AU soundness: check path property at every intermediate state
+            stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
 
             stmts
         }
@@ -2880,6 +2910,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // Save AG obligations from parent scope. Inner loops INHERIT parent AG
             // obligations — AG(φ) must hold at every state, including inside nested loops.
             let saved_ag_obligations = state.ag_state_obligations.clone();
+            // Save AU obligations similarly — inner loops inherit parent AU obligations.
+            let saved_au_obligations = state.au_path_obligations.clone();
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -2929,6 +2961,19 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         .collect();
                     // Extend (not replace) — nested AG loops inherit parent AG obligations
                     state.ag_state_obligations.extend(ag_props);
+                }
+
+                // AU soundness: collect AU path+goal pairs for intermediate state checking.
+                // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
+                // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
+                if is_au_loop || is_ag_af_loop {
+                    let au_pairs: Vec<(Exp, Exp)> = state.temporal_context.propositions.iter()
+                        .filter_map(|o| match o {
+                            Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
+                            _ => None,
+                        })
+                        .collect();
+                    state.au_path_obligations.extend(au_pairs);
                 }
             } else {
                 is_utility_loop_in_temporal = false;
@@ -3297,6 +3342,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             state.in_loop_depth -= 1;
             // Restore AG obligations from before this loop (handles nesting correctly).
             state.ag_state_obligations = saved_ag_obligations;
+            // Restore AU obligations from before this loop (handles nesting correctly).
+            state.au_path_obligations = saved_au_obligations;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3720,6 +3767,7 @@ pub(crate) fn body_stm_to_air(
         temporal_prefix_obligations,
         in_loop_depth: 0,
         ag_state_obligations: Vec::new(),
+        au_path_obligations: Vec::new(),
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
