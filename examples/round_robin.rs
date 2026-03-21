@@ -76,39 +76,24 @@ impl Queue {
     }
 }
 
-/// The fairness property: in a round-robin schedule, every element
-/// that is in the queue will eventually be at the head again.
+/// Round-robin fairness: the element at the head of the queue will
+/// always eventually return to the head.
 ///
-/// Formally (CTL): AG (AU(⊤, queue.peek() == x))   i.e. AG(AF(peek == x))
-spec fn round_robin_fairness(queue: Queue, x: u64) -> bool {
-    ag (au(true, queue.peek_spec() == x))
-}
-
-/// Round-robin loop: dequeue from front, observe, re-enqueue at back.
-///
-/// The temporal postcondition `ensures ag(au(true, ...))` states that the
-/// schedule is fair: every element in the queue eventually returns to the head.
-///
-/// To verify this, the loop uses:
-/// - `invariant queue.view().len() > 0` — serves as both standard and temporal invariant (R)
-///
-/// The TICL VCGen checks:
-/// 1. R holds at loop entry (standard invariant check)
-/// 2. After havoc + assume R, the AG postcondition is checked (R → φ)
-/// 3. After the loop body, R is preserved (standard invariant check)
-/// 4. Loop is infinite (no decreases, break unreachable)
-fn round_robin(queue: &mut Queue)
+/// Precondition captures x = queue.peek() at state 0.
+/// Postcondition: AG(AF(queue.peek() == x)) — x always eventually returns.
+fn round_robin(queue: &mut Queue, x: u64)
     requires
         old(queue).view().len() > 0,
+        x == old(queue).peek_spec(),
+    ensures
+        ag(af(queue.peek_spec() == x)),
 {
     loop
         invariant
             queue.view().len() > 0,
     {
-        let x = queue.dequeue();
-        // In a real system, we would process x here.
-        // For this example, we just observe it.
-        queue.enqueue(x);
+        let val = queue.dequeue();
+        queue.enqueue(val);
     }
 }
 
