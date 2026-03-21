@@ -88,7 +88,7 @@ test_verify_one_file_with_options! {
                 is_good_message_3(m),    // EXPAND-ERRORS
             //  ^^^^^^^^^^^^^^^^^^^^
             ensures
-                af(is_good_integer_3(good_int)),
+                af(done(is_good_integer_3(good_int))),
         {
             return 0;
         }
@@ -128,7 +128,7 @@ test_verify_one_file_with_options! {
 
         proof fn test_ensures_failure(b: bool) -> (good_msg: Message)
             ensures
-                af(is_good_message_4(good_msg)),            // FAILS
+                af(done(is_good_message_4(good_msg))),            // FAILS
               //^^^^^^^^^^^^^^^^^^^^^^^^^^^
         {
             let mut ret =  Message::Write(true);
@@ -238,7 +238,7 @@ test_verify_one_file_with_options! {
 
         proof fn test_reveal_at_ensures(b: bool) -> (good_msg: Message)
             ensures
-                af(is_good_message_13(good_msg)),        // FAILS
+                af(done(is_good_message_13(good_msg))),        // FAILS
         {
             let good_msg = Message::Move{x: 0, y: 0};
             reveal(is_good_message_13);
@@ -304,7 +304,7 @@ test_verify_one_file_with_options! {
         trait T {
             spec fn f() -> bool;
             proof fn test()
-                ensures af(Self::f()); // FAILS
+                ensures af(done(Self::f())); // FAILS
         }
         impl T for u64 {
             spec fn f() -> bool { false }
@@ -324,7 +324,7 @@ test_verify_one_file_with_options! {
 
             fn m(&self, k: &E) -> (p: u64)
                 ensures
-                    af(p == self.l(k)), // FAILS
+                    af(done(p == self.l(k))), // FAILS
             ;
         }
 

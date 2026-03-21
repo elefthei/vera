@@ -37,7 +37,7 @@ test_verify_one_file! {
     #[test] test_impl_no_self STRUCT.to_string() + verus_code_str! {
         impl Bike {
             fn new() -> Bike {
-                ensures(|result: Bike| af(result.hard_tail));
+                ensures(|result: Bike| af(done(result.hard_tail)));
                 Bike { hard_tail: true }
             }
         }
@@ -48,7 +48,7 @@ test_verify_one_file! {
     #[test] test_impl_no_self_fail_pub_private STRUCT.to_string() + verus_code_str! {
         impl Bike {
             pub fn new() -> Bike {
-                ensures(|result: Bike| af(result.hard_tail));
+                ensures(|result: Bike| af(done(result.hard_tail)));
                 Bike { hard_tail: true }
             }
         }
@@ -71,7 +71,7 @@ test_verify_one_file! {
                 }
 
                 pub fn new() -> Bike {
-                    ensures(|result: Bike| af(result.hard_tail));
+                    ensures(|result: Bike| af(done(result.hard_tail)));
                     Bike { hard_tail: true }
                 }
             }
@@ -240,20 +240,20 @@ test_verify_one_file! {
         impl<V> TemplateCar<V> {
             fn template_new(v: V) -> (result: TemplateCar<V>)
                 ensures
-                    af(equal(result.passengers, 205)),
-                    af(equal(result.the_v, v)),
+                    af(done(equal(result.passengers, 205))),
+                    af(done(equal(result.the_v, v))),
             {
                 TemplateCar::<V> { four_doors: false, passengers: 205, the_v: v }
             }
 
             fn template_get_passengers(&self) -> (result: u64)
-                ensures af(result == self.passengers)
+                ensures af(done(result == self.passengers))
             {
                 self.passengers
             }
 
             fn template_get_v(self) -> (result: V)
-                ensures af(equal(result, self.the_v))
+                ensures af(done(equal(result, self.the_v)))
             {
                 self.the_v
             }
@@ -305,13 +305,13 @@ test_verify_one_file! {
 
         impl<V> Foo<V> {
             fn bar(self) -> (s: Self)
-                ensures af(equal(self, s))
+                ensures af(done(equal(self, s)))
             {
                 self
             }
 
             fn bar2(self) -> (s: Self)
-                ensures af(equal(self, s))
+                ensures af(done(equal(self, s)))
             {
                 Self::bar(self)
             }
