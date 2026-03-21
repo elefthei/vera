@@ -1745,6 +1745,13 @@ struct State {
     /// AU(φ,ψ) path+goal pairs asserted at every intermediate state inside AU loops.
     /// Asserts φ ∨ ψ: path holds OR goal already reached.
     au_path_obligations: Vec<(Exp, Exp)>,
+    /// Ghost accumulators for now() goals in AG(AF) loops.
+    /// Each entry is (goal_expr, accumulator_air_ident).
+    /// The accumulator tracks whether the now() goal Q held at ANY
+    /// intermediate state during the current loop body iteration.
+    now_goal_accumulators: Vec<(Exp, Ident)>,
+    /// Counter for generating unique snapshot names for now() goal accumulators.
+    now_acc_snapshot_counter: u32,
 }
 
 impl State {
@@ -2143,6 +2150,39 @@ fn emit_au_path_assertions(
     Ok(stmts)
 }
 
+/// Update ghost accumulators for now() goals at every intermediate state.
+/// Uses havoc+snapshot+assume to maintain a monotonic boolean:
+///   now_reached = now_reached_old || Q_current
+/// This captures whether Q held at ANY intermediate state so far.
+fn update_now_accumulators(
+    ctx: &Ctx,
+    state: &mut State,
+    _span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    if state.now_goal_accumulators.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut stmts = Vec::new();
+    // Take a snapshot of the current accumulator values before havocing them.
+    let snap_id = {
+        state.now_acc_snapshot_counter += 1;
+        Arc::new(format!("now_acc_{}", state.now_acc_snapshot_counter))
+    };
+    stmts.push(Arc::new(StmtX::Snapshot(snap_id.clone())));
+    for (goal_exp, acc_var) in &state.now_goal_accumulators {
+        let q_current = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
+        // Havoc the accumulator to allow it to take a new value
+        stmts.push(Arc::new(StmtX::Havoc(acc_var.clone())));
+        // The old value of the accumulator (from the snapshot before havoc)
+        let old_val = Arc::new(ExprX::Old(snap_id.clone(), acc_var.clone()));
+        // now_reached = old_now_reached || Q_current  (monotonic: once true, stays true)
+        let new_val = mk_or(&vec![old_val, q_current]);
+        stmts.push(Arc::new(StmtX::Assume(mk_eq(&ident_var(acc_var), &new_val))));
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2432,6 +2472,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             result.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AU soundness: check path property at every intermediate state
             result.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // Now() goal accumulators: OR in Q at this intermediate state
+            result.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
             result
         }
         StmX::Assert(assert_id, error, expr) => {
@@ -2649,6 +2691,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AU soundness: check path property at every intermediate state
             stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // Now() goal accumulators: OR in Q at this intermediate state
+            stmts.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
             stmts
         }
         StmX::Assign { lhs: Dest { dest, is_init: false }, rhs } => {
@@ -2747,6 +2791,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             // AU soundness: check path property at every intermediate state
             stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
+            // Now() goal accumulators: OR in Q at this intermediate state
+            stmts.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
 
             stmts
         }
@@ -2973,6 +3019,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let saved_ag_obligations = state.ag_state_obligations.clone();
             // Save AU obligations similarly — inner loops inherit parent AU obligations.
             let saved_au_obligations = state.au_path_obligations.clone();
+            // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
+            let saved_now_accumulators = state.now_goal_accumulators.clone();
+            let saved_now_acc_counter = state.now_acc_snapshot_counter;
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -3035,6 +3084,25 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                         })
                         .collect();
                     state.au_path_obligations.extend(au_pairs);
+                }
+
+                // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
+                // boolean accumulator that tracks whether Q held at any intermediate
+                // state during the loop body. This is needed because now() goals are
+                // state predicates — Q might hold at body START (when x is at the front
+                // of the queue) but not at body END (after x moves to the back).
+                // The accumulator replaces Q in the weakened decreases check.
+                if is_ag_af_loop {
+                    let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
+                    let mut now_counter = 0u32;
+                    for o in state.temporal_context.propositions.iter() {
+                        if let Proposition::Until { goal, goal_kind: GoalKind::Now, requires_invariance: true, .. } = o {
+                            let acc_var = Arc::new(format!("now_reached_{}", now_counter));
+                            now_counter += 1;
+                            now_accs.push((goal.clone(), acc_var));
+                        }
+                    }
+                    state.now_goal_accumulators = now_accs;
                 }
             } else {
                 is_utility_loop_in_temporal = false;
@@ -3183,6 +3251,12 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
 
             let mut local = state.local_shared.clone();
+            // Declare ghost accumulator variables for now() goals.
+            // These are mutable booleans that track whether Q held at any intermediate state.
+            for (_, acc_var) in &state.now_goal_accumulators {
+                local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
+                state.local_shared.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
+            }
             if loop_isolation {
                 for (x, typ) in typ_inv_vars.iter() {
                     let typ_inv = typ_invariant(ctx, typ, &ident_var(&suffix_local_unique_id(x)));
@@ -3221,6 +3295,27 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
             for dec in decrease_init.iter() {
                 air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
+            }
+
+            // Initialize now() goal accumulators at loop body start.
+            // After invariants are assumed and decreases are initialized,
+            // evaluate Q and set now_reached = Q (Q might already hold at entry).
+            // Take a snapshot so the first update_now_accumulators call can
+            // reference the initial accumulator value.
+            if !state.now_goal_accumulators.is_empty() {
+                for (goal_exp, acc_var) in &state.now_goal_accumulators {
+                    let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
+                    // assume(now_reached == Q_at_entry)
+                    air_body.push(Arc::new(StmtX::Assume(
+                        mk_eq(&ident_var(acc_var), &q_init),
+                    )));
+                }
+                // Take initial snapshot for the first accumulator update
+                let snap_id = {
+                    state.now_acc_snapshot_counter += 1;
+                    Arc::new(format!("now_acc_{}", state.now_acc_snapshot_counter))
+                };
+                air_body.push(Arc::new(StmtX::Snapshot(snap_id)));
             }
 
             let cond_stmts = cond_stm.map(|s| stm_to_stmts(ctx, state, s)).transpose()?;
@@ -3270,10 +3365,12 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
 
                     // TICL rule: aul_cprog_while — weaken decreases to goal || (m decreased)
                     // for ALL Until obligations, including af(Q) = Until(true, Q).
-                    let au_goals: Vec<(&Exp, &Exp)> = if !temporal_invs.is_empty() {
+                    // For Now goals: use ghost accumulator (tracks Q at any intermediate state).
+                    // For Done goals: use Q evaluated at body end (current state).
+                    let au_goals: Vec<(&Exp, &GoalKind)> = if !temporal_invs.is_empty() {
                         state.temporal_context.propositions.iter()
                             .filter_map(|o| match o {
-                                Proposition::Until { path, goal, .. } => Some((path, goal)),
+                                Proposition::Until { goal, goal_kind, .. } => Some((goal, goal_kind)),
                                 _ => None,
                             })
                             .collect()
@@ -3282,9 +3379,28 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
-                        for (_, goal) in &au_goals {
-                            let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
-                            disjuncts.push(psi);
+                        for (goal, goal_kind) in &au_goals {
+                            match goal_kind {
+                                GoalKind::Now => {
+                                    // For now() goals, use the ghost accumulator variable.
+                                    // It tracks whether Q held at ANY intermediate state
+                                    // during this loop body iteration (including body start).
+                                    if let Some((_, acc_var)) = state.now_goal_accumulators.iter()
+                                        .find(|(g, _)| Arc::ptr_eq(g, goal))
+                                    {
+                                        disjuncts.push(ident_var(acc_var));
+                                    } else {
+                                        // Fallback: evaluate Q at current state
+                                        let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                                        disjuncts.push(psi);
+                                    }
+                                }
+                                GoalKind::Done => {
+                                    // For done() goals, evaluate Q at the current (body end) state.
+                                    let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                                    disjuncts.push(psi);
+                                }
+                            }
                         }
                         let weakened = mk_or(&disjuncts);
                         let error = error(&stm.span, "temporal AU: goal not reached and no progress (decreases not satisfied)");
@@ -3405,6 +3521,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             state.ag_state_obligations = saved_ag_obligations;
             // Restore AU obligations from before this loop (handles nesting correctly).
             state.au_path_obligations = saved_au_obligations;
+            // Restore now() goal accumulators from before this loop.
+            state.now_goal_accumulators = saved_now_accumulators;
+            state.now_acc_snapshot_counter = saved_now_acc_counter;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3832,6 +3951,8 @@ pub(crate) fn body_stm_to_air(
         in_loop_depth: 0,
         ag_state_obligations: Vec::new(),
         au_path_obligations: Vec::new(),
+        now_goal_accumulators: Vec::new(),
+        now_acc_snapshot_counter: 0,
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
