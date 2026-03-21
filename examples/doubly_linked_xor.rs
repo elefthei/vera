@@ -16,7 +16,7 @@ verus! {
 #[verifier::external_body]
 proof fn lemma_usize_u64(x: u64)
     ensures
-        af(x as usize as u64 == x),
+        af(done(x as usize as u64 == x)),
 {
     unimplemented!();
 }
@@ -113,8 +113,8 @@ impl<V> DListXor<V> {
 
     fn new() -> (s: Self)
         ensures
-            af(s.wf()),
-            af(s@.len() == 0),
+            af(done(s.wf())),
+            af(done(s@.len() == 0)),
     {
         DListXor {
             ptrs: Ghost(Seq::empty()),
@@ -129,8 +129,8 @@ impl<V> DListXor<V> {
             old(self).wf(),
             old(self).ptrs@.len() == 0,
         ensures
-            af(self.wf()),
-            af(self@ == old(self)@.push(v)),
+            af(done(self.wf())),
+            af(done(self@ == old(self)@.push(v))),
     {
         let (ptr, Tracked(perm)) = PPtr::new(Node::<V> { xored: 0, v });
         proof {
@@ -148,8 +148,8 @@ impl<V> DListXor<V> {
         requires
             old(self).wf(),
         ensures
-            af(self.wf()),
-            af(self@ == old(self)@.push(v)),
+            af(done(self.wf())),
+            af(done(self@ == old(self)@.push(v))),
     {
         if self.tail == 0 {
             // Special case: list is empty
@@ -224,9 +224,9 @@ impl<V> DListXor<V> {
             old(self).wf(),
             old(self)@.len() > 0,
         ensures
-            af(self.wf()),
-            af(self@ == old(self)@.drop_last()),
-            af(v == old(self)@[old(self)@.len() - 1]),
+            af(done(self.wf())),
+            af(done(self@ == old(self)@.drop_last())),
+            af(done(v == old(self)@[old(self)@.len() - 1])),
     {
         assert(self.wf_perm((self.ptrs@.len() - 1) as nat));
         let last_u64 = self.tail;
@@ -318,9 +318,9 @@ impl<V> DListXor<V> {
             old(self).wf(),
             old(self)@.len() > 0,
         ensures
-            af(self.wf()),
-            af(self@ == old(self)@.subrange(1, old(self)@.len() as int)),
-            af(v == old(self)@[0]),
+            af(done(self.wf())),
+            af(done(self@ == old(self)@.subrange(1, old(self)@.len() as int))),
+            af(done(v == old(self)@[0])),
     {
         assert(self.wf_perm(0));
         let first_u64 = self.head;
@@ -405,8 +405,8 @@ impl<V> DListXor<V> {
         requires
             old(self).wf(),
         ensures
-            af(self.wf()),
-            af(self@ == seq![v].add(old(self)@)),
+            af(done(self.wf())),
+            af(done(self@ == seq![v].add(old(self)@))),
     {
         if self.tail == 0 {
             // Special case: list is empty

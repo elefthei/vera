@@ -82,12 +82,12 @@ proof fn set_two_bit_proof(
         mask == !(3u32 << low_loc),
         result == (bv & mask) | target,
     ensures
-        af(get_bit!(result, low_loc) == low),
-        af(get_bit!(result, add(low_loc, 1)) == high),
-        af(forall|loc2: u32|
+        af(done(get_bit!(result, low_loc) == low)),
+        af(done(get_bit!(result, add(low_loc, 1)) == high)),
+        af(done(forall|loc2: u32|
             #![auto]
             loc2 < 32 && loc2 != low_loc && loc2 != add(low_loc, 1) ==> get_bit!(result, loc2)
-                == get_bit!(bv, loc2)),
+                == get_bit!(bv, loc2))),
 {
 }
 
@@ -95,12 +95,12 @@ fn set_two_bit_exec(bv: u32, low_loc: u32, high: bool, low: bool) -> (ret: u32)
     requires
         low_loc < 31,
     ensures
-        af(get_bit!(ret, low_loc) == low),
-        af(get_bit!(ret, add(low_loc, 1)) == high),
-        af(forall|loc2: u32|
+        af(done(get_bit!(ret, low_loc) == low)),
+        af(done(get_bit!(ret, add(low_loc, 1)) == high)),
+        af(done(forall|loc2: u32|
             #![auto]
             loc2 < 32 && loc2 != low_loc && loc2 != add(low_loc, 1) ==> get_bit!(ret, loc2)
-                == get_bit!(bv, loc2)),
+                == get_bit!(bv, loc2))),
 {
     let target: u32 = (if high {
         if low {
@@ -129,7 +129,7 @@ fn set_color(bucket: u32, high: bool, low: bool, i: u32, ghost_bucket: Seq<Color
         i < 16,
         bucket_view(bucket) =~= ghost_bucket,
     ensures
-        af(bucket_view(new_bucket) =~= ghost_bucket.update(i as int, color_view(high, low))),
+        af(done(bucket_view(new_bucket) =~= ghost_bucket.update(i as int, color_view(high, low)))),
 {
     let new_bucket = set_two_bit_exec(bucket, 2 * i, high, low);
     assert(color_view(high, low) == color_view(
@@ -144,11 +144,11 @@ proof fn get_color_proof(bv: u32, index: u32, v: u32)
     requires
         v == 3u32 & (bv >> mul(index, 2)),
     ensures
-        af(v < 4u32),
-        af(v == 3 ==> get_bit!(bv, mul(index, 2)) && get_bit!(bv, add(mul(index, 2), 1))),
-        af(v == 2 ==> !get_bit!(bv, mul(index, 2)) && get_bit!(bv, add(mul(index, 2), 1))),
-        af(v == 1 ==> get_bit!(bv, mul(index, 2)) && !get_bit!(bv, add(mul(index, 2), 1))),
-        af(v == 0 ==> !get_bit!(bv, mul(index, 2)) && !get_bit!(bv, add(mul(index, 2), 1))),
+        af(done(v < 4u32)),
+        af(done(v == 3 ==> get_bit!(bv, mul(index, 2)) && get_bit!(bv, add(mul(index, 2), 1)))),
+        af(done(v == 2 ==> !get_bit!(bv, mul(index, 2)) && get_bit!(bv, add(mul(index, 2), 1)))),
+        af(done(v == 1 ==> get_bit!(bv, mul(index, 2)) && !get_bit!(bv, add(mul(index, 2), 1)))),
+        af(done(v == 0 ==> !get_bit!(bv, mul(index, 2)) && !get_bit!(bv, add(mul(index, 2), 1)))),
 {
 }
 
@@ -156,7 +156,7 @@ fn get_color(bv: u32, index: u32) -> (c: Color)
     requires
         index < 15,
     ensures
-        af(c == color_view(get_bit!(bv, add(mul(2, index), 1)), get_bit!(bv, mul(2, index)))),
+        af(done(c == color_view(get_bit!(bv, add(mul(2, index), 1)), get_bit!(bv, mul(2, index))))),
 {
     let v: u32 = 3u32 & (bv >> index * 2);
     proof {

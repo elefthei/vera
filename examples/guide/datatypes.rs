@@ -20,7 +20,7 @@ impl Point {
 }
 
 fn rotate_90(p: Point) -> (o: Point)
-    ensures af(o.len2() == p.len2())
+    ensures af(done(o.len2() == p.len2()))
 {
     let o = Point { x: -p.y, y: p.x };
     assert((-p.y) * (-p.y) == p.y * p.y) by(nonlinear_arith);

@@ -22,7 +22,7 @@ fn fails_expectations() {
 
 fn fails_post()
     ensures
-        af(false),
+        af(done(false)),
 {
     let x = 5;
     let y = 7;

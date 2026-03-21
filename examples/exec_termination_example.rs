@@ -3,7 +3,7 @@ use vstd::prelude::*;
 verus! {
     // basic recursive expression
     fn exec_basic_recursive_expr(i: u64) -> (r: u64)
-        ensures af(r == i)
+        ensures af(done(r == i))
         decreases i
     {
         if i == 0 { 0 } else { 1 + exec_basic_recursive_expr(i - 1) }
@@ -21,7 +21,7 @@ verus! {
 
     // basic while loop — i goes from 0 to 10
     fn exec_basic_while_loop() -> (i: u64)
-        ensures af(i == 10)
+        ensures af(done(i == 10))
     {
         let mut i = 0;
         while i < 10
@@ -37,8 +37,8 @@ verus! {
     // nested while — i reaches 10
     fn exec_nested_while_loop() -> (r: (u64, u64))
         ensures
-            af(r.0 == 10),
-            af(r.1 <= 5),
+            af(done(r.0 == 10)),
+            af(done(r.1 <= 5)),
     {
         let mut i = 0;
         let mut j = 0;
@@ -61,7 +61,7 @@ verus! {
 
     // infinite loop with break — i reaches 10
     fn exec_basic_loop_break() -> (result: i8)
-        ensures af(1 <= result && result <= 10)
+        ensures af(done(1 <= result && result <= 10))
     {
         let mut i: i8 = 0;
         loop
@@ -80,7 +80,7 @@ verus! {
 
     // for loop — n accumulates 3 per iteration for 10 iterations = 30
     fn exec_for_loop() -> (n: u64)
-        ensures af(n == 30)
+        ensures af(done(n == 30))
     {
         let mut n: u64 = 0;
         for x in iter: 0..10
@@ -92,7 +92,7 @@ verus! {
     }
 
     fn exec_for_loop_2() -> (n: u64)
-        ensures af(n == 30)
+        ensures af(done(n == 30))
     {
         let mut n: u64 = 0;
         let mut end = 10;

@@ -18,7 +18,7 @@ fn id_exec<A, B>(a: A, b: B, c: A) -> (r: A)
     requires
         f(a, c),
     ensures
-        af(f(r, a)),
+        af(done(f(r, a))),
 {
     a
 }
@@ -33,7 +33,7 @@ spec fn id_u64(i: u64) -> u64 {
 
 fn id_u64_exec(i: u64) -> (r: u64)
     ensures
-        af(f(r, id_u64(i))),
+        af(done(f(r, id_u64(i)))),
 {
     id_exec(i, true, 10)
 }
