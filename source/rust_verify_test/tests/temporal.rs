@@ -1508,3 +1508,67 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === AG nested loop soundness tests ===
+
+// AG intermediate violation inside nested while loop — must FAIL
+test_verify_one_file! {
+    #[test] test_soundness_nested_loop_ag_violation verus_code! {
+        fn nested_ag_violation(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                let mut i: u64 = 0;
+                while i < 5
+                    invariant *x <= 10, i <= 5,
+                    decreases 5 - i,
+                {
+                    i = i + 1;
+                    *x = 999; // FAILS: violates AG(*x <= 10) at intermediate state
+                    *x = 0;
+                }
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "AG property must hold at every intermediate state")
+}
+
+// AG property preserved inside nested loop — must PASS
+test_verify_one_file! {
+    #[test] test_soundness_nested_loop_ag_ok verus_code! {
+        fn nested_ag_ok(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                let mut i: u64 = 0;
+                while i < 5
+                    invariant *x <= 10, i <= 5,
+                    decreases 5 - i,
+                {
+                    i = i + 1;
+                    if *x < 10 { *x = *x + 1; } else { *x = 0; }
+                    // At every step: *x <= 10 <= 20 ✓
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// Recursive function with af() — must PASS
+test_verify_one_file! {
+    #[test] test_soundness_recursive_af verus_code! {
+        fn recursive_af(x: &mut u64)
+            requires *old(x) > 0 && *old(x) <= 100,
+            ensures af(*x == 0),
+            decreases *old(x),
+        {
+            *x = *x - 1;
+            if *x > 0 { recursive_af(x); }
+        }
+    } => Ok(())
+}
