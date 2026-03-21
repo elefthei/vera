@@ -9,7 +9,7 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { true }
 
         broadcast proof fn p(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
         {
             reveal(f);
         }
@@ -31,7 +31,7 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { true }
 
         broadcast proof fn p(i: int)
-            ensures af(f(i)) // FAILS
+            ensures af(done(f(i))) // FAILS
         {
         }
 
@@ -48,13 +48,13 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { true }
 
         broadcast proof fn p1(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
         {
             broadcast use p2;
         }
 
         broadcast proof fn p2(i: int)
-            ensures af(f(i)) // FAILS
+            ensures af(done(f(i))) // FAILS
         {
         }
     } => Err(err) => assert_one_fails(err)
@@ -66,7 +66,7 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { true }
 
         broadcast proof fn p(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
             decreases i
         {
             broadcast use p;
@@ -80,14 +80,14 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { false }
 
         broadcast proof fn p(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
             decreases i
         {
             broadcast use q;
         }
 
         broadcast proof fn q(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
             decreases i
         {
             broadcast use p;
@@ -101,14 +101,14 @@ test_verify_one_file! {
         spec fn f(i: int) -> bool { false }
 
         broadcast proof fn p(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
             decreases i
         {
             q(i);
         }
 
         proof fn q(i: int)
-            ensures af(f(i))
+            ensures af(done(f(i)))
             decreases i
         {
             broadcast use p;
@@ -133,7 +133,7 @@ test_verify_one_file! {
 
         #[verifier::external_body]
         broadcast proof fn f_is_true()
-            ensures af(#[trigger] f()),
+            ensures af(done(#[trigger] f())),
         {
         }
 
@@ -186,12 +186,12 @@ const RING_ALGEBRA: &str = verus_code_str! {
 
         pub broadcast proof fn Ring_succ(p: Ring)
             requires p.inv()
-            ensures af(p.inv() && (#[trigger] p.succ()).prev() == p)
+            ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
         { }
 
         pub broadcast proof fn Ring_prev(p: Ring)
             requires p.inv()
-            ensures af(p.inv() && (#[trigger] p.prev()).succ() == p)
+            ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
         { }
 
         pub broadcast group Ring_properties {
@@ -264,12 +264,12 @@ const RING_ALGEBRA_MEMBERS: &str = verus_code_str! {
 
             pub broadcast proof fn succ_ensures(p: Ring)
                 requires p.inv()
-                ensures af(p.inv() && (#[trigger] p.succ()).prev() == p)
+                ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
             { }
 
             pub broadcast proof fn prev_ensures(p: Ring)
                 requires p.inv()
-                ensures af(p.inv() && (#[trigger] p.prev()).succ() == p)
+                ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
             { }
 
             pub broadcast group properties {
@@ -431,7 +431,7 @@ test_verify_one_file! {
             broadcast use q;
 
             pub broadcast proof fn p(i: int)
-                ensures af(f(i))
+                ensures af(done(f(i)))
                 decreases i
             {
             }
@@ -445,7 +445,7 @@ test_verify_one_file! {
             broadcast use p;
 
             pub broadcast proof fn q(i: int)
-                ensures af(f(i))
+                ensures af(done(f(i)))
                 decreases i
             {
             }
@@ -477,12 +477,12 @@ const RING_ALGEBRA_MEMBERS_GENERIC: &str = verus_code_str! {
 
             pub broadcast proof fn succ_ensures(p: Self)
                 requires p.inv()
-                ensures af(p.inv() && (#[trigger] p.succ()).prev() == p)
+                ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
             { }
 
             pub broadcast proof fn prev_ensures(p: Self)
                 requires p.inv()
-                ensures af(p.inv() && (#[trigger] p.prev()).succ() == p)
+                ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
             { }
 
             pub broadcast group properties {
@@ -528,12 +528,12 @@ test_verify_one_file! {
 
                 pub broadcast proof fn spec_succ_ensures(p: Ring)
                     requires p.inv()
-                    ensures af(p.inv() && (#[trigger] p.spec_succ()).spec_prev() == p)
+                    ensures af(done(p.inv() && (#[trigger] p.spec_succ()).spec_prev() == p))
                 { }
 
                 pub broadcast proof fn spec_prev_ensures(p: Ring)
                     requires p.inv()
-                    ensures af(p.inv() && (#[trigger] p.spec_prev()).spec_succ() == p)
+                    ensures af(done(p.inv() && (#[trigger] p.spec_prev()).spec_succ() == p))
                 { }
 
                 pub broadcast group properties {
@@ -570,7 +570,7 @@ test_verify_one_file! {
             broadcast use super::m2::lemma;
 
             pub proof fn lemma(i: int)
-                ensures af(f(i))
+                ensures af(done(f(i)))
                 decreases i
             {
             }
@@ -580,7 +580,7 @@ test_verify_one_file! {
             use super::*;
 
             pub broadcast proof fn lemma(i: int)
-                ensures af(#[trigger] f(i))
+                ensures af(done(#[trigger] f(i)))
                 decreases i
             {
                 assume(false);
@@ -593,7 +593,7 @@ test_verify_one_file! {
     #[test] pruning_for_krate_regression_1209 verus_code! {
         pub proof fn mod_mult_zero_implies_mod_zero(a: nat, b: nat, c: nat)
             requires a % (b * c) == 0, b > 0, c > 0
-            ensures af(a % b == 0)
+            ensures af(done(a % b == 0))
         {
             broadcast use vstd::arithmetic::div_mod::lemma_mod_breakdown;
         }
@@ -606,7 +606,7 @@ test_verify_one_file! {
 
         pub proof fn mod_mult_zero_implies_mod_zero(a: nat, b: nat, c: nat)
             requires a % (b * c) == 0, b > 0, c > 0
-            ensures af(a % b == 0)
+            ensures af(done(a % b == 0))
         {
         }
     } => Ok(())
@@ -615,7 +615,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] broadcast_group_should_check_member_is_broadcast_regression_1355 verus_code! {
         proof fn lemma_foo()
-            ensures af(true)
+            ensures af(done(true))
         {}
 
         broadcast group group_foo {
@@ -641,7 +641,7 @@ test_verify_one_file! {
     #[test] broadcast_mut_params verus_code! {
         pub broadcast proof fn seq_reverse_len<A>(s: &mut u8)
             ensures
-                af(*s == *s)
+                af(done(*s == *s))
         { }
     } => Err(err) => assert_vir_error_msg(err, "broadcast function cannot have &mut parameters")
 }

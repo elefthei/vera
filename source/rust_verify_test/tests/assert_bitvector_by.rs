@@ -18,7 +18,7 @@ test_verify_one_file! {
     #[test] test2 verus_code! {
         fn concat_bits(b1: u32, b2:u32) -> (ret: u64)
             ensures
-                af(ret == (b1 as u64) * 0x100000000 + (b2 as u64))
+                af(done(ret == (b1 as u64) * 0x100000000 + (b2 as u64)))
         {
             let b: u64 = (b1 as u64) << 32u64 | (b2 as u64);
             assert(b == add(mul(b1 as u64, 0x100000000), b2 as u64)) by(bit_vector)
@@ -32,7 +32,7 @@ test_verify_one_file! {
     #[test] test3 verus_code! {
         fn split_bits(b:u64) -> (ret: (u32, u32))
             ensures
-                af(b == (ret.0 as u64) * 0x100000000 + (ret.1 as u64))
+                af(done(b == (ret.0 as u64) * 0x100000000 + (ret.1 as u64)))
         {
             let b1 = (b >> 32u64) as u32;
             let b2 = (b & 0x0000_0000_ffff_ffffu64) as u32;

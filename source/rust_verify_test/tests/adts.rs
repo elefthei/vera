@@ -147,7 +147,7 @@ test_verify_one_file! {
         struct S2 { u: u64, v: u64 }
 
         fn g() -> S2 {
-            ensures(|s: S2|  af(s.u == 100));
+            ensures(|s: S2|  af(done(s.u == 100)));
             S2 { u: 100, v: 200 }
         }
 
@@ -215,7 +215,7 @@ test_verify_one_file! {
 
         pub fn add1(a: u64) -> u64 {
             requires(a < 10);
-            ensures(|res: u64|  af(res == a + 1));
+            ensures(|res: u64|  af(done(res == a + 1)));
             a + 1
         }
 
@@ -380,8 +380,8 @@ test_verify_one_file! {
     #[test] test_is_variant_get_2 IS_VARIANT_MAYBE.to_string() + verus_code_str! {
         pub fn test1(m: Maybe<u64>) -> (res: bool)
             ensures
-                af(m.is_Some() ==> res == (m.get_Some_0() == 3)),
-                af(m.is_None() ==> !res),
+                af(done(m.is_Some() ==> res == (m.get_Some_0() == 3))),
+                af(done(m.is_None() ==> !res)),
         {
             match m {
                 Maybe::Some(v) => v == 3,
@@ -447,7 +447,7 @@ test_verify_one_file! {
         }
 
         fn test2(m: &Res<bool>) -> (res: bool)
-            ensures af(res <==> m.is_Ok() && m.get_Ok_t())
+            ensures af(done(res <==> m.is_Ok() && m.get_Ok_t()))
         {
             match m {
                 Res::Ok { t } if *t => true,
@@ -516,7 +516,7 @@ test_verify_one_file! {
         impl S {
             fn equals(&self, rhs: &S) -> (b: bool)
                 ensures
-                    af(b == (self.a == rhs.a)),
+                    af(done(b == (self.a == rhs.a))),
             {
                 self.a == rhs.a
             }
@@ -524,7 +524,7 @@ test_verify_one_file! {
 
         fn test() -> (s: (S, S))
             ensures
-                af(s.0 === s.1),
+                af(done(s.0 === s.1)),
         {
 
             let s1 = S { a: 10, b: Ghost(20) };
@@ -587,7 +587,7 @@ test_verify_one_file! {
     #[test] test_field_update_1_call_pass FIELD_UPDATE.to_string() + verus_code_str! {
         fn add1(a: i32) -> i32 {
             requires(a < 30);
-            ensures(|ret: i32|  af(ret == a + 1));
+            ensures(|ret: i32|  af(done(ret == a + 1)));
             a + 1
         }
 
@@ -656,7 +656,7 @@ test_verify_one_file! {
                 old(t).s.a < 30,
                 old(t).s.b < 30,
             ensures
-                af(*t == (T { s: S { a: (old(t).s.a + 1) as usize, b: (old(t).s.b + 1) as i32 }, ..*old(t) }))
+                af(done(*t == (T { s: S { a: (old(t).s.a + 1) as usize, b: (old(t).s.b + 1) as i32 }, ..*old(t) })))
         {
             t.s.a = t.s.a + 1;
             t.s.b = t.s.b + 1;
@@ -671,7 +671,7 @@ test_verify_one_file! {
                 old(t).s.a < 30,
                 old(t).s.b < 30,
             ensures
-                af(*t == (T { s: S { a: (old(t).s.a + 1) as usize, b: (old(t).s.b + 1) as i32 }, ..*old(t) }))
+                af(done(*t == (T { s: S { a: (old(t).s.a + 1) as usize, b: (old(t).s.b + 1) as i32 }, ..*old(t) })))
         {
             t.s.a = t.s.a + 1;
             t.s.b = t.s.b + 1;
@@ -684,7 +684,7 @@ test_verify_one_file! {
     #[test] test_field_update_param_2_pass FIELD_UPDATE.to_string() + FIELD_UPDATE_2 + verus_code_str! {
         fn test(t: &mut T, v: usize)
             requires old(t).s.a < 30, v < 30
-            ensures af(*t == (T { s: S { a: (old(t).s.a + v) as usize, ..old(t).s }, ..*old(t) }))
+            ensures af(done(*t == (T { s: S { a: (old(t).s.a + v) as usize, ..old(t).s }, ..*old(t) })))
         {
             t.s.a = t.s.a + v;
         }
@@ -695,7 +695,7 @@ test_verify_one_file! {
     #[test] test_field_update_param_mut_ref_pass FIELD_UPDATE.to_string() + FIELD_UPDATE_2 + verus_code_str! {
         fn foo(s: &mut S, v: usize)
             requires old(s).a < 30, v < 30
-            ensures af(*s == (S { a: (old(s).a + v) as usize, ..*old(s) }))
+            ensures af(done(*s == (S { a: (old(s).a + v) as usize, ..*old(s) })))
         {
             s.a = s.a + v;
         }
@@ -1771,9 +1771,9 @@ test_verify_one_file! {
 
         pub fn test1(e: E<u64>) -> (res: bool)
             ensures
-                af(e is One ==> res == (e->One_t == 3)),
-                af(e is Two ==> !res),
-                af(e is Three ==> res == (e->Three_0 == 4)),
+                af(done(e is One ==> res == (e->One_t == 3))),
+                af(done(e is Two ==> !res)),
+                af(done(e is Three ==> res == (e->Three_0 == 4))),
         {
             match e {
                 E::One { t } => t == 3,
@@ -1814,7 +1814,7 @@ test_verify_one_file! {
 
         fn mutate_int_2(i: &mut u8)
             requires *old(i) == 19,
-            ensures af(*i == 30),
+            ensures af(done(*i == 30)),
         {
             *i = 30;
         }
@@ -1856,7 +1856,7 @@ test_verify_one_file! {
 
         fn update_u64(a: &mut u64)
             requires *old(a) == 5,
-            ensures af(*a == 19),
+            ensures af(done(*a == 19)),
         {
             *a = 19;
         }
@@ -1912,7 +1912,7 @@ test_verify_one_file! {
             x: X,
         }
 
-        fn get_i() -> (res: u8) ensures af(res == 10) { 10 }
+        fn get_i() -> (res: u8) ensures af(done(res == 10)) { 10 }
 
         fn tup_test1() {
             let mut y = (Y { x: X { i: 12, j: 25 } }, 13);
@@ -1951,7 +1951,7 @@ test_verify_one_file! {
         impl T for I {
             type Output = Out;
             fn execute() -> (res: Self::Output)
-                ensures af(res == (Self::Output {}))
+                ensures af(done(res == (Self::Output {})))
             {
                 Self::Output {}
             }

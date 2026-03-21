@@ -175,7 +175,7 @@ test_verify_one_file! {
     use core::default::Default;
 
     fn mk<T: Default>() -> (r: T)
-        ensures af(T::default.ensures((), r)),
+        ensures af(done(T::default.ensures((), r))),
     {
       T::default()
     }
@@ -201,16 +201,16 @@ test_verify_one_file! {
 
     impl Default for MyType {
         fn default() -> (r: MyType)
-            ensures af(r.x == 10),
-                af(r.y == true),
+            ensures af(done(r.x == 10)),
+                af(done(r.y == true)),
         {
             MyType { x: 10, y: true }
         }
     }
 
     fn mk() -> (r: MyType)
-        ensures af(r.x == 10),
-            af(r.y == true),
+        ensures af(done(r.x == 10)),
+            af(done(r.y == true)),
     {
         MyType::default()
     }
@@ -237,8 +237,8 @@ test_verify_one_file! {
 
     impl Default for MyType {
         fn default() -> (r: MyType)
-            ensures af(r.y == r.x + 1),
-                af(r.x < 100),
+            ensures af(done(r.y == r.x + 1)),
+                af(done(r.x < 100)),
         {
             MyType { x: 7, y: 8 }
         }

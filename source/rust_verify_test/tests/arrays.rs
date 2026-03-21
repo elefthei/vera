@@ -37,7 +37,7 @@ test_verify_one_file! {
         requires
             old(ar)[0] == 2
         ensures
-            af(ar[0] == 3),
+            af(done(ar[0] == 3)),
         {
             ar[0] += 1;
         }
@@ -58,8 +58,8 @@ test_verify_one_file! {
             old(ar)[0] == 1,
             old(ar)[2] == 2,
         ensures
-            af(ar[0] == 2),
-            af(ar[2] == 3),
+            af(done(ar[0] == 2)),
+            af(done(ar[2] == 3)),
         {
             ar[0] += 1;
             ar[ar[0]] += 1;
@@ -76,8 +76,8 @@ test_verify_one_file! {
         requires
             *old(i) < 10,
         ensures
-            af(ret == *old(i)),
-            af(*i == *old(i) + 1),
+            af(done(ret == *old(i))),
+            af(done(*i == *old(i) + 1)),
         {
             let oldi = *i;
             *i = *i + 1;
@@ -88,8 +88,8 @@ test_verify_one_file! {
         requires
             old(ar)[0] < 10,
         ensures
-            af(ar[0] == old(ar)[0] + 1),
-            af(ar[1] == 1),
+            af(done(ar[0] == old(ar)[0] + 1)),
+            af(done(ar[1] == 1)),
         {
             let mut i = 0usize;
             ar[potential_side_effect(&mut i)] += 1;
@@ -138,7 +138,7 @@ test_verify_one_file! {
 
         fn test(ar: &mut [u8; 20])
         ensures
-            af(ar[0] == 1),
+            af(done(ar[0] == 1)),
         {
             ar[0] = 1;
         }
@@ -158,7 +158,7 @@ test_verify_one_file! {
 
         fn test(ar: &mut [u8; 20])
         ensures
-            af(ar[0] == 1),
+            af(done(ar[0] == 1)),
         {
             ar[0] = 1u64;
         }
@@ -388,7 +388,7 @@ test_verify_one_file! {
             requires
                 p.is_some()
             ensures
-                af(Some(*res) == p)
+                af(done(Some(*res) == p))
         {
             p.as_ref().unwrap()
         }

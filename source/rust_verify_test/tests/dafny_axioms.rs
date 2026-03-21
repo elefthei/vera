@@ -11,7 +11,7 @@ test_verify_one_file! {
         pub proof fn lemma_set_insert_same_len<A>(s: Set<A>, a: A)
             requires
                 s.finite(),
-            ensures af(s.contains(a) ==> s.insert(a).len() =~= s.len()),
+            ensures af(done(s.contains(a) ==> s.insert(a).len() =~= s.len())),
         {}
     } => Ok(())
 }
@@ -24,7 +24,7 @@ test_verify_one_file! {
         pub proof fn lemma_set_insert_diff_len<A>(s: Set<A>, a: A)
             requires
                 s.finite(),
-            ensures af(!s.contains(a) ==> s.insert(a).len() == s.len() + 1),
+            ensures af(done(!s.contains(a) ==> s.insert(a).len() == s.len() + 1)),
         {}
     } => Ok(())
 }
@@ -38,8 +38,8 @@ test_verify_one_file! {
         pub proof fn lemma_set_remove_len_contains<A>(s: Set<A>, a: A)
             requires
                 s.finite(),
-            ensures af((s.contains(a) ==> (s.remove(a).len() == s.len() -1))
-                    && (!s.contains(a) ==> s.len() == s.remove(a).len())),
+            ensures af(done((s.contains(a) ==> (s.remove(a).len() == s.len() -1))
+                    && (!s.contains(a) ==> s.len() == s.remove(a).len()))),
         {}
     } => Ok(())
 }
