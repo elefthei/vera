@@ -7,8 +7,8 @@ test_verify_one_file! {
     #[test] test1 verus_code! {
         fn test_ret(b: bool) -> (i: u64)
             ensures
-                af(10 <= i),
-                af(20 <= i),
+                af(done(10 <= i)),
+                af(done(20 <= i)),
         {
             if b {
                 return 20;
@@ -22,8 +22,8 @@ test_verify_one_file! {
     #[test] test1_fails1 verus_code! {
         fn test_ret(b: bool) -> (i: u64)
             ensures
-                af(10 <= i),
-                af(20 <= i),
+                af(done(10 <= i)),
+                af(done(20 <= i)),
         {
             if b {
                 return 10; // FAILS
@@ -37,8 +37,8 @@ test_verify_one_file! {
     #[test] test1_fails2 verus_code! {
         fn test_ret(b: bool) -> (i: u64)
             ensures
-                af(10 <= i),
-                af(20 <= i), // FAILS
+                af(done(10 <= i)),
+                af(done(20 <= i)), // FAILS
         {
             if b {
                 return 20;
@@ -51,7 +51,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test2 verus_code! {
         fn test_ret(b: bool)
-            ensures af(true)
+            ensures af(done(true))
         {
             if b {
                 return;
@@ -64,7 +64,7 @@ test_verify_one_file! {
     #[test] test2_fails verus_code! {
         fn test_ret(b: bool)
             requires b
-            ensures af(false)
+            ensures af(done(false))
         {
             if b {
                 return; // FAILS
@@ -77,7 +77,7 @@ test_verify_one_file_with_options! {
     #[test] test3 ["exec_allows_no_decreases_clause"] => verus_code! {
         fn test_ret(b: bool)
             requires b
-            ensures af(b)
+            ensures af(done(b))
         {
             while b || !b
                 invariant b
@@ -92,7 +92,7 @@ test_verify_one_file_with_options! {
     #[test] test3_fails ["exec_allows_no_decreases_clause"] => verus_code! {
         fn test_ret(b: bool)
             requires b
-            ensures af(b)
+            ensures af(done(b))
         {
             while b || !b {
                 return; // FAILS
@@ -112,25 +112,25 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] returning_named_unit_issue1108 verus_code! {
         proof fn f() -> (n: ())
-            ensures af(n === ())
+            ensures af(done(n === ()))
         {
             return ();
         }
 
         proof fn g() -> (n: ())
-            ensures af(n === ())
+            ensures af(done(n === ()))
         {
             return;
         }
 
         proof fn f2() -> (n: ())
-            ensures af(n === ())
+            ensures af(done(n === ()))
         {
             return ();
         }
 
         proof fn g2() -> (n: ())
-            ensures af(n === ())
+            ensures af(done(n === ()))
         {
             return;
         }
@@ -148,7 +148,7 @@ test_verify_one_file! {
     #[test] return_unit_trait_issue1278 verus_code! {
         pub trait Trait<T> {
             spec fn ok(r: T) -> bool;
-            proof fn apply() -> (result: T) ensures af(Self::ok(result));
+            proof fn apply() -> (result: T) ensures af(done(Self::ok(result)));
         }
 
         pub struct S {
@@ -169,7 +169,7 @@ test_verify_one_file! {
         pub trait PolyfillClone: View + Sized {
             fn clone(&self) -> (res: Self)
                 ensures
-                    af(res@ == self@);
+                    af(done(res@ == self@));
         }
 
         impl PolyfillClone for () {
@@ -184,7 +184,7 @@ test_verify_one_file! {
     #[test] trait_impl_return_unit_issue1108 verus_code! {
         trait Tr : Sized {
             fn get() -> (r: Self)
-                ensures af(r == r);}
+                ensures af(done(r == r));}
 
         impl Tr for () {
             fn get() -> (r: Self)

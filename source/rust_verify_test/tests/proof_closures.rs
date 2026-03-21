@@ -18,7 +18,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 2)
+                ensures af(done(z == 2))
             {
                 y
             };
@@ -39,7 +39,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 3) // FAILS
+                ensures af(done(z == 3)) // FAILS
             {
                 y
             };
@@ -54,7 +54,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 3) // FAILS
+                ensures af(done(z == 3)) // FAILS
             {
                 return y;
             };
@@ -85,7 +85,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 3)
+                ensures af(done(z == 3))
             {
                 (y + 1) as u64
             };
@@ -117,7 +117,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 2)
+                ensures af(done(z == 2))
             {
                 y
             };
@@ -135,7 +135,7 @@ test_verify_one_file_with_options! {
         fn testfn() {
             let tracked f = proof_fn|y: u64|
                 requires y == 2
-                ensures af(false)
+                ensures af(done(false))
             {
                 loop { }
             };
@@ -153,7 +153,7 @@ test_verify_one_file_with_options! {
         proof fn testfn(b: bool) {
             let tracked f = proof_fn|y: u64|
                 requires y == 2
-                ensures af(b)
+                ensures af(done(b))
             {
                 if !b { loop { } }
             };
@@ -173,7 +173,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|x: u64, y: u64| -> (z: u64)
                 requires x == y
-                ensures af(z == x)
+                ensures af(done(z == x))
             {
                 y
             };
@@ -194,7 +194,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|x: u64, y: u64| -> (z: u64)
                 requires x == y
-                ensures af(z == x) // FAILS
+                ensures af(done(z == x)) // FAILS
             {
                 0 as u64
             };
@@ -209,7 +209,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|x: u64, y: u64| -> (z: u64)
                 requires y == 2
-                ensures af(z == 3) // FAILS
+                ensures af(done(z == 3)) // FAILS
             {
                 return 0 as u64;
             };
@@ -240,7 +240,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|x: u64, y: u64| -> (z: u64)
                 requires x == y
-                ensures af(z == x)
+                ensures af(done(z == x))
             {
                 y
             };
@@ -272,7 +272,7 @@ test_verify_one_file_with_options! {
         proof fn testfn() {
             let tracked f = proof_fn|x: u64, y: u64| -> (z: u64)
                 requires x == y
-                ensures af(z == x)
+                ensures af(done(z == x))
             {
                 y
             };
@@ -293,7 +293,7 @@ test_verify_one_file_with_options! {
         uninterp spec fn goo() -> bool;
 
         proof fn testfn() {
-            let tracked f = proof_fn|| ensures af(goo()) { assume(goo()); };
+            let tracked f = proof_fn|| ensures af(done(goo())) { assume(goo()); };
 
             assert(f.requires(()));
             assert(f.ensures((),()) ==> goo());
@@ -312,7 +312,7 @@ test_verify_one_file_with_options! {
 
         proof fn testfn() {
             let tracked f = proof_fn||
-                ensures af(goo()) // FAILS
+                ensures af(done(goo())) // FAILS
             {
             };
         }
@@ -327,7 +327,7 @@ test_verify_one_file_with_options! {
 
         proof fn testfn() {
             let tracked f = proof_fn||
-                ensures af(goo()) // FAILS
+                ensures af(done(goo())) // FAILS
             {
                 return;
             };
@@ -361,7 +361,7 @@ test_verify_one_file_with_options! {
 
         proof fn testfn() {
             let tracked f = proof_fn||
-                ensures af(goo())
+                ensures af(done(goo()))
             {
                 assume(goo());
             };
@@ -396,7 +396,7 @@ test_verify_one_file_with_options! {
 
         proof fn testfn() {
             let tracked f = proof_fn||
-                ensures af(goo())
+                ensures af(done(goo()))
             {
                 assume(goo());
             };
@@ -425,7 +425,7 @@ test_verify_one_file_with_options! {
         proof fn f2() {
             let tracked t = proof_fn|a: u64| -> (ret: u64)
                 requires 0 <= a < 5
-                ensures af(ret == a + 1)
+                ensures af(done(ret == a + 1))
             {
                 (a + 1) as u64
             };
@@ -451,7 +451,7 @@ test_verify_one_file_with_options! {
         proof fn f2() {
             let tracked t = proof_fn|a: u64| -> (ret: u64)
                 requires 0 <= a < 5
-                ensures af(ret == a + 1)
+                ensures af(done(ret == a + 1))
             {
                 (a + 1) as u64
             };
@@ -478,7 +478,7 @@ test_verify_one_file_with_options! {
         proof fn f2() {
             let tracked t = proof_fn|a: u64| -> (ret: u64)
                 requires 0 <= a < 5
-                ensures af(ret == a + 1)
+                ensures af(done(ret == a + 1))
             {
                 (a + 1) as u64
             };
@@ -525,7 +525,7 @@ test_verify_one_file_with_options! {
 
         proof fn foo() {
             let tracked f = proof_fn|x: u64| {
-                ensures(|b: bool| af(b));
+                ensures(|b: bool| af(done(b)));
                 x
             };
         }
@@ -555,7 +555,7 @@ test_verify_one_file_with_options! {
 
         proof fn foo() {
             let tracked f = proof_fn|x: u64|
-                ensures af(some_exec_fn())
+                ensures af(done(some_exec_fn()))
             {
             };
         }
@@ -596,10 +596,10 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
 
         proof fn foo() -> (i: u64)
-            ensures af(i == 0)
+            ensures af(done(i == 0))
         {
             let tracked f = proof_fn|| -> (j: u64)
-                ensures af(j == 1)
+                ensures af(done(j == 1))
             {
                 loop {
                 }
@@ -618,7 +618,7 @@ test_verify_one_file_with_options! {
 
         proof fn foo(b: bool) {
             let tracked f = proof_fn|i: u64| -> (j: u64)
-                ensures af(j == i)
+                ensures af(done(j == i))
             {
                 i
             };
@@ -644,7 +644,7 @@ test_verify_one_file_with_options! {
 
         proof fn foo(b: bool) {
             let tracked f = proof_fn|i: u64| -> (j: u64)
-                ensures af(j == i)
+                ensures af(done(j == i))
             {
                 i
             };
@@ -675,7 +675,7 @@ test_verify_one_file_with_options! {
 
         proof fn foo(b: bool) {
             let tracked f = proof_fn|i: u64| -> (j: u64)
-                ensures af(j == i)
+                ensures af(done(j == i))
             {
                 i
             };
@@ -776,7 +776,7 @@ test_verify_one_file_with_options! {
             let x: u64 = 5;
             let tracked f = proof_fn|x: u64| -> (x: u64)
                 requires x == 6
-                ensures af(x == 7)
+                ensures af(done(x == 7))
             {
                 7 as u64
             };
@@ -788,7 +788,7 @@ test_verify_one_file_with_options! {
             let x: u64 = 7;
             let tracked f = proof_fn|x: u64| -> (x: u64)
                 requires x == 6
-                ensures af(x == 7) // FAILS
+                ensures af(done(x == 7)) // FAILS
             {
                 8 as u64
             };
@@ -876,18 +876,18 @@ test_verify_one_file_with_options! {
 
         proof fn test() {
             let tracked f = proof_fn|x: u64| -> (res: ())
-                ensures af(res === ())
+                ensures af(done(res === ()))
             {
             };
 
             let tracked f1 = proof_fn|x: u64| -> (res: ())
-                ensures af(res === ())
+                ensures af(done(res === ()))
             {
                 ()
             };
 
             let tracked g = proof_fn|x: u64|
-                ensures af(false)
+                ensures af(done(false))
             {
                 assume(false);
             };
@@ -1044,7 +1044,7 @@ test_verify_one_file_with_options! {
 
         proof fn test1<T>(some_t: T) {
             let tracked f = proof_fn|t: T| -> (s: T)
-                ensures af(s == t)
+                ensures af(done(s == t))
             {
                 t
             };
@@ -1129,7 +1129,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn moo2() {
-            let tracked t = proof_fn|| -> (b: bool) ensures af(b == true) { true };
+            let tracked t = proof_fn|| -> (b: bool) ensures af(done(b == true)) { true };
             stuff2(t);
         }
 
@@ -1141,7 +1141,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn moo3() {
-            let tracked t = proof_fn|| -> (b: bool) ensures af(b == true) { true };
+            let tracked t = proof_fn|| -> (b: bool) ensures af(done(b == true)) { true };
             stuff3(t);
         }
 
@@ -1153,7 +1153,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn moo4() {
-            let tracked t = proof_fn|| -> (b: bool) ensures af(b == true) { true };
+            let tracked t = proof_fn|| -> (b: bool) ensures af(done(b == true)) { true };
             stuff4(&t);
         }
     } => Ok(())

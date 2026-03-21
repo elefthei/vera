@@ -49,7 +49,7 @@ test_verify_one_file! {
             requires
                 x >= 0real,
             ensures
-                af(exists |n: nat| #[trigger] nat_to_real(n) >= x),
+                af(done(exists |n: nat| #[trigger] nat_to_real(n) >= x)),
         {
             let a: nat = x.floor() as nat;
             assert(x < nat_to_real(a + 1));

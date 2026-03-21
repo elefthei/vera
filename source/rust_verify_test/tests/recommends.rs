@@ -12,7 +12,7 @@ test_verify_one_file! {
         }
 
         proof fn some_proof()
-            ensures af(forall |i: int| 0 <= i < 20 ==> foo(i)),  // FAILS
+            ensures af(done(forall |i: int| 0 <= i < 20 ==> foo(i))),  // FAILS
         {
         }
     } => Err(e) => assert_one_fails(e)
@@ -44,14 +44,14 @@ test_verify_one_file! {
         trait SecondTrait<R, Kv: Tr<R>> {
             proof fn proof_trait_fn()
                 ensures
-                    af(forall|s: Seq<u8>|
+                    af(done(forall|s: Seq<u8>|
                         #![trigger Kv::trait_fn(s)]
                     {
                         &&& Kv::trait_fn(s) matches Some(x)
                         &&& {
                             exists |w| bar(w)
                         }
-                    });
+                    }));
         }
 
         struct Y<Z> { z: Z }

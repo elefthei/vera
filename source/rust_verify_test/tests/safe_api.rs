@@ -33,7 +33,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] normal_fn_ensures_is_ok ["-V check-api-safety"] => verus_code! {
         pub fn test(x: u8) -> (y: u8)
-            ensures af(y > 0)
+            ensures af(done(y > 0))
         {
             20
         }
@@ -73,7 +73,7 @@ test_verify_one_file_with_options! {
     #[test] trait_fn_ensures_fail ["-V check-api-safety"] => verus_code! {
         pub trait Foo {
             fn test(x: u8) -> (y: u8)
-                ensures af(y > 0);
+                ensures af(done(y > 0));
         }
     } => Err(err) => assert_vir_error_msg(err, "Safe API violation: 'ensures' clause is nontrivial")
 }
@@ -109,7 +109,7 @@ test_verify_one_file_with_options! {
     #[test] trait_fn_unsafe_ok ["-V check-api-safety"] => verus_code! {
         pub unsafe trait Foo {
             fn test(x: u8) -> (y: u8)
-                ensures af(y > 0);
+                ensures af(done(y > 0));
         }
     } => Ok(())
 }
@@ -118,7 +118,7 @@ test_verify_one_file_with_options! {
     #[test] trait_fn_private_ok ["-V check-api-safety"] => verus_code! {
         trait Foo {
             fn test(x: u8) -> (y: u8)
-                ensures af(y > 0);
+                ensures af(done(y > 0));
         }
     } => Ok(())
 }
@@ -264,7 +264,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn()
-                ensures af(Self::foo());
+                ensures af(done(Self::foo()));
         }
     } => Err(err) => assert_vir_error_msg(err, "Safe API violation: 'ensures' clause is nontrivial")
 }
@@ -277,7 +277,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn()
-                ensures af(Self::foo());
+                ensures af(done(Self::foo()));
         }
     } => Ok(())
 }
@@ -290,7 +290,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 20
@@ -307,7 +307,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 20
@@ -324,7 +324,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20);
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20));
         }
     } => Err(err) => assert_vir_error_msg(err, "Safe API violation: 'ensures' clause is nontrivial")
 }
@@ -337,7 +337,7 @@ test_verify_one_file_with_options! {
             }
 
             fn exec_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20);
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20));
         }
     } => Ok(())
 }
@@ -350,7 +350,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 20
@@ -367,7 +367,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 20
@@ -386,7 +386,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 20
@@ -406,7 +406,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20),
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20)),
             {
                 *t = 8;
                 return 21; // FAILS
@@ -423,7 +423,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20);
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20));
         }
     } => Err(err) => assert_vir_error_msg(err, "Safe API violation: 'ensures' clause is nontrivial")
 }
@@ -436,7 +436,7 @@ test_verify_one_file_with_options! {
             }
 
             proof fn proof_fn(t: &mut u64) -> (r: u8)
-                ensures af(Self::foo(*t, r) ==> *t == 8 && r == 20);
+                ensures af(done(Self::foo(*t, r) ==> *t == 8 && r == 20));
         }
     } => Ok(())
 }
