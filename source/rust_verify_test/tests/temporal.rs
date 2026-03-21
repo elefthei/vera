@@ -598,7 +598,7 @@ test_verify_one_file! {
 
 // === R2: AG nesting requires temporal invariant ===
 
-// ag(au(true, φ)) with a terminating while loop → fails (AG requires infinite loop)
+// ag(au(true, φ)) with a terminating while loop → fails (AG(AF) requires loop to never exit)
 test_verify_one_file! {
     #[test] test_ag_au_without_temporal_inv verus_code! {
         fn test_ag_no_inv(x: &mut u64)
@@ -612,7 +612,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "AG temporal property requires an infinite loop")
+    } => Err(err) => assert_any_vir_error_msg(err, "AG temporal property requires the loop to never exit")
 }
 
 // Plain au(true, φ) without temporal invariant should still work (no AG invariance needed)
@@ -1402,6 +1402,108 @@ test_verify_one_file! {
                 decreases *x,
             {
                 *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// === AG(AF) soundness tests ===
+// AG(AF(Q)) requires a decreases clause for liveness progress.
+// Without decreases, there's no proof that Q is ever reached, creating
+// a soundness hole where ag(af(false)) could pass verification.
+
+// AG(AF(false)) — impossible property, must FAIL with "decreases required"
+// This is the core soundness test: false can never be reached.
+test_verify_one_file! {
+    #[test] test_soundness_ag_af_false verus_code! {
+        fn prove_false_forever(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(af(false)),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                *x = 0;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "AG(AF) temporal property requires a decreases clause")
+}
+
+// AG(AF(x == 100)) where x ∈ [0,10] — unreachable goal with decreases
+// The weakened decreases check (Q ∨ m↓) should fail when x resets from 10→0:
+// at that point Q (*x == 100) is false and m (10 - *x) increased.
+test_verify_one_file! {
+    #[test] test_soundness_ag_af_unreachable verus_code! {
+        fn never_reaches(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(af(*x == 100)),
+        {
+            loop // FAILS
+                invariant *x <= 10,
+                decreases 10 - *x as int,
+            {
+                if *x < 10 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Err(err) => assert_one_fails(err) // weakened decreases Q ∨ m↓ fails when x resets
+}
+
+// Priority scheduler starvation — ag(af(low == 1)) with low always 0
+// No decreases clause, so AG(AF) error fires.
+test_verify_one_file! {
+    #[test] test_soundness_ag_af_starved verus_code! {
+        fn priority_starve(high: &mut u64, low: &mut u64)
+            requires *old(high) == 1, *old(low) == 0,
+            ensures ag(af(*low == 1)),
+        {
+            loop
+                invariant *high == 1, *low == 0,
+            {
+                *high = 0;
+                *high = 1;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "AG(AF) temporal property requires a decreases clause")
+}
+
+// AG(AF(Q)) with valid decreases — should PASS
+// x cycles 0→1→...→10→0, and af(x == 10) is reached every 10 steps.
+// Weakened decreases: at each step either x==10 (Q holds) or m decreased.
+test_verify_one_file! {
+    #[test] test_soundness_ag_af_valid_cycle verus_code! {
+        fn cycling_counter(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(af(*x == 10)),
+        {
+            loop
+                invariant *x <= 10,
+                decreases 10 - *x as int,
+            {
+                if *x < 10 {
+                    *x = *x + 1;
+                }
+                // when *x == 10, Q holds; metric can reset next iteration
+            }
+        }
+    } => Ok(())
+}
+
+// AG(AU(P, Q)) with valid decreases — should PASS
+// The path property P (*x <= 10) holds until goal Q (*x == 0).
+test_verify_one_file! {
+    #[test] test_soundness_ag_au_valid verus_code! {
+        fn ag_au_countdown(x: &mut u64)
+            requires *old(x) == 10,
+            ensures ag(au(*x <= 10, *x == 0)),
+        {
+            loop
+                invariant *x <= 10,
+                decreases *x as int,
+            {
+                if *x > 0 {
+                    *x = (*x - 1) as u64;
+                }
+                // when *x == 0, Q holds; metric can reset
             }
         }
     } => Ok(())

@@ -117,6 +117,14 @@ impl PropositionContext {
     pub fn has_until(&self) -> bool {
         self.propositions.iter().any(|o| o.is_until())
     }
+
+    /// Returns `true` when the context contains an Until obligation nested
+    /// inside an outer AG (i.e., `requires_invariance` is true).
+    /// This detects AG(AF(Q)) and AG(AU(P,Q)) compositions which require
+    /// decreases for liveness progress.
+    pub fn has_invariance_until(&self) -> bool {
+        self.propositions.iter().any(|o| o.is_until() && o.requires_invariance())
+    }
 }
 
 pub struct PostConditionInfo {
@@ -2045,9 +2053,6 @@ fn temporal_loop_assertions(
                 let error = error(span, "AU property must hold at every step until goal is reached");
                 stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
             }
-            _ => {
-                // Next and other temporal operators not yet supported for VCGen
-            }
         }
     }
     Ok(stmts)
@@ -2742,12 +2747,13 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     }
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, inv.clone())));
                 }
-                // TICL ag_cprog_while condition 2: AG loops must never exit.
+                // TICL ag_cprog_while condition 2: AG and AG(AF) loops must never exit.
                 // The condition must always evaluate to true (loop is infinite).
                 // Assert false at break to require the break path is unreachable.
-                // Only for loops without decreases (AG = infinite loop).
-                // Loops with decreases are AU/standard and CAN exit.
-                if *is_break && !loop_info.temporal_invs.is_empty() && loop_info.decrease.len() == 0 {
+                // Applies to both pure AG (no decreases) and AG(AF) (has decreases
+                // for liveness but the loop is still semantically infinite).
+                // Pure AU loops (no AG wrapper) CAN exit when the goal is reached.
+                if *is_break && !loop_info.temporal_invs.is_empty() {
                     let has_ag = state.temporal_context.has_always();
                     if has_ag {
                         let error = error_with_label(
@@ -2921,28 +2927,43 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
             // No separate temporal_invariant annotation needed.
-            // - Loop without decreases in temporal context → AG (infinite loop)
-            // - Loop with decreases + AU obligations → AU (progress loop)
-            // - Loop with decreases + AG only → standard utility loop (not temporal)
+            //
+            // Classification:
+            // - is_ag_loop:    pure AG — infinite loop, no decreases, no AF/AU inside AG
+            // - is_ag_af_loop: AG(AF) or AG(AU) — infinite loop WITH decreases for liveness
+            //                  The loop runs forever (AG) but must make progress toward
+            //                  the AF/AU goal (requires decreases for liveness).
+            // - is_au_loop:    pure AU — terminating loop with decreases + Until
+            // - utility:       standard loop in temporal context (no temporal role)
             let is_utility_loop_in_temporal;
             if !state.temporal_context.propositions.is_empty() {
-                // For loops terminate via the iterator, not by being infinite.
-                // Only `loop` (not for-loop) without decreases is an AG loop.
-                let is_ag_loop = decrease.len() == 0 && !*is_for_loop;
-                // All Until obligations (including af(Q) = Until(true, Q)) trigger AU loop
-                // classification. This gives af(Q) the weakened decreases check (Q || m decreased).
+                // Detect AG(AF(Q)) / AG(AU(P,Q)): Until obligations nested inside AG.
+                // These have requires_invariance = true on the Until.
+                let has_invariance_until = state.temporal_context.has_invariance_until();
+
+                // Pure AG: infinite loop, no AF/AU nested inside.
+                // For loops (for-in) terminate via iterator, never AG.
+                let is_ag_loop = decrease.len() == 0 && !*is_for_loop && !has_invariance_until;
+
+                // AG(AF) / AG(AU): has Until nested inside AG.
+                // Requires decreases for liveness progress toward the AF/AU goal.
+                let is_ag_af_loop = has_invariance_until;
+
+                // Pure AU: terminating loop with Until (not nested in AG).
                 let has_au = state.temporal_context.has_until();
-                let is_au_loop = decrease.len() > 0 && has_au;
-                if is_ag_loop || is_au_loop {
+                let is_au_loop = decrease.len() > 0 && has_au && !has_invariance_until;
+
+                if is_ag_loop || is_au_loop || is_ag_af_loop {
                     for (span, inv, _, _) in invs_entry.iter() {
                         temporal_invs.push((span.clone(), inv.clone()));
                     }
                 }
-                is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop;
+                is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop && !is_ag_af_loop;
 
                 // AG soundness: collect AG properties for intermediate state checking.
-                // Inside an AG loop body, every intermediate state must satisfy φ.
-                if is_ag_loop {
+                // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
+                // for any Always obligations.
+                if is_ag_loop || is_ag_af_loop {
                     let ag_props: Vec<Exp> = state.temporal_context.propositions.iter()
                         .filter_map(|o| match o {
                             Proposition::Always { property, .. } => Some(property.clone()),
@@ -2973,9 +2994,25 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // Track that this loop discharges temporal obligations.
             if !temporal_invs.is_empty() && !state.temporal_context.propositions.is_empty() {
                 state.temporal_discharged = true;
-                if decrease.len() == 0 {
+                // AG and AG(AF) loops are both semantically infinite:
+                // - AG: no decreases, loop runs forever
+                // - AG(AF): has decreases for liveness progress, but the weakened
+                //   check (Q ∨ m↓) allows the metric to not decrease when Q holds,
+                //   so the loop can run forever.
+                if decrease.len() == 0 || state.temporal_context.has_invariance_until() {
                     state.has_infinite_temporal_loop = true;
                 }
+            }
+
+            // AG(AF) / AG(AU) soundness: require decreases for liveness progress.
+            // Without decreases, there's no proof that the AF/AU goal is ever reached.
+            // This prevents unsound proofs like ag(af(false)) from passing.
+            if !temporal_invs.is_empty() && state.temporal_context.has_invariance_until()
+                && decrease.len() == 0
+            {
+                return Err(error(&stm.span,
+                    "AG(AF) temporal property requires a decreases clause for liveness progress")
+                    .help("add a `decreases` clause that measures progress toward the AF/AU goal"));
             }
 
             // TICL: AU obligations (excluding af(Q) = Until(true, Q)) require a
@@ -3273,6 +3310,22 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             if let Some(neg_assume) = neg_assume {
                 assert!(loop_isolation);
                 stmts.push(neg_assume);
+
+                // TICL ag_cprog_while: AG and AG(AF) loops must never exit.
+                // After assuming !condition, assert false so the exit path is
+                // unreachable. This catches while-condition exits for AG loops.
+                // (Explicit break exits are caught by the break handler above.)
+                if !temporal_invs.is_empty() && state.temporal_context.has_always() {
+                    let error = error_with_label(
+                        &stm.span,
+                        "AG temporal property requires the loop to never exit \
+                         (TICL ag_cprog_while: condition must always be true)",
+                        "loop must not exit here",
+                    );
+                    stmts.push(Arc::new(StmtX::Assert(
+                        None, error, None, air::ast_util::mk_false(),
+                    )));
+                }
             }
             if ctx.debug {
                 // Add a snapshot for the state after we emerge from the while loop
@@ -3654,7 +3707,6 @@ pub(crate) fn body_stm_to_air(
                     _ => Some(path.clone()),
                 }
             }
-            _ => None,
         }
     }).collect();
 
