@@ -75,7 +75,7 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
         pub assume_specification<T, U> [Option::<(T, U)>::unzip](a: Option<(T, U)>) // FAILS
             -> (r: (Option<T>, Option<U>))
-            ensures af(false)
+            ensures af(done(false))
         ;
     } => Err(e) => assert_one_fails(e)
 }

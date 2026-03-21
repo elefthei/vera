@@ -8,7 +8,7 @@ test_verify_one_file_with_options! {
         fn cond() -> bool { true }
 
         fn test(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             let z = x;
             x = 5;
@@ -16,7 +16,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test_fails(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             x = 5;
             return 5; // FAILS
@@ -25,7 +25,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 return x;
@@ -35,7 +35,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails0(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 let z = x;
@@ -47,7 +47,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 x = 5;
@@ -58,7 +58,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails2(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             x = 1;
             loop {
@@ -70,7 +70,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails3(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 if cond() {
@@ -90,7 +90,7 @@ test_verify_one_file_with_options! {
 
         fn test() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y)
+                ensures af(done(x == y))
             {
                 let z = x;
                 x = 5;
@@ -100,7 +100,7 @@ test_verify_one_file_with_options! {
 
         fn test_fails() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 x = 5;
                 return 5;
@@ -111,7 +111,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y)
+                ensures af(done(x == y))
             {
                 loop {
                     return x;
@@ -123,7 +123,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails0() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS (requires invariant relating x to old(x))
+                ensures af(done(x == y)) // FAILS (requires invariant relating x to old(x))
             {
                 loop {
                     let z = x;
@@ -137,7 +137,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 loop {
                     x = 5;
@@ -150,7 +150,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails2() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 x = 1;
                 loop decreases 0int {
@@ -164,7 +164,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails3() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 loop {
                     if cond() {
@@ -222,7 +222,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn test_ens(mut x: int)
-            ensures af(rec(x))
+            ensures af(done(rec(x)))
         {
             x = 2;
         }
@@ -239,7 +239,7 @@ test_verify_one_file_with_options! {
 
         fn test_ens() {
             let r = |mut x: u64|
-                ensures af(rec(x))
+                ensures af(done(rec(x)))
             {
                 x = 2;
             };
@@ -264,7 +264,7 @@ test_verify_one_file_with_options! {
         fn cond() -> bool { true }
 
         fn test(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             let z = x;
             x = 5;
@@ -272,7 +272,7 @@ test_verify_one_file_with_options! {
         }
 
         fn test_fails(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             x = 5;
             return 5; // FAILS
@@ -281,7 +281,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(false)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 return x;
@@ -291,7 +291,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(false)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails0(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 let z = x;
@@ -303,7 +303,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(false)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 x = 5;
@@ -314,7 +314,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(false)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails2(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             x = 1;
             loop {
@@ -326,7 +326,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(false)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails3(mut x: u64) -> (y: u64)
-            ensures af(x == y)
+            ensures af(done(x == y))
         {
             loop {
                 if cond() {
@@ -346,7 +346,7 @@ test_verify_one_file_with_options! {
 
         fn test() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y)
+                ensures af(done(x == y))
             {
                 let z = x;
                 x = 5;
@@ -356,7 +356,7 @@ test_verify_one_file_with_options! {
 
         fn test_fails() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 x = 5;
                 return 5;
@@ -367,7 +367,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y)
+                ensures af(done(x == y))
             {
                 loop {
                     return x;
@@ -379,7 +379,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails0() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS (requires invariant relating x to old(x))
+                ensures af(done(x == y)) // FAILS (requires invariant relating x to old(x))
             {
                 loop {
                     let z = x;
@@ -393,7 +393,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 loop {
                     x = 5;
@@ -406,7 +406,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails2() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 x = 1;
                 loop decreases 0int {
@@ -420,7 +420,7 @@ test_verify_one_file_with_options! {
         #[verifier::exec_allows_no_decreases_clause]
         fn test_loop_fails3() {
             let r = |mut x: u64| -> (y: u64)
-                ensures af(x == y) // FAILS
+                ensures af(done(x == y)) // FAILS
             {
                 loop {
                     if cond() {
@@ -442,7 +442,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test1(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 x = 20;
@@ -457,7 +457,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test2(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 loop {
@@ -472,7 +472,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test3(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 loop{}
@@ -487,7 +487,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test4(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 x = 20;
@@ -502,7 +502,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test5(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 x = 20;
@@ -517,7 +517,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test6(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
                 x = 20;
@@ -531,7 +531,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test7(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             if cond() {
             } else {
@@ -546,7 +546,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test8(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             x = 20;
 
@@ -568,7 +568,7 @@ test_verify_one_file_with_options! {
         #[verifier::loop_isolation(true)]
         #[verifier::exec_allows_no_decreases_clause]
         fn test(mut x: u64) -> (y: u64)
-            ensures af(y == x)
+            ensures af(done(y == x))
         {
             loop {
                 if cond() {
