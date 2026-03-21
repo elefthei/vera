@@ -1612,3 +1612,151 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === now/done instant assertions ===
+
+// done() in ensures — checked at return (same as current af(Q), backward compatible)
+test_verify_one_file! {
+    #[test] test_done_in_ensures verus_code! {
+        fn test_done(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// Bare af(Q) still works as af(done(Q)) by default
+test_verify_one_file! {
+    #[test] test_bare_af_still_works verus_code! {
+        fn test_bare(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(*x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// now() in ensures — state predicate, NOT checked at return
+test_verify_one_file! {
+    #[test] test_now_not_checked_at_return verus_code! {
+        fn test_now(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(now(*x == 5)),
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            // x == 0 at return, but now(*x == 5) is not checked at return
+            // It was satisfied at an intermediate point (when x was 5)
+        }
+    } => Ok(())
+}
+
+// done() failing — should fail because postcondition not met at return
+test_verify_one_file! {
+    #[test] test_done_fail verus_code! {
+        fn test_done_fail(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(done(*x == 5)), // FAILS
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            // x == 0 at return, but done(*x == 5) requires *x == 5 at return
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// ag(done(Q)) should be rejected — contradiction
+test_verify_one_file! {
+    #[test] test_ag_done_rejected verus_code! {
+        fn test_ag_done(x: &mut u64)
+            ensures ag(done(*x == 0)),
+        {
+            loop { }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "contradiction")
+}
+
+// au(done(R), _) should be rejected — done cannot be path property
+test_verify_one_file! {
+    #[test] test_au_done_path_rejected verus_code! {
+        fn test_au_done_path(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(done(*x > 0), *x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "contradiction")
+}
+
+// now() with au — now(Q) as goal of au(P, now(Q))
+test_verify_one_file! {
+    #[test] test_au_now_goal verus_code! {
+        fn test_au_now(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x >= 0, now(*x == 5)),
+        {
+            while *x > 5
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            // After loop: *x == 5 — now(*x == 5) was reached
+            // Since now() is not checked at return, loop can continue past goal
+        }
+    } => Ok(())
+}
+
+// done() with au — done(Q) as goal of au(P, done(Q)) — checked at return
+test_verify_one_file! {
+    #[test] test_au_done_goal verus_code! {
+        fn test_au_done(x: &mut u64)
+            requires *old(x) == 10,
+            ensures au(*x >= 0, done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x >= 0 && *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// ag(af(done(Q))) should be rejected — AG contains done in nested AF
+test_verify_one_file! {
+    #[test] test_ag_af_done_rejected verus_code! {
+        fn test_ag_af_done(x: &mut u64)
+            ensures ag(af(done(*x == 0))),
+        {
+            loop { }
+        }
+    } => Err(err) => assert_any_vir_error_msg(err, "contradiction")
+}

@@ -33,8 +33,23 @@ struct Ctxt<'a> {
 fn is_temporal_ensures(expr: &Expr) -> bool {
     match &expr.x {
         ExprX::Temporal(..) => true,
+        ExprX::Now(..) | ExprX::Done(..) => true,
         ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
         ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
+        _ => false,
+    }
+}
+
+/// Check whether an expression contains a `done(...)` anywhere in its temporal tree.
+/// Used to detect contradictions like `ag(done(Q))` where AG requires infinite
+/// computation but done requires termination.
+fn contains_done(expr: &Expr) -> bool {
+    match &expr.x {
+        ExprX::Done(_) => true,
+        ExprX::Now(_) => false,
+        ExprX::Temporal(_, e1, e2) => {
+            contains_done(e1) || e2.as_ref().map_or(false, |e| contains_done(e))
+        }
         _ => false,
     }
 }
@@ -772,7 +787,7 @@ fn check_one_expr<Emit: EmitError>(
                 "`old` is meaningless in spec functions",
             ).help("You can dereference the mutable reference normally to get the \"current\"/\"old\" value"));
         }
-        ExprX::Temporal(op, _, _) => {
+        ExprX::Temporal(op, e1, _e2) => {
             // Allow universal temporal operators in postconditions (ensures clauses)
             // for temporal verification. Reject existential operators and
             // reject temporal operators everywhere else.
@@ -795,6 +810,25 @@ fn check_one_expr<Emit: EmitError>(
                             ));
                         }
                     }
+                    // Reject contradictory temporal combinations:
+                    // ag(done(Q)) — AG requires infinite computation, done(Q) requires termination
+                    if matches!(op, TemporalOp::AG) {
+                        if contains_done(e1) {
+                            return Err(error(
+                                &expr.span,
+                                "contradiction: ag requires infinite computation, but done requires termination",
+                            ));
+                        }
+                    }
+                    // au(done(R), _) — done(R) cannot be a path property
+                    if matches!(op, TemporalOp::AU | TemporalOp::AN) {
+                        if matches!(&e1.x, ExprX::Done(_)) {
+                            return Err(error(
+                                &e1.span,
+                                "contradiction: done cannot be a path property — done requires termination, but a path property must hold at every step",
+                            ));
+                        }
+                    }
                 }
                 _ => {
                     let op_name = match op {
@@ -811,6 +845,9 @@ fn check_one_expr<Emit: EmitError>(
                     ));
                 }
             }
+        }
+        ExprX::Now(_) | ExprX::Done(_) => {
+            // now/done are temporal instant markers — allowed inside temporal ensures
         }
         _ => {}
     }

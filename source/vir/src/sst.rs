@@ -119,6 +119,10 @@ pub enum ExpX {
     FuelConst(usize),
     /// CTL temporal operator (unary: AG/EG with None; binary: AU/AN/EU/EN with Some)
     Temporal(crate::ast::TemporalOp, Exp, Option<Exp>),
+    /// now(expr) — state predicate: holds at the current state
+    Now(Exp),
+    /// done(expr) — termination condition: holds when computation terminates
+    Done(Exp),
 }
 
 #[derive(Debug, Clone, Copy, ToDebugSNode)]

@@ -102,6 +102,9 @@ ast_enum! {
         An(Token![an]),
         Eu(Token![eu]),
         En(Token![en]),
+        // verus temporal instant markers
+        Now(Token![now]),
+        Done(Token![done]),
     }
 }
 
@@ -232,6 +235,10 @@ pub(crate) mod parsing {
                 input.parse().map(UnOp::Eu)
             } else if lookahead.peek(Token![en]) {
                 input.parse().map(UnOp::En)
+            } else if lookahead.peek(Token![now]) {
+                input.parse().map(UnOp::Now)
+            } else if lookahead.peek(Token![done]) {
+                input.parse().map(UnOp::Done)
             } else {
                 Err(lookahead.error())
             }
@@ -317,6 +324,9 @@ mod printing {
                 UnOp::An(t) => t.to_tokens(tokens),
                 UnOp::Eu(t) => t.to_tokens(tokens),
                 UnOp::En(t) => t.to_tokens(tokens),
+                // verus temporal instant markers
+                UnOp::Now(t) => t.to_tokens(tokens),
+                UnOp::Done(t) => t.to_tokens(tokens),
             }
         }
     }

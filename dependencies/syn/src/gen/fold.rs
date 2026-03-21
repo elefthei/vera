@@ -4931,6 +4931,8 @@ where
         crate::UnOp::An(_binding_0) => crate::UnOp::An(_binding_0),
         crate::UnOp::Eu(_binding_0) => crate::UnOp::Eu(_binding_0),
         crate::UnOp::En(_binding_0) => crate::UnOp::En(_binding_0),
+        crate::UnOp::Now(_binding_0) => crate::UnOp::Now(_binding_0),
+        crate::UnOp::Done(_binding_0) => crate::UnOp::Done(_binding_0),
     }
 }
 pub fn fold_uninterp<F>(f: &mut F, node: crate::Uninterp) -> crate::Uninterp

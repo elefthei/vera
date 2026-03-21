@@ -579,6 +579,12 @@ fn hash_exp<H: Hasher>(state: &mut H, exp: &Exp) {
                 hash_exp(state, e2);
             }
         }
+        Now(e) => {
+            dohash!(21; hash_exp(e));
+        }
+        Done(e) => {
+            dohash!(22; hash_exp(e));
+        }
     }
 }
 
@@ -1869,6 +1875,14 @@ fn eval_expr_internal(ctx: &Ctx, state: &mut State, exp: &Exp) -> Result<Exp, Vi
                 None => None,
             };
             exp_new(Temporal(op.clone(), inner, goal))
+        }
+        Now(inner) => {
+            let inner = eval_expr_internal(ctx, state, inner)?;
+            exp_new(Now(inner))
+        }
+        Done(inner) => {
+            let inner = eval_expr_internal(ctx, state, inner)?;
+            exp_new(Done(inner))
         }
     };
     let res = r?;

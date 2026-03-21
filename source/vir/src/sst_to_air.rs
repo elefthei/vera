@@ -58,6 +58,18 @@ use std::sync::Arc;
 /// - **Always**: Holds at every state forever (AG). Requires infinite loop.
 /// - **Until**: Holds along a path until a goal is reached (AU). Requires progress.
 ///   af(Q) desugars to Until(true, Q).
+
+/// Whether a temporal goal is a state predicate (Now) or termination condition (Done).
+/// - `Now`: the goal is checked at the state where it first holds; it is NOT checked at return.
+/// - `Done`: the goal is checked at function return (termination postcondition).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GoalKind {
+    /// State predicate — goal reached when the condition first holds (not checked at return).
+    Now,
+    /// Termination condition — goal is checked at function return.
+    Done,
+}
+
 #[derive(Clone, Debug)]
 pub enum Proposition {
     /// AG(φ): φ must hold at every state of an infinite computation.
@@ -71,6 +83,8 @@ pub enum Proposition {
     Until {
         path: Exp,
         goal: Exp,
+        /// Whether the goal is a state predicate (Now) or termination condition (Done).
+        goal_kind: GoalKind,
         /// True when nested inside an outer AG (coinductive invariance).
         requires_invariance: bool,
     },
@@ -1660,6 +1674,10 @@ pub(crate) fn exp_to_expr(ctx: &Ctx, exp: &Exp, expr_ctxt: &ExprCtxt) -> Result<
                     exp_to_expr(ctx, inner, expr_ctxt)?
                 }
             }
+        }
+        ExpX::Now(inner) | ExpX::Done(inner) => {
+            // Strip now/done wrapper: extract the first-order property inside
+            exp_to_expr(ctx, inner, expr_ctxt)?
         }
     };
     Ok(result)
@@ -3668,9 +3686,17 @@ pub(crate) fn body_stm_to_air(
                         }
                     }
                     crate::ast::TemporalOp::AU => {
+                        let raw_goal = path_prop.clone().expect("AU requires a goal (second argument)");
+                        // Detect now/done wrappers on the goal expression
+                        let (goal, goal_kind) = match &raw_goal.x {
+                            ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
+                            ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
+                            _ => (raw_goal, GoalKind::Done), // default: done (backward compat)
+                        };
                         Proposition::Until {
                             path: prop.clone(),
-                            goal: path_prop.clone().expect("AU requires a goal (second argument)"),
+                            goal,
+                            goal_kind,
                             requires_invariance: inside_ag,
                         }
                     }
@@ -3705,6 +3731,7 @@ pub(crate) fn body_stm_to_air(
                 temporal_obligations.push(Proposition::Until {
                     path: true_exp,
                     goal: ens.clone(),
+                    goal_kind: GoalKind::Done,
                     requires_invariance: false,
                 });
             }
@@ -3715,14 +3742,20 @@ pub(crate) fn body_stm_to_air(
     };
 
     // Derive ens_exprs for Return-point checking:
-    // Until goals (from af(Q), au(φ,Q)) are checked at return.
+    // Until goals with Done kind (from af(Q), af(done(Q)), au(φ,Q)) are checked at return.
+    // Until goals with Now kind (from af(now(Q))) are NOT checked at return —
+    // the goal is a state predicate satisfied at an intermediate point.
     // Always obligations have no return assertion (infinite loop, unreachable exit).
     let mut ens_exprs: Vec<(Span, Expr, Option<Arc<String>>)> = Vec::new();
     {
         let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
         for o in temporal_context.propositions.iter() {
             match o {
-                Proposition::Until { goal, .. } => {
+                Proposition::Until { goal, goal_kind, .. } => {
+                    // Now goals are not checked at return — they are state predicates
+                    if *goal_kind == GoalKind::Now {
+                        continue;
+                    }
                     // Skip goals that contain nested temporal expressions (e.g., au(φ, ag(ψ))).
                     // Nested temporal goals cannot be checked at a single return point because
                     // they require their own loop structure (AG needs an infinite loop, AU needs

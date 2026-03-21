@@ -2279,6 +2279,8 @@ impl Visitor {
             Expr::Unary(u @ ExprUnary { op: UnOp::An(..), .. }) => u,
             Expr::Unary(u @ ExprUnary { op: UnOp::Eu(..), .. }) => u,
             Expr::Unary(u @ ExprUnary { op: UnOp::En(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Now(..), .. }) => u,
+            Expr::Unary(u @ ExprUnary { op: UnOp::Done(..), .. }) => u,
             _ => return false,
         };
 
@@ -2350,6 +2352,13 @@ impl Visitor {
                     }
                     _ => unreachable!(),
                 }
+            }
+            // Temporal instant markers: now(expr), done(expr)
+            UnOp::Now(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::now(#arg));
+            }
+            UnOp::Done(..) => {
+                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::done(#arg));
             }
             _ => panic!("temporal"),
         }

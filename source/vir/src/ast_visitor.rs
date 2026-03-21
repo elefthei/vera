@@ -379,6 +379,14 @@ pub(crate) trait AstVisitor<R: Returner, Err, Scope: Scoper> {
                 };
                 R::ret(|| expr_new(ExprX::Temporal(*op, R::get(e1), e2.map(|e| R::get(e)))))
             }
+            ExprX::Now(e) => {
+                let e = self.visit_expr(e)?;
+                R::ret(|| expr_new(ExprX::Now(R::get(e))))
+            }
+            ExprX::Done(e) => {
+                let e = self.visit_expr(e)?;
+                R::ret(|| expr_new(ExprX::Done(R::get(e))))
+            }
             ExprX::Closure(bs, e) => {
                 let binders = self.visit_binders_typ(bs)?;
                 self.push_scope();

@@ -316,6 +316,14 @@ fn subst_exp_rec(ctxt: &SubstCtxt, state: &mut SubstState, exp: &Exp) -> Exp {
             let e2 = e2.as_ref().map(|e| subst_exp_rec(ctxt, state, e));
             mk_exp(ExpX::Temporal(*op, e1, e2))
         }
+        ExpX::Now(e) => {
+            let e = subst_exp_rec(ctxt, state, e);
+            mk_exp(ExpX::Now(e))
+        }
+        ExpX::Done(e) => {
+            let e = subst_exp_rec(ctxt, state, e);
+            mk_exp(ExpX::Done(e))
+        }
     }
 }
 
@@ -790,7 +798,7 @@ impl ExpX {
                 }
             }
             FuelConst(i) => (format!("fuel({i:})"), 99),
-            Old(..) | WithTriggers(..) | Temporal(..) => ("".to_string(), 99), // We don't show the user these internal expressions
+            Old(..) | WithTriggers(..) | Temporal(..) | Now(..) | Done(..) => ("".to_string(), 99), // We don't show the user these internal expressions
         };
         if precedence <= inner_precedence { s } else { format!("({})", s) }
     }

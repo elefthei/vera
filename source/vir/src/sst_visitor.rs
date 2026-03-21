@@ -397,6 +397,14 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
                 };
                 R::ret(|| exp_new(ExpX::Temporal(*op, R::get(e1), e2.map(|e| R::get(e)))))
             }
+            ExpX::Now(e) => {
+                let e = self.visit_exp(e)?;
+                R::ret(|| exp_new(ExpX::Now(R::get(e))))
+            }
+            ExpX::Done(e) => {
+                let e = self.visit_exp(e)?;
+                R::ret(|| exp_new(ExpX::Done(R::get(e))))
+            }
         }
     }
 

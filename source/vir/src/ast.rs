@@ -990,6 +990,16 @@ pub enum TemporalOp {
     EN,
 }
 
+/// Whether a temporal atomic proposition is about the current state (Now)
+/// or about program termination (Done).
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, ToDebugSNode)]
+pub enum TemporalInstant {
+    /// State predicate — holds at the current state without stepping.
+    Now,
+    /// Termination condition — program terminates with this postcondition.
+    Done,
+}
+
 /// Computation mode for assert_by_compute
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, ToDebugSNode)]
 pub enum ComputeMode {
@@ -1073,6 +1083,10 @@ pub enum ExprX {
     /// Unary: AG(φ), EG(φ) — second Expr is None
     /// Binary: AU(φ,ψ), AN(φ,ψ), EU(φ,ψ), EN(φ,ψ) — second Expr is Some
     Temporal(TemporalOp, Expr, Option<Expr>),
+    /// now(expr) — state predicate: holds at the current state
+    Now(Expr),
+    /// done(expr) — termination condition: holds when computation terminates
+    Done(Expr),
     /// Specification closure
     Closure(VarBinders<Typ>, Expr),
     /// Executable closure

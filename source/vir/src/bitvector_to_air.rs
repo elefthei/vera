@@ -744,6 +744,10 @@ fn bv_exp_to_expr(ctx: &Ctx, state: &mut State, exp: &Exp) -> Result<BvExpr, Vir
                 }
             }
         }
+        ExpX::Now(inner) | ExpX::Done(inner) => {
+            // Strip now/done wrapper for BV context
+            return bv_exp_to_expr(ctx, state, inner);
+        }
         ExpX::Interp(_) => {
             panic!("Found an interpreter expression {:?} outside the interpreter", exp)
         }

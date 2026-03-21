@@ -668,6 +668,10 @@ fn expand_exp_rec(
                 }
             }
         }
+        ExpX::Now(inner) | ExpX::Done(inner) => {
+            // Strip now/done wrapper: expand the first-order property inside
+            expand_exp_rec(ctx, ectx, state, inner, did_split_yet, negate)
+        }
         _ => leaf(state, CanExpandFurther::No(None)),
     }
 }

@@ -4129,6 +4129,16 @@ impl Debug for crate::UnOp {
                 formatter.field(v0);
                 formatter.finish()
             }
+            crate::UnOp::Now(v0) => {
+                let mut formatter = formatter.debug_tuple("Now");
+                formatter.field(v0);
+                formatter.finish()
+            }
+            crate::UnOp::Done(v0) => {
+                let mut formatter = formatter.debug_tuple("Done");
+                formatter.field(v0);
+                formatter.finish()
+            }
         }
     }
 }

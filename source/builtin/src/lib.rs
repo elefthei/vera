@@ -257,6 +257,21 @@ pub fn en(_a: bool, _b: bool) -> bool {
     unimplemented!();
 }
 
+// CTL temporal instant markers
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::now"]
+#[verifier::spec]
+pub fn now(_a: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::done"]
+#[verifier::spec]
+pub fn done(_a: bool) -> bool {
+    unimplemented!();
+}
+
 // choose(|x: t| P(x))
 #[cfg(verus_keep_ghost)]
 #[rustc_diagnostic_item = "verus::verus_builtin::choose"]
