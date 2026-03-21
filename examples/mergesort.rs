@@ -12,7 +12,7 @@ fn extend_from_idx(r: &mut Vec<u64>, v: &Vec<u64>, start: usize)
     requires
         start < v.len(),
     ensures
-        af(r@ == old(r)@ + v@.subrange(start as int, v.len() as int)),
+        af(done(r@ == old(r)@ + v@.subrange(start as int, v.len() as int))),
 {
     for i in start..v.len()
         invariant
@@ -24,7 +24,7 @@ fn extend_from_idx(r: &mut Vec<u64>, v: &Vec<u64>, start: usize)
 
 pub broadcast proof fn lemma_to_multiset_distributes_over_add(s1: Seq<u64>, s2: Seq<u64>)
     ensures
-        af(#[trigger] (s1 + s2).to_multiset() =~= s1.to_multiset().add(s2.to_multiset())),
+        af(done(#[trigger] (s1 + s2).to_multiset() =~= s1.to_multiset().add(s2.to_multiset()))),
     decreases s2.len(),
 {
     s2.to_multiset_ensures();
@@ -47,7 +47,7 @@ proof fn lemma_subrange_push(s1: Seq<u64>, start: int, end: int)
     requires
         0 <= start <= end < s1.len(),
     ensures
-        af(s1.subrange(start, end).push(s1[end]) =~= s1.subrange(start, end + 1)),
+        af(done(s1.subrange(start, end).push(s1[end]) =~= s1.subrange(start, end + 1))),
 {
 }
 
@@ -55,7 +55,7 @@ proof fn lemma_subrange_add(s1: Seq<u64>, start: int, mid: int, end: int)
     requires
         0 <= start <= mid <= end <= s1.len(),
     ensures
-        af(s1.subrange(start, mid) + s1.subrange(mid, end) =~= s1.subrange(start, end)),
+        af(done(s1.subrange(start, mid) + s1.subrange(mid, end) =~= s1.subrange(start, end))),
 {
 }
 
@@ -64,8 +64,8 @@ fn merge(v1: &Vec<u64>, v2: &Vec<u64>) -> (r: Vec<u64>)
         is_sorted(v1),
         is_sorted(v2),
     ensures
-        af(r@.to_multiset() == (v1@ + v2@).to_multiset()),
-        af(is_sorted(&r)),
+        af(done(r@.to_multiset() == (v1@ + v2@).to_multiset())),
+        af(done(is_sorted(&r))),
 {
     broadcast use lemma_to_multiset_distributes_over_add;
 
@@ -146,8 +146,8 @@ fn merge(v1: &Vec<u64>, v2: &Vec<u64>) -> (r: Vec<u64>)
 
 fn merge_sort(v: &Vec<u64>) -> (r: Vec<u64>)
     ensures
-        af(r@.to_multiset() == (*v)@.to_multiset()),
-        af(is_sorted(&r)),
+        af(done(r@.to_multiset() == (*v)@.to_multiset())),
+        af(done(is_sorted(&r))),
     decreases v.len(),
 {
     let n = v.len();

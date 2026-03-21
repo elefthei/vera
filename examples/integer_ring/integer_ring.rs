@@ -20,7 +20,7 @@ proof fn mod_of_mul(a: nat, b: nat)
     requires
         b > 0,
     ensures
-        af((a * b) % b == 0),
+        af(done((a * b) % b == 0)),
 {
     mod_of_mul_int(a as int, b as int);
     // if a == 0 {}
@@ -39,7 +39,7 @@ pub proof fn mod_add_zero_int(a: int, b: int, c: int)
         a % c == 0,
         b % c == 0,
     ensures
-        af((a + b) % c == 0),
+        af(done((a + b) % c == 0)),
 {
 }
 
@@ -50,7 +50,7 @@ pub proof fn mod_add_zero(a: nat, b: nat, c: nat)
         b % c == 0,
         c > 0,
     ensures
-        af((a + b) % c == 0),
+        af(done((a + b) % c == 0)),
 {
     mod_add_zero_int(a as int, b as int, c as int);
 }
@@ -60,7 +60,7 @@ pub proof fn subtract_mod_aligned_int(a: int, b: int)
     requires
         b != 0,
     ensures
-        af((a - (a % b)) % b == 0),
+        af(done((a - (a % b)) % b == 0)),
 {
 }
 
@@ -69,7 +69,7 @@ pub proof fn subtract_mod_aligned(a: nat, b: nat)
     requires
         0 < b,
     ensures
-        af((a - (a % b)) % (b as int) == 0),
+        af(done((a - (a % b)) % (b as int) == 0)),
 {
     subtract_mod_aligned_int(a as int, b as int);
 }
@@ -81,7 +81,7 @@ pub proof fn mod_mult_zero_implies_mod_zero_int(a: int, b: int, c: int)
         b * c != 0,
         a % (b * c) == 0,
     ensures
-        af(a % b == 0),
+        af(done(a % b == 0)),
 {
 }
 
@@ -92,7 +92,7 @@ pub proof fn mod_mult_zero_implies_mod_zero(a: nat, b: nat, c: nat)
         b > 0,
         c > 0,
     ensures
-        af(a % b == 0),
+        af(done(a % b == 0)),
 {
     mod_mult_zero_implies_mod_zero_int(a as int, b as int, c as int);
 }
@@ -104,7 +104,7 @@ pub proof fn subtract_mod_eq_zero_int(a: int, b: int, c: int)
         a % c == 0,
         b % c == 0,
     ensures
-        af((b - a) % c == 0),
+        af(done((b - a) % c == 0)),
 {
 }
 
@@ -116,7 +116,7 @@ pub proof fn subtract_mod_eq_zero(a: nat, b: nat, c: nat)
         a <= b,
         c > 0,
     ensures
-        af((b - a) % (c as int) == 0),
+        af(done((b - a) % (c as int) == 0)),
 {
     subtract_mod_eq_zero_int(a as int, b as int, c as int);
 }
@@ -129,7 +129,7 @@ pub proof fn multiple_offsed_mod_gt_0_int(a: int, b: int, c: int, ac: int, bc: i
         bc == b % c,
         abc == (a - b) % c,
     ensures
-        af((ac - bc - abc) % c == 0),
+        af(done((ac - bc - abc) % c == 0)),
 {
 }
 
@@ -141,7 +141,7 @@ pub proof fn multiple_offsed_mod_gt_0(a: nat, b: nat, c: nat)
         b % c == 0,
         a % c > 0,
     ensures
-        af((a - b) % (c as int) > 0),
+        af(done((a - b) % (c as int) > 0)),
 {
     multiple_offsed_mod_gt_0_int(
         a as int,
@@ -160,7 +160,7 @@ pub proof fn FundamentalDivMod(x: int, d: int)
     requires
         d > 0,
     ensures
-        af(x == d * (x / d) + (x % d)),
+        af(done(x == d * (x / d) + (x % d))),
 {
 }
 
@@ -174,7 +174,7 @@ pub proof fn LemmaSmallMod(x: int, m: int)
         m > 0,
         x < m,
     ensures
-        af(x % m == x),
+        af(done(x % m == x)),
 {
 }
 
@@ -184,10 +184,10 @@ pub proof fn LemmaModBasics(x: int, m: int)
     requires
         m > 0,
     ensures
-        af(m % m == 0),
-        af((x % m) % m == x % m),
-        af(0 <= x % m),
-        af(x % m < m),
+        af(done(m % m == 0)),
+        af(done((x % m) % m == x % m)),
+        af(done(0 <= x % m)),
+        af(done(x % m < m)),
 {
 }
 
@@ -198,7 +198,7 @@ pub proof fn LemmaModDecreases(x: int, m: int)
         m > 0,
         x >= 0,
     ensures
-        af(x % m <= x),
+        af(done(x % m <= x)),
 {
 }
 
@@ -210,7 +210,7 @@ pub proof fn LemmaModIsZero(x: int, m: int)
         x > 0,
         x % m == 0,
     ensures
-        af(m <= x),
+        af(done(m <= x)),
 {
 }
 
@@ -219,7 +219,7 @@ pub proof fn LemmaModMultiplesBasic(x: int, m: int)
     requires
         m != 0,
     ensures
-        af((x * m) % m == 0),
+        af(done((x * m) % m == 0)),
 {
 }
 
@@ -228,8 +228,8 @@ pub proof fn LemmaModMultipleVanish(b: int, m: int)
     requires
         m != 0,
     ensures
-        af((b + m) % m == b % m),
-        af((b - m) % m == b % m),
+        af(done((b + m) % m == b % m)),
+        af(done((b - m) % m == b % m)),
 {
 }
 
@@ -237,10 +237,10 @@ pub proof fn LemmaModMultiplesVanish(a: int, b: int, m: int)
     by (integer_ring)
     requires m != 0,
     ensures
-        af((b + a * m) % m == b % m),
-        af((b + m * a) % m == b % m),
-        af((b - a * m) % m == b % m),
-        af((b - m * a) % m == b % m),
+        af(done((b + a * m) % m == b % m)),
+        af(done((b + m * a) % m == b % m)),
+        af(done((b - a * m) % m == b % m)),
+        af(done((b - m * a) % m == b % m)),
 {
 }
 
@@ -249,7 +249,7 @@ pub proof fn LemmaAddModNoopLeft(x: int, y: int, m: int)
     requires
         m != 0,
     ensures
-        af(((x % m) + y) % m == (x + y) % m),
+        af(done(((x % m) + y) % m == (x + y) % m)),
 {
 }
 
@@ -258,7 +258,7 @@ pub proof fn LemmaSubModNoopRight(x: int, y: int, m: int)
     requires
         m != 0,
     ensures
-        af((x - (y % m)) % m == (x - y) % m),
+        af(done((x - (y % m)) % m == (x - y) % m)),
 {
 }
 
@@ -267,7 +267,7 @@ pub proof fn LemmaModNegNeg(x: int, d: int)
     requires
         d != 0,
     ensures
-        af(x % d == (x * (1 - d)) % d),
+        af(done(x % d == (x * (1 - d)) % d)),
 {
 }
 
@@ -276,7 +276,7 @@ pub proof fn LemmaMulModNoopRight(x: int, y: int, m: int)
     requires
         m != 0,
     ensures
-        af(x * (y % m) % m == (x * y) % m),
+        af(done(x * (y % m) % m == (x * y) % m)),
 {
 }
 
@@ -285,23 +285,23 @@ pub proof fn LemmaMulModNoopGeneral(x: int, y: int, m: int)
     requires
         m != 0,
     ensures
-        af(((x % m) * y) % m == (x * y) % m),
-        af((x * (y % m)) % m == (x * y) % m),
-        af(((x % m) * (y % m)) % m == (x * y) % m),
+        af(done(((x % m) * y) % m == (x * y) % m)),
+        af(done((x * (y % m)) % m == (x * y) % m)),
+        af(done(((x % m) * (y % m)) % m == (x * y) % m)),
 {
 }
 
 pub proof fn LemmaMulIsDistributive(x: int, y: int, z: int)
     by (integer_ring)
     ensures
-        af(x * (y + z) == x * y + x * z),
-        af(x * (y - z) == x * y - x * z),
-        af((y + z) * x == y * x + z * x),
-        af((y - z) * x == y * x - z * x),
-        af(x * (y + z) == (y + z) * x),
-        af(x * (y - z) == (y - z) * x),
-        af(x * y == y * x),
-        af(x * z == z * x),
+        af(done(x * (y + z) == x * y + x * z)),
+        af(done(x * (y - z) == x * y - x * z)),
+        af(done((y + z) * x == y * x + z * x)),
+        af(done((y - z) * x == y * x - z * x)),
+        af(done(x * (y + z) == (y + z) * x)),
+        af(done(x * (y - z) == (y - z) * x)),
+        af(done(x * y == y * x)),
+        af(done(x * z == z * x)),
 {
 }
 

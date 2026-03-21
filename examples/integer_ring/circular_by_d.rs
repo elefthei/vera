@@ -22,7 +22,7 @@ pub proof fn lemma_mod_subtract_helper(
         small_y == y % d,
         tmp1 == (x + y) % d,
     ensures
-        af((small_x + y - tmp1) % d == 0),
+        af(done((small_x + y - tmp1) % d == 0)),
 {
 }
 
@@ -33,7 +33,7 @@ pub proof fn lemma_mod_subtract(x: int, y: int, d: int)
         (x % d) + y >= d,
         0 <= y < d,
     ensures
-        af((x % d) + y - d == (x + y) % d),
+        af(done((x % d) + y - d == (x + y) % d)),
 {
     let small_x = x % d;
     let small_y = y % d;
@@ -58,7 +58,7 @@ pub proof fn lemma_mod_difference_equal_helper(
         tmp1 == (small_y - small_x) % d,
         tmp2 == (y - x) % d,
     ensures
-        af((tmp1 - tmp2) % d == 0),
+        af(done((tmp1 - tmp2) % d == 0)),
 {
 }
 
@@ -70,7 +70,7 @@ pub proof fn lemma_mod_difference_equal(x: int, y: int, d: int)
         x % d <= y % d,
         y - x < d,
     ensures
-        af(y % d - x % d == y - x),
+        af(done(y % d - x % d == y - x)),
 {
     let small_x = x % d;
     let small_y = y % d;
@@ -94,7 +94,7 @@ pub proof fn lemma_mod_wrapped_len_helper(
         small_y == y % d,
         tmp1 == (d - small_x + small_y) % d,
     ensures
-        af((y - x - tmp1) % d == 0),
+        af(done((y - x - tmp1) % d == 0)),
 {
 }
 
@@ -106,7 +106,7 @@ pub proof fn lemma_mod_wrapped_len(x: int, y: int, d: int)
         x % d > y % d,
         y - x < d,
     ensures
-        af(d - (x % d) + (y % d) == y - x),
+        af(done(d - (x % d) + (y % d) == y - x)),
 {
     let small_x = x % d;
     let small_y = y % d;
@@ -119,7 +119,7 @@ pub proof fn lemma_mod_between_helper(x: int, y: int, d: int)
     requires
         d != 0,
     ensures
-        af((x % d - y % d) % d == (x - y) % d),
+        af(done((x % d - y % d) % d == (x - y) % d)),
 {
 }
 
@@ -134,7 +134,7 @@ pub proof fn lemma_mod_between(d: int, x: int, y: int, z: int)
         y - x <= d,
         x <= z < y,
     ensures
-        af(x % d <= z % d < y % d),
+        af(done(x % d <= z % d < y % d)),
 {
     lemma_mod_between_helper(x, z, d);
     lemma_mod_between_helper(y, z, d);
@@ -153,7 +153,7 @@ pub proof fn lemma_mod_not_between(d: int, x: int, y: int, z: int)
         y - x <= d,
         x <= z < y,
     ensures
-        af(z % d < y % d || z % d >= x % d),
+        af(done(z % d < y % d || z % d >= x % d)),
 {
     lemma_mod_between_helper(x, z, d);
     lemma_mod_between_helper(z, y, d);

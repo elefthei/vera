@@ -26,7 +26,7 @@ proof fn lemma_fib_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fib(i) <= fib(j)),
+        af(done(fib(i) <= fib(j))),
     decreases j - i,
 {
     if j < 2 {
@@ -45,7 +45,7 @@ fn fib_impl(n: u64) -> (result: u64)
     requires
         fib(n as nat) <= u64::MAX
     ensures
-        af(result == fib(n as nat)),
+        af(done(result == fib(n as nat))),
 {
     if n == 0 {
         return 0;
@@ -71,7 +71,7 @@ proof fn lemma_fib_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fib(i) <= fib(j)),
+        af(done(fib(i) <= fib(j))),
 {
 }
 // ANCHOR_END: fib_mono_no_proof
@@ -83,7 +83,7 @@ proof fn lemma_fib_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fib(i) <= fib(j)),
+        af(done(fib(i) <= fib(j))),
 {
     if j < 2 {
     } else if i == j {
@@ -101,7 +101,7 @@ fn fib_impl(n: u64) -> (result: u64)
     requires
         fib(n as nat) <= u64::MAX
     ensures
-        af(result == fib(n as nat)),
+        af(done(result == fib(n as nat))),
 {
     if n == 0 {
         return 0;
@@ -134,7 +134,7 @@ fn fib_checked(n: u64) -> (result: u64)
     requires
         fib(n as nat) <= u64::MAX
     ensures
-        af(result == fib(n as nat)),
+        af(done(result == fib(n as nat))),
 {
     if n == 0 {
         return 0;
@@ -162,10 +162,10 @@ fn fib_checked(n: u64) -> (result: u64)
 // ANCHOR: fib_checked_no_precondition
 fn fib_checked_no_precondition(n: u64) -> (result: Option<u64>)
     ensures
-        af(match result {
+        af(done(match result {
             Some(x) => x == fib(n as nat),
             None => fib(n as nat) > u64::MAX,
-        }),
+        })),
 {
     if n == 0 {
         return Some(0);
@@ -210,7 +210,7 @@ spec fn sum(s: Seq<i64>) -> int
 // ANCHOR: bank_no_proof
 fn non_negative(operations: &[i64]) -> (r: bool)
     ensures
-        af(r == always_non_negative(operations@)),
+        af(done(r == always_non_negative(operations@))),
 {
     let mut s = 0i128;
     for i in 0usize..operations.len()
@@ -228,7 +228,7 @@ fn non_negative(operations: &[i64]) -> (r: bool)
 // ANCHOR: bank_final
 fn non_negative(operations: &[i64]) -> (r: bool)
     ensures
-        af(r == always_non_negative(operations@)),
+        af(done(r == always_non_negative(operations@))),
 {
     let mut s = 0i128;
     for i in 0usize..operations.len()

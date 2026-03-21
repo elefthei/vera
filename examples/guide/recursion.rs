@@ -28,7 +28,7 @@ spec fn bogus(i: int) -> int {
 // ANCHOR: exploit_bogus
 proof fn exploit_bogus()
     ensures
-        af(false),
+        af(done(false)),
 {
     assert(bogus(3) == bogus(3) + 1);
 }
@@ -91,7 +91,7 @@ spec fn min(x: int, y: int) -> int {
 // ANCHOR: rec_fail
 fn rec_triangle(n: u32) -> (sum: u32)
     ensures
-        af(sum == triangle(n as nat)),
+        af(done(sum == triangle(n as nat))),
 {
     if n == 0 {
         0
@@ -107,7 +107,7 @@ fn rec_triangle(n: u32) -> (sum: u32)
     requires
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(sum == triangle(n as nat)),
+        af(done(sum == triangle(n as nat))),
     decreases n,
 {
     if n == 0 {
@@ -123,7 +123,7 @@ fn mut_triangle(n: u32, sum: &mut u32)
     requires
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(*sum == triangle(n as nat)),
+        af(done(*sum == triangle(n as nat))),
     decreases n,
 {
     if n == 0 {
@@ -143,7 +143,7 @@ fn tail_triangle(n: u32, idx: u32, sum: &mut u32)
         *old(sum) == triangle(idx as nat),
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(*sum == triangle(n as nat)),
+        af(done(*sum == triangle(n as nat))),
 {
     if idx < n {
         let idx = idx + 1;
@@ -157,7 +157,7 @@ fn tail_triangle(n: u32, idx: u32, sum: &mut u32)
 // ANCHOR: mono
 proof fn triangle_is_monotonic(i: nat, j: nat)
     ensures
-        af(i <= j ==> triangle(i) <= triangle(j)),
+        af(done(i <= j ==> triangle(i) <= triangle(j))),
     decreases j,
 {
     // We prove the statement `i <= j ==> triangle(i) <= triangle(j)`
@@ -185,7 +185,7 @@ proof fn triangle_is_monotonic(i: nat, j: nat)
 // ANCHOR: circular
 proof fn circular_reasoning()
     ensures
-        af(false),
+        af(done(false)),
 {
     circular_reasoning(); // FAILS, does not terminate
 }
@@ -199,7 +199,7 @@ fn tail_triangle(n: u32, idx: u32, sum: &mut u32)
         *old(sum) == triangle(idx as nat),
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(*sum == triangle(n as nat)),
+        af(done(*sum == triangle(n as nat))),
     decreases n - idx,
 {
     if idx < n {
@@ -218,7 +218,7 @@ fn loop_triangle(n: u32) -> (sum: u32)
     requires
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(sum == triangle(n as nat)),
+        af(done(sum == triangle(n as nat))),
 {
     let mut sum: u32 = 0;
     let mut idx: u32 = 0;
@@ -242,7 +242,7 @@ fn loop_triangle(n: u32) -> (sum: u32)
 // ANCHOR: loop_return
 fn loop_triangle_return(n: u32) -> (sum: u32)
     ensures
-        af(sum == triangle(n as nat) || (sum == 0xffff_ffff && triangle(n as nat) > u32::MAX)),
+        af(done(sum == triangle(n as nat) || (sum == 0xffff_ffff && triangle(n as nat) > u32::MAX))),
 {
     let mut sum: u32 = 0;
     let mut idx: u32 = 0;
@@ -269,7 +269,7 @@ fn loop_triangle_return(n: u32) -> (sum: u32)
 // ANCHOR: loop_break
 fn loop_triangle_break(n: u32) -> (sum: u32)
     ensures
-        af(sum == triangle(n as nat) || (sum == 0xffff_ffff && triangle(n as nat) > u32::MAX)),
+        af(done(sum == triangle(n as nat) || (sum == 0xffff_ffff && triangle(n as nat) > u32::MAX))),
 {
     let mut sum: u32 = 0;
     let mut idx: u32 = 0;
@@ -300,7 +300,7 @@ fn for_loop_triangle(n: u32) -> (sum: u32)
     requires
         triangle(n as nat) <= u32::MAX,
     ensures
-        af(sum == triangle(n as nat)),
+        af(done(sum == triangle(n as nat))),
 {
     let mut sum: u32 = 0;
 
@@ -372,8 +372,8 @@ spec fn is_odd(i: int) -> bool
 
 proof fn even_odd_mod2(i: int)
     ensures
-        af(is_even(i) <==> i % 2 == 0),
-        af(is_odd(i) <==> i % 2 == 1),
+        af(done(is_even(i) <==> i % 2 == 0)),
+        af(done(is_odd(i) <==> i % 2 == 1)),
     decreases abs(i),
 {
     if i < 0 {
@@ -432,8 +432,8 @@ spec fn is_odd(i: int) -> bool
 
 proof fn even_odd_mod2(i: int)
     ensures
-        af(is_even(i) <==> i % 2 == 0),
-        af(is_odd(i) <==> i % 2 == 1),
+        af(done(is_even(i) <==> i % 2 == 0)),
+        af(done(is_odd(i) <==> i % 2 == 1)),
     decreases abs(i),
 {
     reveal_with_fuel(is_odd, 2);
