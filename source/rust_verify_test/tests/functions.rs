@@ -19,7 +19,7 @@ test_verify_one_file! {
 
         /// prove a rule for simplifying drop(drop(f, ...))
         proof fn test_use_fun_ext2<A>(f: spec_fn(int) -> A, k1: nat, k2: nat)
-            ensures af(drop(drop(f, k1), k2) === drop(f, k1 + k2)),
+            ensures af(done(drop(drop(f, k1), k2) === drop(f, k1 + k2))),
         {
             assert(drop(drop(f, k1), k2) =~= drop(f, k1 + k2));
         }
@@ -30,7 +30,7 @@ test_verify_one_file! {
     #[test] test_ensures_returns_default_regression_392_1 verus_code! {
         fn returns_nothing(a: u8, b: u8)
             requires a == b,
-            ensures af(a == b),
+            ensures af(done(a == b)),
         {
         }
 
@@ -94,7 +94,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_returns_named_unit verus_code! {
         proof fn test() -> (u: ())
-            ensures af(u == ()),
+            ensures af(done(u == ())),
         {
         }
     } => Ok(())
@@ -124,7 +124,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_ensures_name_collision verus_code! {
         fn test_fn() -> (test_fn: i32)
-            ensures af(test_fn == 42),
+            ensures af(done(test_fn == 42)),
         {
             42
         }

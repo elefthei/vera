@@ -6,7 +6,7 @@ use common::*;
 test_verify_one_file! {
     #[test] recursive_exec_function_with_decreases_clause verus_code! {
         fn a(i: u64) -> (r: u64)
-            ensures af(r == i)
+            ensures af(done(r == i))
             decreases i
         {
             if i == 0 {
@@ -21,7 +21,7 @@ test_verify_one_file! {
 test_verify_one_file_with_options! {
     #[test] recursive_exec_function_with_decreases_clause_exec_allows_no_decreases_clause ["exec_allows_no_decreases_clause"] => verus_code! {
         fn a(i: u64) -> (r: u64)
-            ensures af(r == i)
+            ensures af(done(r == i))
             decreases i
         {
             if i == 0 {
@@ -36,7 +36,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file_with_options! {
     #[test] recursive_exec_function_with_decreases_clause_exec_allows_no_decreases_clause_fails ["exec_allows_no_decreases_clause"] => verus_code! {
         fn a(i: u64) -> (r: u64)
-            ensures af(r == i)
+            ensures af(done(r == i))
             decreases i
         {
             if i == 0 {
@@ -51,7 +51,7 @@ test_verify_one_file_with_options! {
 test_verify_one_file! {
     #[test] recursive_exec_function_needs_decreases_clause verus_code! {
         fn a(i: u64) -> (r: u64)
-            ensures af(r == i)
+            ensures af(done(r == i))
         {
             if i == 0 {
                 return 0;
@@ -233,7 +233,7 @@ test_verify_one_file! {
 test_verify_one_file_with_options! {
     #[test] nontermination_infinite_loop_allowed_with_attribute ["exec_allows_no_decreases_clause"] => verus_code! {
         fn a(i: u64) -> (r: u64)
-            ensures af(false)
+            ensures af(done(false))
         {
             loop {}
         }

@@ -10,7 +10,7 @@ test_verify_one_file! {
     simple_1 verus_code! {
         proof fn test(x: int, y: int, z:int, m:int) by(integer_ring)
           requires (x-y) % m == 0, m != 0,
-          ensures af((x*z- y*z) % m == 0)
+          ensures af(done((x*z- y*z) % m == 0))
         {}
     } => Ok(())
 }
@@ -21,7 +21,7 @@ test_verify_one_file! {
     simple_2 verus_code! {
         proof fn test(x: int, y: int, z:int) by(integer_ring)
             ensures
-                af((x+y+z)*(x+y+z) == x*x + y*y + z*z + 2*(x*y + y*z + z*x))
+                af(done((x+y+z)*(x+y+z) == x*x + y*y + z*z + 2*(x*y + y*z + z*x)))
         {}
     } => Ok(())
 }
@@ -37,7 +37,7 @@ test_verify_one_file! {
                 (R_INV * R - 1) % M == 0,
                 (RR - R * R % M) == 0,
             ensures
-                af((a - s*R) % M == 0)
+                af(done((a - s*R) % M == 0))
         {}
     } => Ok(())
 }
@@ -54,7 +54,7 @@ test_verify_one_file! {
                 (m0d * m0 - (BASE-1)) % BASE == 0,
                 (ui - p1_full * m0d) % BASE == 0,
             ensures
-                af(p2_full % BASE == 0)
+                af(done(p2_full % BASE == 0))
         {}
     } => Ok(())
 }
@@ -92,7 +92,7 @@ test_verify_one_file! {
                 p14 == x_2 * y_3,
                 p15 == x_3 * y_3,
             ensures
-                af(x * y == p0 + (p1 + p2) * B + (p3 + p4 + p5) * B * B + (p6 + p7 + p8 + p9) * B * B * B + (p10 + p11 + p12) * B * B * B * B + (p13 + p14) * B * B * B * B * B + p15 * B * B * B * B * B * B)
+                af(done(x * y == p0 + (p1 + p2) * B + (p3 + p4 + p5) * B * B + (p6 + p7 + p8 + p9) * B * B * B + (p10 + p11 + p12) * B * B * B * B + (p13 + p14) * B * B * B * B * B + p15 * B * B * B * B * B * B))
 
         {}
     } => Ok(())
@@ -116,7 +116,7 @@ test_verify_one_file! {
                 square(y) == y*y,
                 quad(x) == x*x*x*x,
                 quad(y) == y*y*y*y,
-            ensures af((quad(x) - quad(y)) % m == 0)
+            ensures af(done((quad(x) - quad(y)) % m == 0))
         {}
     } => Ok(())
 }
@@ -130,7 +130,7 @@ test_verify_one_file! {
             requires
                 m != 0,
                 (x-y) % m == 0
-            ensures af((x*z + y*z) % m == 0) //FAILS
+            ensures af(done((x*z + y*z) % m == 0)) //FAILS
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -141,7 +141,7 @@ test_verify_one_file! {
     simple_fail_2 verus_code! {
         proof fn test(x: int, y: int, z:int) by(integer_ring)
             ensures
-                af((x+y+z)*(x+y+z) == x*x + y*y + z + 2*(x*y + y*z + z*x)) // FAILS
+                af(done((x+y+z)*(x+y+z) == x*x + y*y + z + 2*(x*y + y*z + z*x))) // FAILS
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -178,7 +178,7 @@ test_verify_one_file! {
                 p13 == x_3 * y_2,
                 p14 == x_2 * y_3,
                 p15 == x_3 * y_3,
-            ensures af(x * y == p0 + (p1 + p2) * B + (p3 + p4 + p5) * B * B + (p6 + p7 + p8 + p9) * B * B * B + (p10 + p11 + p12) * B * B * B * B + (p13 + p14) * B * B * B * B * B + p15 * B * B * B * B * B * B) // FAILS
+            ensures af(done(x * y == p0 + (p1 + p2) * B + (p3 + p4 + p5) * B * B + (p6 + p7 + p8 + p9) * B * B * B + (p10 + p11 + p12) * B * B * B * B + (p13 + p14) * B * B * B * B * B + p15 * B * B * B * B * B * B)) // FAILS
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -192,7 +192,7 @@ test_verify_one_file! {
               m != 0,
               (x-y) % m == 0
             ensures
-              af((x*z - y*z) % m == 0)
+              af(done((x*z - y*z) % m == 0))
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -203,7 +203,7 @@ test_verify_one_file! {
     reserved_keyword verus_code! {
         proof fn test(singular_tmp_1 : int, y: int, z:int, m:int) by(integer_ring)
             requires (singular_tmp_1 - y) % m == 0, m != 0,
-            ensures af((singular_tmp_1 * z- y*z) % m == 0)
+            ensures af(done((singular_tmp_1 * z- y*z) % m == 0))
         {}
     } => Ok(())
 }
@@ -213,7 +213,7 @@ test_verify_one_file! {
     #[cfg_attr(not(feature = "singular"), ignore)]
     div_by_zero_fail verus_code! {
         proof fn may_div_zero(x : int) by(integer_ring)
-            ensures af(x % x == 0)
+            ensures af(done(x % x == 0))
         {}
 
         proof fn div_by_zero_fails() {
@@ -231,9 +231,9 @@ test_verify_one_file! {
         pub proof fn test(x: int, y: int, m: int) by(integer_ring)
             requires m != 0,
             ensures
-                af(((x % m) * y) % m == (x * y) % m),
-                af((x * (y % m)) % m == (x * y) % m),
-                af(((x % m) * (y % m)) % m == (x * y) % m)
+                af(done(((x % m) * y) % m == (x * y) % m)),
+                af(done((x * (y % m)) % m == (x * y) % m)),
+                af(done(((x % m) * (y % m)) % m == (x * y) % m))
         {}
     } => Ok(())
 }
@@ -245,9 +245,9 @@ test_verify_one_file! {
         pub proof fn test(x: int, y: int, m: int) by(integer_ring)
             requires m != 0,
             ensures
-                af(((x % m) * y) % m == (x * y) % m),
-                af(((x % m) * (y % m)) % m == (x) % m), // FAILS
-                af((x * (y % m)) % m == (x * y) % m)
+                af(done(((x % m) * y) % m == (x * y) % m)),
+                af(done(((x % m) * (y % m)) % m == (x) % m)), // FAILS
+                af(done((x * (y % m)) % m == (x * y) % m))
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -259,9 +259,9 @@ test_verify_one_file! {
         pub proof fn test(x: int, y: int, m: int) by(integer_ring)
             requires m != 0,
             ensures
-                af(((x % m) * y) % m == (x * y) % m),
-                af(((x % m) * (y % m)) % m == (x) % m), // FAILS
-                af((x * (y % m)) % m == (x) % m) // also FAILS (but should not report this, since we stop at the first failure)
+                af(done(((x % m) * y) % m == (x * y) % m)),
+                af(done(((x % m) * (y % m)) % m == (x) % m)), // FAILS
+                af(done((x * (y % m)) % m == (x) % m)) // also FAILS (but should not report this, since we stop at the first failure)
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -272,7 +272,7 @@ test_verify_one_file! {
     gt_not_supported verus_code! {
         proof fn test(x: int, y: int, z:int, m:int) by(integer_ring)
             requires (x-y) % m > 0  //FAILS (not supported)
-            ensures af((x*z + y*z) % m == 0)
+            ensures af(done((x*z + y*z) % m == 0))
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -283,7 +283,7 @@ test_verify_one_file! {
     lt_not_supported verus_code! {
         proof fn test(x: int, y: int, z:int, m:int) by(integer_ring)
             requires (x-y) % m == 0
-            ensures af((x*z + y*z) % m < 0) //FAILS (not supported)
+            ensures af(done((x*z + y*z) % m < 0)) //FAILS (not supported)
         {}
     } => Err(err) => assert_one_fails(err)
 }
@@ -300,7 +300,7 @@ test_verify_one_file! {
                 tmp1 == (small_y - small_x) % d,
                 tmp2 == (y - x) % d,
             ensures
-                af((tmp1 - tmp2) % d == 0)
+                af(done((tmp1 - tmp2) % d == 0))
         {}
     } => Ok(err) => {
         assert_eq!(err.errors.len(), 0);

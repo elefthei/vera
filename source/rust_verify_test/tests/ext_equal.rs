@@ -38,7 +38,7 @@ test_verify_one_file! {
 
         #[verifier::auto_ext_equal(assert)]
         proof fn test_no_auto_ext_equal_in_ensures(s1: Seq<u8>, s2: Seq<u8>)
-            ensures af(s1.len() == 1 && s2.len() == 1 && s1[0] == s2[0] ==> s1 == s2) // FAILS
+            ensures af(done(s1.len() == 1 && s2.len() == 1 && s1[0] == s2[0] ==> s1 == s2)) // FAILS
         {
         }
     } => Err(err) => assert_one_fails(err)
@@ -366,7 +366,7 @@ const SEQ4: &str = verus_code_str! {
         // TODO: make this broadcast_forall
         pub proof fn lemma_ext_equal<A>(x: Seq4<A>, y: Seq4<A>)
             ensures
-                af(x =~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] == y[i])),
+                af(done(x =~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] == y[i]))),
         {
             if (forall|i: int| 0 <= i < 4 ==> x[i] == y[i]) {
                 assert(x[0] == y[0]);
@@ -378,7 +378,7 @@ const SEQ4: &str = verus_code_str! {
         // TODO: make this broadcast_forall
         pub proof fn lemma_ext_equal_deep<A>(x: Seq4<A>, y: Seq4<A>)
             ensures
-                af(x =~~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] =~~= y[i])),
+                af(done(x =~~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] =~~= y[i]))),
         {
             lemma_ext_equal(x, y);
         }
@@ -527,7 +527,7 @@ test_verify_one_file! {
 
         #[verifier::auto_ext_equal(assert, assert_by, ensures)]
         proof fn test_ensures(s: Seq<int>) -> (t: Seq<int>)
-            ensures af(s == t),
+            ensures af(done(s == t)),
         {
             let t = s.push(5).drop_last();
             t
@@ -535,7 +535,7 @@ test_verify_one_file! {
 
         #[verifier::auto_ext_equal(assert, assert_by)]
         proof fn test_ensures(s: Seq<int>) -> (t: Seq<int>)
-            ensures af(s == t), // FAILS
+            ensures af(done(s == t)), // FAILS
         {
             let t = s.push(5).drop_last();
             t
@@ -543,7 +543,7 @@ test_verify_one_file! {
 
         #[verifier::auto_ext_equal(ensures)]
         proof fn test_ensures_with_return_stmt(s: Seq<int>) -> (t: Seq<int>)
-            ensures af(s == t),
+            ensures af(done(s == t)),
         {
             let t = s.push(5).drop_last();
             return t;
@@ -551,7 +551,7 @@ test_verify_one_file! {
 
         trait Tr : Sized {
             proof fn foo(self) -> ((lhs, rhs): (Self, Self))
-                ensures af(lhs == rhs);
+                ensures af(done(lhs == rhs));
         }
 
         struct X { }
@@ -581,7 +581,7 @@ test_verify_one_file! {
         #[verifier::auto_ext_equal(ensures)]
         impl Tr2 for Seq<int> {
             proof fn foo(self) -> ((lhs, rhs): (Self, Self))
-                ensures af(lhs == rhs)
+                ensures af(done(lhs == rhs))
             {
                 let s = self;
                 let t = s.push(5).drop_last();

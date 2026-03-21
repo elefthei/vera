@@ -6,7 +6,7 @@ use common::*;
 test_verify_one_file! {
     #[test] test_stmts_expr_1 verus_code! {
         fn id(v: u64) -> (ret: u64)
-            ensures af(v == ret),
+            ensures af(done(v == ret)),
         {
             v
         }
@@ -25,7 +25,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_stmts_expr_2 verus_code! {
         fn id(v: &u64) -> (ret: u64)
-            ensures af(*v == ret),
+            ensures af(done(*v == ret)),
         {
             *v
         }
@@ -44,7 +44,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[ignore] #[test] test_stmts_expr_3 verus_code! {
         fn id(v: &mut u64)
-            ensures af(*v == *old(v)),
+            ensures af(done(*v == *old(v))),
         {
         }
 

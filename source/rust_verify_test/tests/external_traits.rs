@@ -107,7 +107,7 @@ test_verify_one_file! {
 
         #[verifier::external_fn_specification]
         fn ex_bar()
-            ensures af(llama()),
+            ensures af(done(llama())),
         {
             X::bar()
         }
@@ -212,7 +212,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T;
             fn f(&self, q: &Self, b: bool) -> (r: usize)
                 requires b
-                ensures af(r > 7)
+                ensures af(done(r > 7))
                 ;
             type X;
         }
@@ -236,7 +236,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationForAlt: T;
             fn f(&self, q: &Self, b: bool) -> (r: usize)
                 requires b
-                ensures af(r > 7)
+                ensures af(done(r > 7))
                 ;
             type X;
         }
@@ -260,7 +260,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T;
             fn f(&self, q: &Self, b: bool) -> (r: usize)
                 requires b
-                ensures af(r > 7) // TRAIT
+                ensures af(done(r > 7)) // TRAIT
                 ;
             type X;
         }
@@ -351,7 +351,7 @@ test_verify_one_file! {
             type X;
             fn f(&self, q: &Self, a: A, b: bool, x: Self::X) -> (r: usize)
                 requires b, self.s(q, a, b, x)
-                ensures af(r > 7)
+                ensures af(done(r > 7))
                 ;
             spec fn s(&self, q: &Self, a: A, b: bool, x: Self::X) -> bool;
         }
@@ -387,7 +387,7 @@ test_verify_one_file! {
         use vstd::std_specs::cmp::PartialEqSpec;
         broadcast proof fn axiom_spec_eq_u8(x: u8, y: u8)
             ensures
-                af(#[trigger] x.eq_spec(&y) <==> x == y),
+                af(done(#[trigger] x.eq_spec(&y) <==> x == y)),
         {
             admit();
         }
@@ -414,7 +414,7 @@ test_verify_one_file! {
             type X;
             fn f(&self, q: &Self, a: A, b: bool, x: Self::X) -> (r: usize)
                 requires b, self.s(q, a, b, x)
-                ensures af(r > 7)
+                ensures af(done(r > 7))
                 ;
             spec fn s(&self, q: &Self, a: A, b: bool, x: Self::X) -> bool;
         }
@@ -448,7 +448,7 @@ test_verify_one_file! {
             type ExternalTraitSpecificationFor: T<A>;
             type X;
             fn f(&self, q: &Self, a: A, b: bool, x: Self::X) -> (r: usize)
-                ensures af(self.s(q, a, b, x))
+                ensures af(done(self.s(q, a, b, x)))
                 ;
             spec fn s(&self, q: &Self, a: A, b: bool, x: Self::X) -> bool;
         }
@@ -506,7 +506,7 @@ test_verify_one_file! {
             type X;
             fn f(&self, q: &Self, a: A, b: bool, x: Self::X) -> (r: usize)
                 requires b, self.s(q, a, b, x)
-                ensures af(r > 7)
+                ensures af(done(r > 7))
                 ;
             spec fn s(&self, q: &Self, a: A, b: bool, x: Self::X) -> bool;
         }
@@ -544,7 +544,7 @@ test_verify_one_file! {
         uninterp spec fn f<A>(x: A) -> bool;
 
         broadcast proof fn p<A: TSpec>(x: A)
-            ensures af(#[trigger] f(x))
+            ensures af(done(#[trigger] f(x)))
         {
             admit();
         }
@@ -579,14 +579,14 @@ test_verify_one_file! {
 
         broadcast proof fn b1<A: TSpec>(a: A)
             ensures
-                af(#[trigger] f(a)),
+                af(done(#[trigger] f(a))),
         {
             admit();
         }
 
         broadcast proof fn b2<A: T>(a: A)
             ensures
-                af(#[trigger] f(a)),
+                af(done(#[trigger] f(a))),
         {
             // Rust accepts this because of the blanket implementation for TSpec:
             b1(a);
@@ -723,7 +723,7 @@ test_verify_one_file! {
             #[verifier(external_body)]
             fn f1() -> (ret: bool)
                 ensures
-                    af(!ret)
+                    af(done(!ret))
             {
                 some_external_fn();
                 false

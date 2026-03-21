@@ -939,7 +939,7 @@ test_verify_one_file_with_options! {
 
         fn test_old_in_ensures(a: &mut u64)
             requires *old(a) < 2000,
-            ensures af(*a as int === *old(a) + 25),
+            ensures af(done(*a as int === *old(a) + 25)),
         {
             let mut i: u64 = 0;
             #[verifier::loop_isolation(false)]
@@ -958,7 +958,7 @@ test_verify_one_file_with_options! {
 
         fn test_old_in_ensures_fail(a: &mut u64)
             requires *old(a) < 2000,
-            ensures af(*a as int === *old(a) + 26),
+            ensures af(done(*a as int === *old(a) + 26)),
         {
             let mut i: u64 = 0;
             #[verifier::loop_isolation(false)]
@@ -990,7 +990,7 @@ test_verify_one_file_with_options! {
                 pub closed spec fn view(&self) -> T { self.t }
 
                 pub fn new(t: T) -> (s: Self)
-                  ensures af(s.view() === t)
+                  ensures af(done(s.view() === t))
                 {
                     X { t: t }
                 }
@@ -1202,8 +1202,8 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
         fn test_loop(n: u32) -> (v: Vec<u32>)
             ensures
-                af(v.len() == n),
-                af(forall|i: int| 0 <= i < n ==> v[i] == i),
+                af(done(v.len() == n)),
+                af(done(forall|i: int| 0 <= i < n ==> v[i] == i)),
         {
             let mut v: Vec<u32> = Vec::new();
             #[verifier::loop_isolation(false)]
@@ -1218,8 +1218,8 @@ test_verify_one_file_with_options! {
 
         fn test_loop_fail(n: u32) -> (v: Vec<u32>)
             ensures
-                af(v.len() == n),
-                af(forall|i: int| 0 <= i < n ==> v[i] == i),
+                af(done(v.len() == n)),
+                af(done(forall|i: int| 0 <= i < n ==> v[i] == i)),
         {
             let mut v: Vec<u32> = Vec::new();
             #[verifier::loop_isolation(false)]
@@ -1249,10 +1249,10 @@ test_verify_one_file_with_options! {
             type Item = T;
             fn next(&mut self) -> (item: Option<T>)
                 ensures
-                    af(self.vec == old(self).vec),
-                    af(old(self).cur < self.vec.len() ==> self.cur == old(self).cur + 1),
-                    af(old(self).cur < self.vec.len() ==> item == Some(self.vec[old(self).cur as int])),
-                    af(old(self).cur >= self.vec.len() ==> item.is_none() && self.cur == old(self).cur),
+                    af(done(self.vec == old(self).vec)),
+                    af(done(old(self).cur < self.vec.len() ==> self.cur == old(self).cur + 1)),
+                    af(done(old(self).cur < self.vec.len() ==> item == Some(self.vec[old(self).cur as int]))),
+                    af(done(old(self).cur >= self.vec.len() ==> item.is_none() && self.cur == old(self).cur)),
             {
                 if self.cur < self.vec.len() {
                     let item = self.vec[self.cur];
@@ -1337,14 +1337,14 @@ test_verify_one_file_with_options! {
         #[verifier::when_used_as_spec(vec_iter_copy_spec)]
         fn vec_iter_copy<'a, T: 'a>(vec: &'a Vec<T>) -> (iter: VecIterCopy<'a, T>)
             ensures
-                af(iter == (VecIterCopy { vec, cur: 0 })),
+                af(done(iter == (VecIterCopy { vec, cur: 0 }))),
         {
             VecIterCopy { vec, cur: 0 }
         }
 
         fn all_positive(v: &Vec<u8>) -> (b: bool)
             ensures
-                af(b <==> (forall|i: int| 0 <= i < v.len() ==> v[i] > 0)),
+                af(done(b <==> (forall|i: int| 0 <= i < v.len() ==> v[i] > 0))),
         {
             let mut b: bool = true;
 
@@ -1471,7 +1471,7 @@ test_verify_one_file! {
     #[test] recursive_call_in_loop_mut_ref verus_code! {
         #[verifier::loop_isolation(false)]
         fn test1(x: &mut usize)
-            ensures af(*x <= *old(x)),
+            ensures af(done(*x <= *old(x))),
             decreases old(x),
         {
             if *x == 0 {

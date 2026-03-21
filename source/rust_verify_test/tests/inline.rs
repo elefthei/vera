@@ -167,7 +167,7 @@ test_verify_one_file! {
         }
 
         fn test1() -> (b: Foo)
-            ensures af(get_b(b))
+            ensures af(done(get_b(b)))
         {
             Foo { b: true }
         }

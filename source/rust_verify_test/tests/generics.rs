@@ -127,7 +127,7 @@ test_verify_one_file! {
         }
 
         fn test(x: &mut Obj<Node>)
-            ensures af(x@.y@.len() == old(x)@.y@.len()),
+            ensures af(done(x@.y@.len() == old(x)@.y@.len())),
         {
         }
 
@@ -165,7 +165,7 @@ test_verify_one_file! {
 
         #[verifier::external_body]
         pub broadcast proof fn broadcaster<const X: u8>()
-            ensures af(#[trigger] stuff(X as int) ==> 0 <= X < 255)
+            ensures af(done(#[trigger] stuff(X as int) ==> 0 <= X < 255))
         {
         }
 
