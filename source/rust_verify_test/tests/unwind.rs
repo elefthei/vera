@@ -12,7 +12,7 @@ test_verify_one_file_with_options! {
             requires
                 true,
             ensures
-                af(true)
+                af(done(true))
             no_unwind
         {
         }
@@ -21,7 +21,7 @@ test_verify_one_file_with_options! {
             requires
                 true,
             ensures
-                af(true),
+                af(done(true)),
             no_unwind
         {
         }

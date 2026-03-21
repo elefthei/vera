@@ -50,8 +50,8 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
         #[verus_spec(v =>
             ensures
-                af(v.len() == n),
-                af(forall|i: int| 0 <= i < n ==> v[i] == i)
+                af(done(v.len() == n)),
+                af(done(forall|i: int| 0 <= i < n ==> v[i] == i))
         )]
         fn test_for_loop(n: u32) -> Vec<u32>
         {
@@ -74,8 +74,8 @@ test_verify_one_file_with_options! {
         use vstd::prelude::*;
         #[verus_spec(v =>
             ensures
-                af(v.len() == n),
-                af(forall|i: int| 0 <= i < n ==> v[i] == 0)
+                af(done(v.len() == n)),
+                af(done(forall|i: int| 0 <= i < n ==> v[i] == 0))
         )]
         fn test(n: u32) -> Vec<u32>
         {
@@ -161,7 +161,7 @@ test_verify_one_file! {
         trait SomeTrait {
             #[verus_spec(
                 ensures
-                    af(true)
+                    af(done(true))
             )]
             type T;
         }
@@ -293,7 +293,7 @@ test_verify_one_file! {
         #[verus_verify(spinoff_prover, rlimit(2))]
         #[verus_spec(
             ensures
-                af(true)
+                af(done(true))
         )]
         fn test()
         {}
@@ -374,9 +374,9 @@ test_verify_one_file! {
                 x < 100,
                 *old(y) < 100,
             ensures
-                af(*y == x),
-                af(ret == x),
-                af(z@ == x),
+                af(done(*y == x)),
+                af(done(ret == x)),
+                af(done(z@ == x)),
         )]
         fn test_mut_tracked(x: u32) -> u32 {
             proof!{
@@ -490,9 +490,9 @@ test_verify_one_file! {
                 x < 100,
                 *old(y) < 100,
             ensures
-                af(*y == x),
-                af(ret == x),
-                af(z@ == x),
+                af(done(*y == x)),
+                af(done(ret == x)),
+                af(done(z@ == x)),
         )]
         fn test_mut_tracked(x: u32) -> u32 {
             proof!{
@@ -533,9 +533,9 @@ test_verify_one_file! {
                 x < 100,
                 *old(y) < 100,
             ensures
-                af(*y == x),
-                af(ret == x),
-                af(z@ == x),
+                af(done(*y == x)),
+                af(done(ret == x)),
+                af(done(z@ == x)),
         )]
         fn test_mut_tracked(x: u32) -> u32 {
             proof!{
@@ -650,11 +650,11 @@ test_verify_one_file! {
         requires
             x < 100,
         ensures
-            af(y == 1 ==> f(x, y) == f2(x)),
-            af(f(x, y) == spec_f(x, y)),
-            af(f2(x) == __VERUS_SPEC_f2(x)),
-            af(f(x, y) == (x + y) as u32),
-            af(__VERUS_SPEC_f2(x) == x + 1),
+            af(done(y == 1 ==> f(x, y) == f2(x))),
+            af(done(f(x, y) == spec_f(x, y))),
+            af(done(f2(x) == __VERUS_SPEC_f2(x))),
+            af(done(f(x, y) == (x + y) as u32)),
+            af(done(__VERUS_SPEC_f2(x) == x + 1)),
         {}
 
         mod inner {
@@ -698,7 +698,7 @@ test_verify_one_file! {
             #[verus_verify(dual_spec(spec_f))]
             #[verus_spec(
                 ensures
-                    af(self.spec_f()),
+                    af(done(self.spec_f())),
             )]
             fn f(&self) -> u32{
                 *self
@@ -858,7 +858,7 @@ test_verify_one_file! {
                 requires
                     true,
                 ensures
-                    af(ret == 1),
+                    af(done(ret == 1)),
             )]
             fn test(a: u64, b: u64) -> u64 {
                 1
@@ -881,7 +881,7 @@ test_verify_one_file! {
                 requires
                     true,
                 ensures
-                    af(ret == 1),
+                    af(done(ret == 1)),
             )]
             fn test(a: u64, b: u64) -> u64 {
                 1
@@ -1001,7 +1001,7 @@ test_verify_one_file! {
             const C: usize = Self::B + 1;
         }
 
-         #[verus_spec(ensures af(true))]
+         #[verus_spec(ensures af(done(true)))]
         fn test() {
             let v = X::C;
             proof! {
@@ -1084,7 +1084,7 @@ test_verify_one_file! {
 
         #[verus_verify]
         impl X {
-            #[verus_spec(ensures af(Self::CONST_ITEM != 42))]
+            #[verus_spec(ensures af(done(Self::CONST_ITEM != 42)))]
             const CONST_ITEM: u64 = const_fn();
         }
     } => Err(e) => assert_any_vir_error_msg(e, "postcondition not satisfied")
@@ -1130,8 +1130,8 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                af(ret == x + 1),
-                af(z@ == x),
+                af(done(ret == x + 1)),
+                af(done(z@ == x)),
             )]
         fn foo(x: u32) -> u32 {
             proof_with!(|= Ghost(x));
@@ -1146,8 +1146,8 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                af(ret == x + 1),
-                af(z@ == x),
+                af(done(ret == x + 1)),
+                af(done(z@ == x)),
         )]
         fn bar(x: u32) -> u32 {
             proof_with!(|= Ghost(x));
@@ -1162,8 +1162,8 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                af(ret == x + 1),
-                af(z@ == x),
+                af(done(ret == x + 1)),
+                af(done(z@ == x)),
         )]
         fn baz(x: u32) -> u32 {
             proof_with!(|= Ghost(x));
@@ -1178,8 +1178,8 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                af(ret == x + 1),
-                af(z@ == x),
+                af(done(ret == x + 1)),
+                af(done(z@ == x)),
         )]
         fn qux(x: u32) -> u32 {
             proof_with!(|= Ghost(x));
@@ -1219,7 +1219,7 @@ test_verify_one_file! {
                 s1.x == s2.x,
                 s1.y == s2.y,
             ensures
-                af(s1 == s2),
+                af(done(s1 == s2)),
         {
             assert(s1 =~= s2);
         }
@@ -1252,8 +1252,8 @@ test_verify_one_file! {
     #[test] test_verus_spec_ensures_span_on_failure code!{
         #[verus_spec(ret =>
             ensures
-                af(ret > 0),
-                af(ret < 0), // FAILS
+                af(done(ret > 0)),
+                af(done(ret < 0)), // FAILS
         )]
         fn returns_one() -> i8 {
             1

@@ -446,8 +446,8 @@ test_verify_one_file! {
 
         proof fn num_page_elements()
             ensures
-                af(exists|eltSet:Set<HAlign>| eltSet.len() == 3), // bound is tight
-                af(forall|eltSet:Set<HAlign>| eltSet.len() <= 3), // bound is upper
+                af(done(exists|eltSet:Set<HAlign>| eltSet.len() == 3)), // bound is tight
+                af(done(forall|eltSet:Set<HAlign>| eltSet.len() <= 3)), // bound is upper
         {
             let maxSet =  set![HAlign::Left, HAlign::Center, HAlign::Right];
 
@@ -709,7 +709,7 @@ test_verify_one_file! {
             requires
                 is_even(x),
             ensures
-                af(twocount * 2 == x),
+                af(done(twocount * 2 == x)),
         {
             x / 2
         }
@@ -728,7 +728,7 @@ test_verify_one_file! {
         }
 
         proof fn even_definitions_are_equivalent(x: int)
-            ensures af(is_even(x) == alternate_even(x))
+            ensures af(done(is_even(x) == alternate_even(x)))
         {
             assert(double(x / 2) == x / 2 * 2);   // trigger double.
         }
@@ -745,7 +745,7 @@ test_verify_one_file! {
             requires
                 is_even(x),
             ensures
-                af(twocount * 2 == x), // FAILS
+                af(done(twocount * 2 == x)), // FAILS
         {
             x / 3
         }
@@ -771,7 +771,7 @@ test_verify_one_file_with_options! {
             requires
                 i <= j,
             ensures
-                af(fibo(i) <= fibo(j)),
+                af(done(fibo(i) <= fibo(j))),
             decreases j - i
         {
             if i < 2 && j < 2 {
@@ -787,7 +787,7 @@ test_verify_one_file_with_options! {
 
         fn max_u64_fibo_arg_bound()
             ensures
-                af(forall|i: nat| i < max_u64_fibo_arg() ==> fibo(i) < 7000),
+                af(done(forall|i: nat| i < max_u64_fibo_arg() ==> fibo(i) < 7000)),
         {
             assert(fibo(20) == 6765) by {
                 reveal_with_fuel(fibo, 11);
@@ -806,7 +806,7 @@ test_verify_one_file_with_options! {
             requires
                 val < max_u64_fibo_arg(),
             ensures
-                af(fibo(val as nat) == f),
+                af(done(fibo(val as nat) == f)),
             decreases val
         {
             assume(val > 1);
@@ -820,8 +820,8 @@ test_verify_one_file_with_options! {
 
         proof fn check()
             ensures
-                af(fibo(0) == 0),
-                af(fibo(20) == 6765),
+                af(done(fibo(0) == 0)),
+                af(done(fibo(20) == 6765)),
         {
             // Dafny gives lots of fuel for application on literals, which makes examples
             // like this go through like magic. Verus needs you to goose the throttle manually.
@@ -852,10 +852,10 @@ test_verify_one_file_with_options! {
             requires
                 int_vec.len() > 0,
             ensures
-                af(max_index_rc < int_vec.len()),
-                af(forall|idx: int|)
-                    af(0 <= idx < int_vec.len() ==>)
-                    af(int_vec[idx] <= int_vec[max_index_rc as int]),
+                af(done(max_index_rc < int_vec.len())),
+                af(done(forall|idx: int|))
+                    af(done(0 <= idx < int_vec.len() ==>))
+                    af(done(int_vec[idx] <= int_vec[max_index_rc as int])),
         {
             let mut count: usize = 0;
             let mut max_index: usize = 0;
@@ -895,7 +895,7 @@ test_verify_one_file_with_options! {
 
         fn is_seq_sorted(vec: Vec<u64>) -> (ret: bool)
             ensures
-                af(ret == is_sorted(vec.view())),
+                af(done(ret == is_sorted(vec.view()))),
         {
             if vec.len() < 2 {
                 return true;
@@ -941,7 +941,7 @@ test_verify_one_file_with_options! {
 
         fn is_seq_sorted(intvec: Vec<u64>) -> (out: bool)
             ensures
-                af(out == is_sorted(view_u64(intvec.view()))),
+                af(done(out == is_sorted(view_u64(intvec.view())))),
         {
             if intvec.len() < 2 {
                 true
@@ -991,9 +991,9 @@ test_verify_one_file_with_options! {
             requires
                 is_sorted(view_u64(haystack.view())),
             ensures
-                af(index <= haystack.len()),
-                af(forall|i: int| 0 <= i < index ==> haystack[i] < needle),
-                af(forall|i: int| index <= i < haystack.len() ==> needle <= haystack[i]),
+                af(done(index <= haystack.len())),
+                af(done(forall|i: int| 0 <= i < index ==> haystack[i] < needle)),
+                af(done(forall|i: int| index <= i < haystack.len() ==> needle <= haystack[i])),
         {
             let mut low: usize = 0;
             let mut high: usize = haystack.len();

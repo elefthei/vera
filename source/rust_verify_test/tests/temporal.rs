@@ -33,7 +33,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_au_parses verus_code! {
         spec fn until_zero(x: int) -> bool {
-            au(x > 0, x == 0)
+            au(x > 0, done(x == 0))
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `au` is not yet supported outside of ensures clauses")
 }
@@ -67,7 +67,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_af_sugar verus_code! {
         spec fn eventually_zero(x: int) -> bool {
-            af (x == 0)
+            af (done(x == 0))
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `au` is not yet supported outside of ensures clauses")
 }
@@ -101,7 +101,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_nested_ag_au verus_code! {
         spec fn always_eventually(x: int) -> bool {
-            ag (au(true, x == 0))
+            ag (au(true, done(x == 0)))
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
 }
@@ -109,7 +109,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_nested_ag_af_sugar verus_code! {
         spec fn always_eventually_sugar(x: int) -> bool {
-            ag (af (x == 0))
+            ag (af (now(x == 0)))
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
 }
@@ -119,7 +119,7 @@ test_verify_one_file! {
         spec fn head_val(v: int) -> bool { v > 0 }
 
         spec fn fairness(v: int) -> bool {
-            ag (au(true, head_val(v)))
+            ag (au(true, done(head_val(v))))
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
 }
@@ -140,7 +140,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_au_in_fn_ensures verus_code! {
         fn test_au_ensures(x: u64)
-            ensures au(x > 0, x == 42), // FAILS
+            ensures au(x > 0, done(x == 42)), // FAILS
         {
         }
     } => Err(err) => assert_one_fails(err) // AU goal (x == 42) checked at return
@@ -211,7 +211,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_ag_au_composition_ensures verus_code! {
         fn test_ag_au(x: u64)
-            ensures ag(au(true, x == 0)),
+            ensures ag(au(true, now(x == 0))),
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "temporal postcondition AG(...) requires at least one loop with an invariant")
@@ -322,7 +322,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_temporal_ensures_exec_accepted verus_code! {
         fn test_exec_af(x: u64) -> (ret: u64)
-            ensures af(ret == x),
+            ensures af(done(ret == x)),
         {
             x
         }
@@ -336,7 +336,7 @@ test_verify_one_file! {
             requires a <= b,
             ensures
                 #![verifier::proof_note("Test note")]
-                af(ret <= a + b),
+                af(done(ret <= a + b)),
         {
             a + b
         }
@@ -402,7 +402,7 @@ test_verify_one_file! {
     #[test] test_call_in_loop_preserves_temporal_inv verus_code! {
         fn increment(x: &mut u64)
             requires *old(x) < 10,
-            ensures af(*x == *old(x) + 1),
+            ensures af(done(*x == *old(x) + 1)),
         {
             *x = *x + 1;
         }
@@ -426,7 +426,7 @@ test_verify_one_file! {
     #[test] test_call_in_loop_breaks_temporal_inv verus_code! {
         fn add_hundred(x: &mut u64)
             requires *old(x) <= 10,
-            ensures af(*x == *old(x) + 100),
+            ensures af(done(*x == *old(x) + 100)),
         {
             *x = *x + 100;
         }
@@ -493,7 +493,7 @@ test_verify_one_file! {
     #[test] test_af_drain_loop verus_code! {
         fn drain(len: &mut u64)
             requires *old(len) > 0,
-            ensures af(*len == 0),
+            ensures af(done(*len == 0)),
         {
             while *len > 0
                 invariant true,
@@ -512,7 +512,7 @@ test_verify_one_file! {
     #[test] test_au_nontrivial_path verus_code! {
         fn count_down(x: &mut u64)
             requires *old(x) > 0 && *old(x) <= 1000,
-            ensures au(*x > 0, *x == 0),
+            ensures au(*x > 0, done(*x == 0)),
         {
             while *x > 0
                 invariant *x <= 1000,
@@ -530,7 +530,7 @@ test_verify_one_file! {
     #[test] test_au_false_path_fails verus_code! {
         fn impossible_path(x: &mut u64)
             requires *old(x) > 0 && *old(x) <= 1000,
-            ensures au(false, *x == 0),
+            ensures au(false, done(*x == 0)),
         {
             while *x > 0
                 invariant *x <= 1000,
@@ -602,7 +602,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_ag_au_without_temporal_inv verus_code! {
         fn test_ag_no_inv(x: &mut u64)
-            ensures ag(au(true, *x == 0)),
+            ensures ag(au(true, now(*x == 0))),
         {
             *x = 10;
             while *x > 0
@@ -620,7 +620,7 @@ test_verify_one_file! {
     #[test] test_plain_au_without_temporal_inv verus_code! {
         fn test_au_no_inv(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(*x >= 0, *x == 0),
+            ensures au(*x >= 0, done(*x == 0)),
         {
             while *x > 0
                 invariant *x <= 10,
@@ -729,7 +729,7 @@ test_verify_one_file! {
     #[test] test_au_no_decreases_fail verus_code! {
         fn test_au_no_dec(x: &mut u64)
             requires *old(x) == 5,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             loop
                 invariant *x <= 5,
@@ -850,7 +850,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_prefix_call_violates_ag verus_code! {
         fn set_high(x: &mut u64)
-            ensures af(*x == 999),
+            ensures af(done(*x == 999)),
         {
             *x = 999;
         }
@@ -897,7 +897,7 @@ test_verify_one_file! {
     #[test] test_prefix_au_path_property_fail verus_code! {
         fn test_au_prefix_bad(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(*x > 0, *x == 0),
+            ensures au(*x > 0, done(*x == 0)),
         {
             *x = 0; // violates path property *x > 0 (and coincidentally reaches goal)
             while *x > 0
@@ -916,7 +916,7 @@ test_verify_one_file! {
     #[test] test_prefix_af_trivial verus_code! {
         fn test_af_prefix_ok(x: &mut u64)
             requires *old(x) == 10,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             *x = 999; // would violate any non-trivial prefix, but AF has ⊤ prefix
             *x = 10;
@@ -937,7 +937,7 @@ test_verify_one_file! {
     #[test] test_af_return_check_pass verus_code! {
         fn test_af_good(x: &mut u64)
             requires *old(x) > 0,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0,
@@ -954,7 +954,7 @@ test_verify_one_file! {
     #[test] test_af_return_check_fail verus_code! {
         fn test_af_bad(x: &mut u64)
             requires *old(x) == 10,
-            ensures af(*x == 0), // FAILS
+            ensures af(done(*x == 0)), // FAILS
         {
             while *x > 5
                 invariant *x >= 0,
@@ -974,7 +974,7 @@ test_verify_one_file! {
         fn test_imm_good(x: u64)
             requires x > 10,
             ensures
-                af(x > 5), // af() in AG context: vacuously true (never returns)
+                af(done(x > 5)), // af(done()) in AG context: vacuously true (never returns)
                 ag(x > 0),
         {
             loop
@@ -991,7 +991,7 @@ test_verify_one_file! {
         fn test_imm_vacuous(x: u64)
             requires x > 0,
             ensures
-                af(x > 100), // vacuously true: AG loop never returns
+                af(done(x > 100)), // vacuously true: AG loop never returns
                 ag(x > 0),
         {
             loop
@@ -999,7 +999,7 @@ test_verify_one_file! {
             {
             }
         }
-    } => Ok(()) // af(Q) in AG context is vacuous — function never returns
+    } => Ok(()) // af(done(Q)) in AG context is vacuous — function never returns
 }
 
 // Standard ensures af(Q) — checked at return, no Immediate
@@ -1007,7 +1007,7 @@ test_verify_one_file! {
     #[test] test_hoare_mode_no_immediate verus_code! {
         fn test_hoare_ok(x: &mut u64)
             requires *old(x) == 5,
-            ensures af(*x == 10),
+            ensures af(done(*x == 10)),
         {
             *x = 10;
         }
@@ -1021,7 +1021,7 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_bind_callee_af_in_ag_context verus_code! {
         fn reset_to_zero(x: &mut u64)
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             *x = 0;
         }
@@ -1052,14 +1052,14 @@ test_verify_one_file! {
     #[test] test_bind_callee_af_in_au_context verus_code! {
         fn decrement(x: &mut u64)
             requires *old(x) > 0,
-            ensures af(*x == *old(x) - 1),
+            ensures af(done(*x == *old(x) - 1)),
         {
             *x = *x - 1;
         }
 
         fn drain_to_zero(x: &mut u64)
             requires *old(x) > 0,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0,
@@ -1076,7 +1076,7 @@ test_verify_one_file! {
     #[test] test_bind_callee_standard_in_ag_context verus_code! {
         fn add_one(x: &mut u64)
             requires *old(x) < 20,
-            ensures af(*x == *old(x) + 1),
+            ensures af(done(*x == *old(x) + 1)),
         {
             *x = *x + 1;
         }
@@ -1105,7 +1105,7 @@ test_verify_one_file! {
     #[test] test_corner_early_return_af verus_code! {
         fn early_return(x: &mut u64)
             requires *old(x) >= 0,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             if *x == 0 { return; }
             while *x > 0
@@ -1123,7 +1123,7 @@ test_verify_one_file! {
     #[test] test_corner_nested_calls_ag verus_code! {
         fn bounded_step(x: &mut u64)
             requires *old(x) <= 20,
-            ensures af(*x <= 20),
+            ensures af(done(*x <= 20)),
         {
             if *x >= 20 { *x = 0; }
         }
@@ -1146,7 +1146,7 @@ test_verify_one_file! {
     #[test] test_corner_au_goal_at_entry verus_code! {
         fn already_done(x: &mut u64)
             requires *old(x) > 0,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0,
@@ -1163,7 +1163,7 @@ test_verify_one_file! {
     #[test] test_corner_two_phase_af verus_code! {
         fn two_phases(x: &mut u64)
             requires *old(x) == 10,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             while *x > 5
                 invariant *x <= 10,
@@ -1238,7 +1238,7 @@ test_verify_one_file! {
     #[test] test_corner_fail_goal_not_reached verus_code! {
         fn goal_not_reached(x: &mut u64)
             requires *old(x) == 10,
-            ensures af(*x == 0), // FAILS
+            ensures af(done(*x == 0)), // FAILS
         {
             while *x > 5
                 invariant *x >= 0,
@@ -1256,7 +1256,7 @@ test_verify_one_file! {
     #[test] test_corner_fail_ag_broken_by_call verus_code! {
         fn violator(x: &mut u64)
             requires *old(x) <= 10,
-            ensures af(*x == 999),
+            ensures af(done(*x == 999)),
         {
             *x = 999;
         }
@@ -1329,7 +1329,7 @@ test_verify_one_file! {
     #[test] test_corner_fail_au_path_violated verus_code! {
         fn path_violated(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(*x > 0, *x == 0),
+            ensures au(*x > 0, done(*x == 0)),
         {
             *x = 0; // FAILS: path property *x > 0 violated before goal *x == 0
         }
@@ -1341,7 +1341,7 @@ test_verify_one_file! {
     #[test] test_corner_fail_af_infinite_loop verus_code! {
         fn af_infinite(x: &mut u64)
             requires *old(x) == 5,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             loop
                 invariant *x <= 5,
@@ -1395,7 +1395,7 @@ test_verify_one_file! {
     #[test] test_corner_au_bounded_countdown verus_code! {
         fn bounded_countdown(x: &mut u64)
             requires *old(x) > 0 && *old(x) <= 100,
-            ensures au(*x > 0 && *x <= 100, *x == 0),
+            ensures au(*x > 0 && *x <= 100, done(*x == 0)),
         {
             while *x > 0
                 invariant *x <= 100,
@@ -1418,7 +1418,7 @@ test_verify_one_file! {
     #[test] test_soundness_ag_af_false verus_code! {
         fn prove_false_forever(x: &mut u64)
             requires *old(x) == 0,
-            ensures ag(af(false)),
+            ensures ag(af(now(false))),
         {
             loop
                 invariant *x <= 10,
@@ -1436,7 +1436,7 @@ test_verify_one_file! {
     #[test] test_soundness_ag_af_unreachable verus_code! {
         fn never_reaches(x: &mut u64)
             requires *old(x) == 0,
-            ensures ag(af(*x == 100)),
+            ensures ag(af(now(*x == 100))),
         {
             loop // FAILS
                 invariant *x <= 10,
@@ -1454,7 +1454,7 @@ test_verify_one_file! {
     #[test] test_soundness_ag_af_starved verus_code! {
         fn priority_starve(high: &mut u64, low: &mut u64)
             requires *old(high) == 1, *old(low) == 0,
-            ensures ag(af(*low == 1)),
+            ensures ag(af(now(*low == 1))),
         {
             loop
                 invariant *high == 1, *low == 0,
@@ -1473,7 +1473,7 @@ test_verify_one_file! {
     #[test] test_soundness_ag_af_valid_cycle verus_code! {
         fn cycling_counter(x: &mut u64)
             requires *old(x) == 0,
-            ensures ag(af(*x == 10)),
+            ensures ag(af(now(*x == 10))),
         {
             loop
                 invariant *x <= 10,
@@ -1494,7 +1494,7 @@ test_verify_one_file! {
     #[test] test_soundness_ag_au_valid verus_code! {
         fn ag_au_countdown(x: &mut u64)
             requires *old(x) == 10,
-            ensures ag(au(*x <= 10, *x == 0)),
+            ensures ag(au(*x <= 10, now(*x == 0))),
         {
             loop
                 invariant *x <= 10,
@@ -1564,7 +1564,7 @@ test_verify_one_file! {
     #[test] test_soundness_recursive_af verus_code! {
         fn recursive_af(x: &mut u64)
             requires *old(x) > 0 && *old(x) <= 100,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
             decreases *old(x),
         {
             *x = *x - 1;
@@ -1580,7 +1580,7 @@ test_verify_one_file! {
     #[test] test_soundness_au_path_intermediate verus_code! {
         fn au_path_intermediate(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(*x < 100, *x == 0),
+            ensures au(*x < 100, done(*x == 0)),
         {
             while *x > 0
                 invariant *x <= 10,
@@ -1600,7 +1600,7 @@ test_verify_one_file! {
     #[test] test_soundness_au_path_ok verus_code! {
         fn au_path_ok(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(*x >= 0, *x == 0),
+            ensures au(*x >= 0, done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0,
@@ -1637,7 +1637,7 @@ test_verify_one_file! {
     #[test] test_bare_af_still_works verus_code! {
         fn test_bare(x: &mut u64)
             requires *old(x) == 10,
-            ensures af(*x == 0),
+            ensures af(done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0 && *x <= 10,
@@ -1702,7 +1702,7 @@ test_verify_one_file! {
     #[test] test_au_done_path_rejected verus_code! {
         fn test_au_done_path(x: &mut u64)
             requires *old(x) == 10,
-            ensures au(done(*x > 0), *x == 0),
+            ensures au(done(*x > 0), done(*x == 0)),
         {
             while *x > 0
                 invariant *x >= 0 && *x <= 10,
@@ -1759,4 +1759,56 @@ test_verify_one_file! {
             loop { }
         }
     } => Err(err) => assert_any_vir_error_msg(err, "contradiction")
+}
+
+// === Now() ghost accumulator tests ===
+
+// AG(AF(now(Q))) where Q holds at body start but NOT at body end — should PASS
+// This is the key test for the ghost accumulator: the now() goal is a state
+// predicate that holds at an intermediate state. The ghost accumulator tracks
+// that Q held earlier, so the weakened decreases check passes.
+test_verify_one_file! {
+    #[test] test_now_accumulator_body_start verus_code! {
+        fn cycling_counter(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(af(now(*x == 0))),
+        {
+            loop
+                invariant *x <= 3,
+                decreases (3 - *x) as int,
+            {
+                // x cycles: 0 → 1 → 2 → 3 → 0 (reset)
+                // Q = (*x == 0)
+                if *x < 3 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// AG(AF(now(Q))) where Q NEVER holds — should FAIL
+// Without Q ever holding, the ghost accumulator stays false, and the
+// weakened decreases check fails when the metric doesn't decrease.
+test_verify_one_file! {
+    #[test] test_now_accumulator_never_holds_fail verus_code! {
+        fn now_never_holds(x: &mut u64)
+            requires *old(x) == 1,
+            ensures ag(af(now(*x == 0))),
+        {
+            loop // FAILS: now() goal never holds, weakened decreases fails
+                invariant *x >= 1 && *x <= 3,
+                decreases 3 - *x as int,
+            {
+                // x cycles: 1 → 2 → 3 → 1, never reaching 0
+                if *x < 3 {
+                    *x = *x + 1;
+                } else {
+                    *x = 1;
+                }
+            }
+        }
+    } => Err(err) => assert_one_fails(err)
 }
