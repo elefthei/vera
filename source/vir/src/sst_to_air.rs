@@ -55,18 +55,12 @@ use std::sync::Arc;
 
 /// Propositions in Vera's TICL-based verification.
 ///
-/// All propositions are temporal in the broad sense — they describe properties
-/// of computation traces. The variants differ in their temporal modality:
-/// - **Instant**: Holds at the current state (no steps). Used for spec fn ensures.
+/// Each variant describes a temporal property over computation traces:
 /// - **Always**: Holds at every state forever (AG). Requires infinite loop.
 /// - **Until**: Holds along a path until a goal is reached (AU). Requires progress.
-/// - **Next**: Holds at the next state (AN). Future work.
+///   af(Q) desugars to Until(true, Q).
 #[derive(Clone, Debug)]
 pub enum Proposition {
-    /// Q holds at the current state (no computation steps).
-    /// Used for: spec fn ensures (pure math: pre → post immediately).
-    /// Equivalent to af(Q) for terminating programs — checked at return.
-    Instant(Exp),
     /// AG(φ): φ must hold at every state of an infinite computation.
     Always {
         property: Exp,
@@ -76,13 +70,6 @@ pub enum Proposition {
     /// AU(φ, ψ): path property φ holds at every state until goal ψ is reached.
     /// af(Q) desugars to AU(true, Q).
     Until {
-        path: Exp,
-        goal: Exp,
-        /// True when nested inside an outer AG (coinductive invariance).
-        requires_invariance: bool,
-    },
-    /// AN(φ, ψ): next-state operator (future work).
-    Next {
         path: Exp,
         goal: Exp,
         /// True when nested inside an outer AG (coinductive invariance).
@@ -101,10 +88,8 @@ impl Proposition {
 
     pub fn requires_invariance(&self) -> bool {
         match self {
-            Proposition::Instant(_) => false,
             Proposition::Always { requires_invariance, .. }
-            | Proposition::Until { requires_invariance, .. }
-            | Proposition::Next { requires_invariance, .. } => *requires_invariance,
+            | Proposition::Until { requires_invariance, .. } => *requires_invariance,
         }
     }
 }
@@ -3558,11 +3543,8 @@ pub(crate) fn body_stm_to_air(
                         }
                     }
                     crate::ast::TemporalOp::AN => {
-                        Proposition::Next {
-                            path: prop.clone(),
-                            goal: path_prop.clone().expect("AN requires a goal (second argument)"),
-                            requires_invariance: inside_ag,
-                        }
+                        // AN (next-state) not yet supported for VCGen
+                        return;
                     }
                     _ => return, // EG, EU, EN not yet supported
                 };
