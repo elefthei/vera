@@ -19,10 +19,10 @@ fn checked_u64_constants()
 
 fn checked_u64_calculations(a: u64, b: u64, c: u64, d: u64) -> (result: Option<u64>)
     ensures
-        af(match result {
+        af(done(match result {
             Some(v) => v == a * b + c * d,
             None => a * b + c * d > u64::MAX,
-        })
+        }))
 {
     let a_times_b = CheckedU64::new(a).mul_value(b);
     let c_times_d = CheckedU64::new(c).mul_value(d);
@@ -53,10 +53,10 @@ fn checked_u32_constants()
 
 fn checked_u32_calculations(a: u32, b: u32, c: u32, d: u32, e: u32) -> (result: Option<u32>)
     ensures
-        af(match result {
+        af(done(match result {
             Some(v) => v == a * b + c * d + e,
             None => a * b + c * d + e > u32::MAX,
-        })
+        }))
 {
     let a_times_b = CheckedU32::new(a).mul_value(b);
     let c_times_d = CheckedU32::new(c).mul_value(d);

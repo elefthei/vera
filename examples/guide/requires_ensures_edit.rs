@@ -73,7 +73,7 @@ fn octuple(x1: i8) -> (x8: i8)
         -16 <= x1,
         x1 < 16,
     ensures
-        af(x8 == 8 * x1),
+        af(done(x8 == 8 * x1)),
 {
     let x2 = x1 + x1;
     let x4 = x2 + x2;

@@ -11,8 +11,8 @@ verus! {
 // ## A -- A-program.rs
 fn max(a: u64, b: u64) -> (ret: u64)
     ensures
-        af(ret == a || ret == b),
-        af(ret >= a && ret >= b),
+        af(done(ret == a || ret == b)),
+        af(done(ret >= a && ret >= b)),
 {
     //-   if a >= b { b } else { a }
     /*+*/
@@ -80,7 +80,7 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fibo(i) <= fibo(j)),
+        af(done(fibo(i) <= fibo(j))),
     decreases j - i,
 {
     if j < 2 {
@@ -100,7 +100,7 @@ exec fn fibo_impl(n: u64) -> (result: u64)
     requires
         fibo_fits_u64(n as nat),
     ensures
-        af(result == fibo(n as nat)),
+        af(done(result == fibo(n as nat))),
 {
     if n == 0 {
         return 0;
@@ -150,7 +150,7 @@ exec fn g(v1: &mut Vec<u64>, v2: &mut Vec<u64>)
         old(v1)@.len() == 2,
         old(v2)@.len() == 3,
     ensures
-        af(v1@.len() == v2@.len()),
+        af(done(v1@.len() == v2@.len())),
 {
     v1.push(42);
     v1.push(43);
@@ -204,7 +204,7 @@ fn reverse(v: &mut Vec<u64>) {
 // G -- G-bitvector.rs
 fn mod8_bw(x: u32) -> (ret: u32)
     ensures
-        af(ret == x % 8),
+        af(done(ret == x % 8)),
 {
     assert(x & 7 == x % 8) by (bit_vector);
     x & 7

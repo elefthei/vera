@@ -11,7 +11,7 @@ verus! {
 // ANCHOR: compute_sum_fails
 fn compute_sum_fails(x: u64, y: u64) -> (result: u64)
     ensures
-        af(result == x + y),
+        af(done(result == x + y)),
 {
     x + y  // error: possible arithmetic underflow/overflow
 }
@@ -24,7 +24,7 @@ fn compute_sum_limited(x: u64, y: u64) -> (result: u64)
         x < 1000000,
         y < 1000000,
     ensures
-        af(result == x + y),
+        af(done(result == x + y)),
 {
     x + y
 }
@@ -33,10 +33,10 @@ fn compute_sum_limited(x: u64, y: u64) -> (result: u64)
 // ANCHOR: compute_sum_runtime_check
 fn compute_sum_runtime_check(x: u64, y: u64) -> (result: Option<u64>)
     ensures
-        af(match result {
+        af(done(match result {
             Some(z) => z == x + y,
             None => x + y > u64::MAX,
-        }),
+        })),
 {
     x.checked_add(y)
 }

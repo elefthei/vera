@@ -21,7 +21,7 @@ mod X {
         requires
             0 <= x < 128,
         ensures
-            af(res == 2 * x),
+            af(done(res == 2 * x)),
     {
         2 * x
     }
@@ -44,7 +44,7 @@ mod Y {
         requires
             0 <= x < 128,
         ensures
-            af(res == 2 * x),
+            af(done(res == 2 * x)),
     {
         2 * x
     }
@@ -70,7 +70,7 @@ mod Z {
         requires
             0 <= x < 128,
         ensures
-            af(res == 2 * x),
+            af(done(res == 2 * x)),
     {
         2 * x
     }
@@ -80,7 +80,7 @@ mod Z {
             call_requires(f, (50,)),
             forall|x, y| call_ensures(f, x, y) ==> y % 2 == 0,
         ensures
-            af(res % 2 == 0),
+            af(done(res % 2 == 0)),
     {
         let ret = f(50);
         return ret;
@@ -108,14 +108,14 @@ fn vec_map<T, U>(v: &Vec<T>, f: impl Fn(T) -> U) -> (result: Vec<U>) where
 // ANCHOR_END: vec_map_requires
 // ANCHOR: vec_map_ensures
     ensures
-        af(result.len() == v.len()),
-        af(forall|i|
+        af(done(result.len() == v.len())),
+        af(done(forall|i|
             0 <= i < v.len() ==> call_ensures(
                 f,
                 (v[i],),
                 #[trigger] result[i],
             )
-        ),
+        )),
         // ANCHOR_END: vec_map_ensures
 {
     let mut result = Vec::new();
@@ -139,7 +139,7 @@ fn double(x: u8) -> (res: u8)
     requires
         0 <= x < 128,
     ensures
-        af(res == 2 * x),
+        af(done(res == 2 * x)),
 {
     2 * x
 }
@@ -158,7 +158,7 @@ fn test_vec_map() {
 fn test_vec_map_with_closure() {
     let double = |x: u8| -> (res: u8)
         requires 0 <= x < 128
-        ensures af(res == 2 * x)
+        ensures af(done(res == 2 * x))
     {
         2 * x
     };

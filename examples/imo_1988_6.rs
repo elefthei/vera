@@ -19,10 +19,10 @@ proof fn vieta_jump(b: int, c: int, x: int)
     requires
         x * x - b * x + c == 0,
     ensures
-        af(({
+        af(done(({
             let y = b - x;
             y * y - b * y + c == 0 && y * x == c
-        })),
+        }))),
 {
 }
 
@@ -30,7 +30,7 @@ proof fn sqrt2_contradiction(a: int)
     requires
         a * a == 2,
     ensures
-        af(false),
+        af(done(false)),
 {
     assert(a * a == 2 ==> false) by (nonlinear_arith);
 }
@@ -43,7 +43,7 @@ proof fn is_perfect_square_wlog(a: int, b: int, q: int) -> (sqrt: int)
         q > 2,
         a < b,
     ensures
-        af(sqrt * sqrt == q),
+        af(done(sqrt * sqrt == q)),
     decreases a + b, 0int,
 {
     if a == 0 {
@@ -86,7 +86,7 @@ proof fn is_perfect_square(a: int, b: int, q: int) -> (sqrt: int)
         b >= 0,
         a * a + b * b == (a * b + 1) * q,
     ensures
-        af(sqrt * sqrt == q),
+        af(done(sqrt * sqrt == q)),
     decreases a + b, 1int,
 {
     if q < 0 {

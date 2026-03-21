@@ -19,7 +19,7 @@ proof fn ModAfterMul(x: int, y: int, z: int, m: int)
         m != 0,
         (x - y) % m == 0,
     ensures
-        af((x * z - y * z) % m == 0),
+        af(done((x * z - y * z) % m == 0)),
 {
 }
 
@@ -37,7 +37,7 @@ proof fn LemmaMulStayPositive(x: int, y: int)
         0 <= x,
         0 <= y,
     ensures
-        af(0 <= x * y),
+        af(done(0 <= x * y)),
 {
 }
 
@@ -47,7 +47,7 @@ proof fn LemmaInequalityAfterMul(x: int, y: int, z: int)
         x <= y,
         0 <= z,
     ensures
-        af(x * z <= y * z),
+        af(done(x * z <= y * z)),
 {
 }
 
@@ -61,7 +61,7 @@ proof fn ModAfterMul_u32(x: u32, y: u32, z: u32, m: u32)
         z <= 0xffff,
         m <= 0xffff,
     ensures
-        af((x * z - y * z) % (m as int) == 0),
+        af(done((x * z - y * z) % (m as int) == 0)),
 {
     ModAfterMul(x as int, y as int, z as int, m as int);
     // below are for bound checks
@@ -86,7 +86,7 @@ proof fn ModAfterMul_u32_with_assert_by_nonlinear(x: u32, y: u32, z: u32, m: u32
         z <= 0xffff,
         m <= 0xffff,
     ensures
-        af((x * z - y * z) % (m as int) == 0),
+        af(done((x * z - y * z) % (m as int) == 0)),
 {
     ModAfterMul(x as int, y as int, z as int, m as int);
     assert_nonlinear_by(
