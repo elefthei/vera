@@ -201,7 +201,7 @@ test_verify_one_file! {
                 }
             }
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal invariant does not imply AG postcondition property")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal invariant does not imply AG postcondition property")
 }
 
 // === AG(AU) Composition Tests ===
@@ -441,7 +441,7 @@ test_verify_one_file! {
                 add_hundred(x); // Breaks invariant: 0 + 100 > 10
             }
         }
-    } => Err(err) => assert_vir_error_msg(err, "invariant not satisfied at end of loop body")
+    } => Err(err) => assert_any_vir_error_msg(err, "invariant not satisfied at end of loop body")
 }
 
 // === I7: Explicit R → φ implication tests ===
@@ -1033,7 +1033,10 @@ test_verify_one_file! {
             loop
                 invariant *x <= 10,
             {
-                *x = *x + 1;
+                if *x < 10 {
+                    *x = *x + 1;
+                    // After +1: *x <= 10 ✓ (since *x was < 10)
+                }
                 if *x > 5 {
                     reset_to_zero(x);
                     // After call: af(*x == 0) → assume *x == 0 (bind rule R)
@@ -1265,10 +1268,10 @@ test_verify_one_file! {
             loop
                 invariant *x <= 10, // FAILS (violated after violator call)
             {
-                violator(x);
+                violator(x); // FAILS AG intermediate
             }
         }
-    } => Err(err) => assert_one_fails(err)
+    } => Err(err) => assert_fails(err, 2)
 }
 
 // F3: AG with terminating loop — AG requires infinite loop
@@ -1311,14 +1314,14 @@ test_verify_one_file! {
             loop
                 invariant *x <= 10,
             {
-                *x = *x + 1;
+                *x = *x + 1; // FAILS: AG intermediate state (x could be 11)
                 if *x > 5 {
                     *x = 0;
                     break; // FAILS: AG loop must never exit
                 }
             }
         }
-    } => Err(err) => assert_one_fails(err)
+    } => Err(err) => assert_fails(err, 2)
 }
 
 // F6: AU path property violated at intermediate state
@@ -1347,4 +1350,42 @@ test_verify_one_file! {
             }
         }
     } => Err(err) => assert_vir_error_msg(err, "loop must have a decreases clause")
+}
+
+// === AG intermediate state tests ===
+
+// AG intermediate state violation — x temporarily exceeds 10 inside loop body
+test_verify_one_file! {
+    #[test] test_corner_ag_intermediate_violation verus_code! {
+        fn ag_intermediate(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                *x = *x + 1;     // x could be 11 here — FAILS AG
+                if *x > 10 {
+                    *x = 0;
+                }
+            }
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// AG intermediate state OK — property maintained at every step
+test_verify_one_file! {
+    #[test] test_corner_ag_intermediate_ok verus_code! {
+        fn ag_intermediate_ok(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                if *x < 10 { *x = *x + 1; } else { *x = 0; }
+                // At every step: *x <= 10 <= 20 ✓
+            }
+        }
+    } => Ok(())
 }
