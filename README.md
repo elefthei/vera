@@ -120,7 +120,7 @@ vargo build --vstd-no-verify # fast build, skips vstd SMT verification
 ```sh
 cd source
 source ../tools/activate
-vargo test -p rust_verify_test --test temporal   # 54 temporal logic tests
+vargo test -p rust_verify_test --test temporal   # 66 temporal logic tests
 vargo test -p rust_verify_test --test loops      # 62 loop regression tests
 ```
 

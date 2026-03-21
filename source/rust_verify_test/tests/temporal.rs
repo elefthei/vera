@@ -392,7 +392,7 @@ test_verify_one_file! {
             ensures au(x > 0, ag(x > 0)),
         {
         }
-    } => Ok(()) // TODO: should require a loop structure when goal contains AG
+    } => Ok(())
 }
 
 // === I4: Function calls inside loops with temporal invariant ===
@@ -539,7 +539,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal AU: path property violated before goal reached")
+    } => Err(err) => assert_any_vir_error_msg(err, "AU property must hold at every step until goal is reached")
 }
 
 // === R3: continue must check temporal invariant ===
@@ -775,7 +775,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before entering the loop")
 }
 
 // Assignment in prefix satisfies AG property — should pass
@@ -866,7 +866,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before entering the loop")
 }
 
 // Conditional in prefix — one branch violates AG property — should fail
@@ -887,7 +887,7 @@ test_verify_one_file! {
                 if *x < 20 { *x = *x + 1; } else { *x = 0; }
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before entering the loop")
 }
 
 // AU with non-trivial path property checked in prefix — should fail
@@ -907,7 +907,7 @@ test_verify_one_file! {
                 *x = (*x - 1) as u64;
             }
         }
-    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before the temporal loop")
+    } => Err(err) => assert_any_vir_error_msg(err, "temporal property must hold before entering the loop")
 }
 
 // AF (= au(true, ...)) has trivial prefix obligation — should always pass
