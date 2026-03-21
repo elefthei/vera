@@ -53,11 +53,11 @@ fn test_is_variant_2(v: Vehicle2<u64>)
 
 fn test_option(o: Option<u64>) -> (res: u64)
     ensures
-        af(res == if o is Some {
+        af(done(res == if o is Some {
             o->0
         } else {
             0
-        }),
+        })),
 {
     match o {
         Option::Some(v) => v,
@@ -67,11 +67,11 @@ fn test_option(o: Option<u64>) -> (res: u64)
 
 fn test_result<E>(r: Result<u64, E>) -> (res: u64)
     ensures
-        af(res == if r is Ok {
+        af(done(res == if r is Ok {
             r->Ok_0
         } else {
             0
-        }),
+        })),
 {
     match r {
         Result::Ok(v) => v,

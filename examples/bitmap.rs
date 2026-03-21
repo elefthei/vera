@@ -50,9 +50,9 @@ proof fn set_bit64_proof(bv_new: u64, bv_old: u64, index: u64, bit: bool)
         bv_new == set_bit64!(bv_old, index, bit),
         index < 64,
     ensures
-        af(get_bit64!(bv_new, index) == bit),
-        af(forall|loc2: u64|
-            (loc2 < 64 && loc2 != index) ==> (get_bit64!(bv_new, loc2) == get_bit64!(bv_old, loc2))),
+        af(done(get_bit64!(bv_new, index) == bit)),
+        af(done(forall|loc2: u64|
+            (loc2 < 64 && loc2 != index) ==> (get_bit64!(bv_new, loc2) == get_bit64!(bv_old, loc2)))),
 {
 }
 
@@ -61,8 +61,8 @@ proof fn bit_or_64_proof(bv1: u64, bv2: u64, bv_new: u64)
     requires
         bv_new == bv1 | bv2,
     ensures
-        af(forall|i: u64|
-            (i < 64) ==> get_bit64!(bv_new, i) == (get_bit64!(bv1, i) || get_bit64!(bv2, i))),
+        af(done(forall|i: u64|
+            (i < 64) ==> get_bit64!(bv_new, i) == (get_bit64!(bv1, i) || get_bit64!(bv2, i)))),
 {
 }
 
@@ -70,7 +70,7 @@ proof fn bit_or_64_view_proof(u1: u64, u2: u64, bv_new: u64)
     requires
         bv_new == u1 | u2,
     ensures
-        af(u64_view(bv_new) =~= Seq::new(64, |i: int| u64_view(u1).index(i) || u64_view(u2).index(i))),
+        af(done(u64_view(bv_new) =~= Seq::new(64, |i: int| u64_view(u1).index(i) || u64_view(u2).index(i)))),
 {
     bit_or_64_proof(u1, u2, bv_new);
 }
@@ -97,7 +97,7 @@ impl BitMap {
         requires
             index < self@.len(),
         ensures
-            af(bit == self@[index as int]),
+            af(done(bit == self@[index as int])),
     {
         // REVIEW: at this moment, usize is assumed to be 32 or 64.
         // Therefore, if `index` is u64, verification fails due to the possibility of truncation
@@ -112,7 +112,7 @@ impl BitMap {
         requires
             index < old(self)@.len(),
         ensures
-            af(self@ == old(self)@.update(index as int, bit)),
+            af(done(self@ == old(self)@.update(index as int, bit))),
     {
         // REVEIW: Same problem here with above regarding `usize`.
         let seq_index: usize = (index / 64) as usize;
@@ -138,8 +138,8 @@ impl BitMap {
         requires
             self@.len() == bm@.len(),
         ensures
-            af(self@.len() == ret@.len()),
-            af(forall|i: int| 0 <= i < ret@.len() ==> ret@[i] == (self@[i] || bm@[i])),
+            af(done(self@.len() == ret@.len())),
+            af(done(forall|i: int| 0 <= i < ret@.len() ==> ret@[i] == (self@[i] || bm@[i]))),
     {
         let n: usize = self.bits.len();
         let mut i: usize = 0;

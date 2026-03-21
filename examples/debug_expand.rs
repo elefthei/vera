@@ -115,7 +115,7 @@ proof fn test_require_failure(m: Message, b: bool) -> (good_int: int)
 //      ^^^^^^^^^^^^^^^^^^^^
 
     ensures
-        af(is_good_integer_7(good_int)),
+        af(done(is_good_integer_7(good_int))),
 {
     return 0;
 }
@@ -145,7 +145,7 @@ spec fn is_good_message_8(msg: Message) -> bool {
 
 proof fn test_ensures_failure(b: bool) -> (good_msg: Message)
     ensures
-        af(is_good_message_8(good_msg)),
+        af(done(is_good_message_8(good_msg))),
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 {
@@ -276,7 +276,7 @@ spec fn is_good_message_13(msg: Message) -> bool {
 
 proof fn test_reveal_at_ensures(b: bool) -> (good_msg: Message)
     ensures
-        af(is_good_message_13(good_msg)),
+        af(done(is_good_message_13(good_msg))),
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 {
