@@ -64,7 +64,7 @@ trait Initializable: Sized {
 impl<T: Initializable> Lazy<T> {
     const fn new() -> (s: Self)
         ensures
-            af(s.wf()),
+            af(done(s.wf())),
     {
         let (pcell, Tracked(points_to)) = PCell::new(None);
         Lazy {
@@ -158,7 +158,7 @@ impl Initializable for X {
 
 exec static LAZY_X: Lazy<X>
     ensures
-        af(LAZY_X.wf()),
+        af(done(LAZY_X.wf())),
 {
     Lazy::<X>::new()
 }

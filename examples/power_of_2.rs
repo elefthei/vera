@@ -14,7 +14,7 @@ proof fn left_shift_by_one(bv: u32, e: u32)
         e > 0,
         e <= 32,
     ensures
-        af(bv << e == (bv << sub(e, 1)) << 1u32),
+        af(done(bv << e == (bv << sub(e, 1)) << 1u32)),
     decreases e,
 {
     // REVIEW:                 ^^^^^^^^^^ expected `u32`, found struct `verus_builtin::int`
@@ -28,7 +28,7 @@ proof fn left_shift_by_one_is_mul2(bv: u32, e: u32)
         e <= 32,
         bv << e == (bv << sub(e, 1)) << 1,
     ensures
-        af((bv << e) == mul(2, bv << sub(e, 1))),
+        af(done((bv << e) == mul(2, bv << sub(e, 1)))),
 {
 }
 
@@ -44,7 +44,7 @@ spec fn pow2(e: nat) -> nat
 
 proof fn lemma_pow2_0()
     ensures
-        af(pow2(0) == 1),
+        af(done(pow2(0) == 1)),
 {
 }
 
@@ -52,7 +52,7 @@ proof fn lemma_pow2_unfold3(e: nat)
     requires
         e > 3,
     ensures
-        af(pow2(e) == pow2((e - 3) as nat) * 8),
+        af(done(pow2(e) == pow2((e - 3) as nat) * 8)),
 {
     reveal_with_fuel(pow2, 3);
 }
@@ -62,7 +62,7 @@ proof fn lemma_pow2_make_div(e: nat)
     requires
         e > 0,
     ensures
-        af((pow2(e) - 1) / 2 == pow2((e - 1) as nat) - 1),
+        af(done((pow2(e) - 1) / 2 == pow2((e - 1) as nat) - 1)),
     decreases e,
 {
     if e == 1 {
@@ -75,7 +75,7 @@ proof fn lemma_pow2_2e(e: nat)
     requires
         e > 0,
     ensures
-        af((pow2(2 * e)) == 4 * pow2(2 * ((e - 1) as nat))),
+        af(done((pow2(2 * e)) == 4 * pow2(2 * ((e - 1) as nat)))),
     decreases e,
 {
     reveal_with_fuel(pow2, 3);
@@ -91,7 +91,7 @@ proof fn lemma_pow2_two_e(e: nat)
     requires
         e >= 0,
     ensures
-        af(pow2(e) * pow2(e) == pow2(2 * e)),
+        af(done(pow2(e) * pow2(e) == pow2(2 * e))),
     decreases e,
 {
     if e != 0 {
@@ -104,7 +104,7 @@ proof fn lemma_pow2_increase(e: nat)
     requires
         e > 0,
     ensures
-        af(pow2(e) > pow2((e - 1) as nat)),
+        af(done(pow2(e) > pow2((e - 1) as nat))),
     decreases e,
 {
     if e == 1 {
@@ -118,7 +118,7 @@ proof fn lemma_mul_upper_bound(x: nat, y: nat, z: nat)
     requires
         x < y,
     ensures
-        af(z * x <= z * y),
+        af(done(z * x <= z * y)),
 {
 }
 
@@ -127,7 +127,7 @@ proof fn left_shift_is_pow2(bv: u32, e: u32)
         e <= 32,
         (bv as nat) * pow2(e as nat) < (0x1_0000_0000 as nat),
     ensures
-        af((bv << e) as nat == (bv as nat) * pow2(e as nat)),
+        af(done((bv << e) as nat == (bv as nat) * pow2(e as nat))),
     decreases e,
 {
     if e == 0 {

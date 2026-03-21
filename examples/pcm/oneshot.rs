@@ -152,7 +152,7 @@ impl OneShotResource {
     // one-shot.
     pub proof fn alloc() -> (tracked resource: Self)
         ensures
-            af(resource@ is FullRightToComplete),
+            af(done(resource@ is FullRightToComplete)),
     {
         let v = OneShotResourceValue::FullRightToComplete {  };
         let tracked mut r = Resource::<OneShotResourceValue>::alloc(v);
@@ -165,12 +165,12 @@ impl OneShotResource {
         requires
             self@ is FullRightToComplete,
         ensures
-            af(({
+            af(done(({
                 let (half1, half2) = return_value;
                 &&& half1@ is HalfRightToComplete
                 &&& half2@ is HalfRightToComplete
                 &&& half2.id() == half1.id() == self.id()
-            })),
+            }))),
     {
         let half = OneShotResourceValue::HalfRightToComplete {  };
         let tracked (r1, r2) = self.r.split(half, half);
@@ -186,7 +186,7 @@ impl OneShotResource {
         requires
             old(self)@ is FullRightToComplete,
         ensures
-            af(self@ is Complete),
+            af(done(self@ is Complete)),
     {
         let v = OneShotResourceValue::Complete {  };
         update_mut(&mut self.r, v);
@@ -212,10 +212,10 @@ impl OneShotResource {
             old(self)@ is HalfRightToComplete,
             !(old(other)@ is Empty),
         ensures
-            af(old(other)@ is HalfRightToComplete),
-            af(self@ is Complete),
-            af(other@ is Complete),
-            af(other.id() == self.id() == old(self).id()),
+            af(done(old(other)@ is HalfRightToComplete)),
+            af(done(self@ is Complete)),
+            af(done(other@ is Complete)),
+            af(done(other.id() == self.id() == old(self).id())),
     {
         self.r.validate();
         other.r.validate();
@@ -236,8 +236,8 @@ impl OneShotResource {
         requires
             self@ is Complete,
         ensures
-            af(other.id() == self.id()),
-            af(other@ is Complete),
+            af(done(other.id() == self.id())),
+            af(done(other@ is Complete)),
     {
         let tracked r = duplicate(&self.r);
         Self { r }
@@ -249,9 +249,9 @@ impl OneShotResource {
             other@ is Complete,
             !(old(self)@ is Empty),
         ensures
-            af(self.id() == old(self).id()),
-            af(self@ == old(self)@),
-            af(self@ is Complete),
+            af(done(self.id() == old(self).id())),
+            af(done(self@ == old(self)@)),
+            af(done(self@ is Complete)),
     {
         self.r.validate_2(&other.r);
     }

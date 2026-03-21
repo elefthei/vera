@@ -10,8 +10,8 @@ verus! {
 // ## A -- A-program.rs
 fn max(a: u64, b: u64) -> (ret: u64)
     ensures
-        af(ret == a || ret == b),
-        af(ret >= a && ret >= b),
+        af(done(ret == a || ret == b)),
+        af(done(ret >= a && ret >= b)),
 {
     //-   if a >= b { b } else { a }
     /*+*/
@@ -39,7 +39,7 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fibo(i) <= fibo(j)),
+        af(done(fibo(i) <= fibo(j))),
     decreases j - i,
 {
     if j < 2 {
@@ -59,7 +59,7 @@ exec fn fibo_impl(n: u64) -> (result: u64)
     requires
         fibo_fits_u64(n as nat),
     ensures
-        af(result == fibo(n as nat)),
+        af(done(result == fibo(n as nat))),
 {
     if n == 0 {
         return 0;
@@ -96,8 +96,8 @@ pub fn transfer(orig: &mut Account, dest: &mut Account, amount: u64)
         old(orig).balance >= amount,
         old(dest).balance + amount < u64::MAX,
     ensures
-        af(dest.balance == old(dest).balance + amount),
-        af(orig.balance == old(orig).balance - amount),
+        af(done(dest.balance == old(dest).balance + amount)),
+        af(done(orig.balance == old(orig).balance - amount)),
 {
     /*+*/
     let accounts_pre: Ghost<(Account, Account)> = Ghost((*orig, *dest));
@@ -138,7 +138,7 @@ exec fn g(v1: &mut Vec<u64>, v2: &mut Vec<u64>)
         old(v1)@.len() == 2,
         old(v2)@.len() == 3,
     ensures
-        af(v1@.len() == v2@.len()),
+        af(done(v1@.len() == v2@.len())),
 {
     v1.push(42);
     v1.push(43);
@@ -160,13 +160,13 @@ proof fn div_is_smaller(x: nat, y: nat)/*+*/
     requires
         y != 0,
     ensures
-        af(divide(x, y) <= x),
+        af(done(divide(x, y) <= x)),
 {
 }
 
 fn mod8_bw(x: u32) -> (ret: u32)
     ensures
-        af(ret == x % 8),
+        af(done(ret == x % 8)),
 {
     assert(x & 7 == x % 8) by (bit_vector);
     x & 7
@@ -184,7 +184,7 @@ struct State2 {
 #[verifier::external_body]
 proof fn exchange(tracked s1: State1) -> (tracked s2: State2)
     ensures
-        af(s1.s == s2.s),
+        af(done(s1.s == s2.s)),
 {
     todo!()
 }
@@ -224,8 +224,8 @@ mod F1 {
             counter == old(perm).pptr(),
             old(perm).is_init() && old(perm).value() < 100,
         ensures
-            af(perm.pptr() == old(perm).pptr()),
-            af(perm.opt_value() == MemContents::Init((old(perm).value() + 1) as u64)),
+            af(done(perm.pptr() == old(perm).pptr())),
+            af(done(perm.opt_value() == MemContents::Init((old(perm).value() + 1) as u64))),
     {
         // pub fn borrow<'a>(&self, perm: &'a Tracked<PointsTo<V>>) -> (v: &'a V)
         let cur_i: u64 = *counter.borrow(Tracked(&*perm));

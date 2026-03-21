@@ -63,9 +63,9 @@ proof fn multiset_lemma<T>(input: Seq<T>, output: Multiset<T>)
     ensures
 // show we did build a multiset constructively from a seq
 
-        af(multiset_matches_seq(input, output)),
+        af(done(multiset_matches_seq(input, output))),
         // show there's no other multiset that'll work.
-        af(forall|other: Multiset<T>| multiset_matches_seq(input, other) ==> other == output),
+        af(done(forall|other: Multiset<T>| multiset_matches_seq(input, other) ==> other == output)),
 {
     if input.len() == 0 {
         //assert(output == Multiset::empty());
@@ -97,7 +97,7 @@ spec fn view_i64(i64seq: Seq<i64>) -> Seq<int> {
 
 fn merge_sort(input: Vec<i64>) -> (output: Vec<i64>)
     ensures
-        af(sort_spec(view_i64(input.view()), view_i64(output.view()))),
+        af(done(sort_spec(view_i64(input.view()), view_i64(output.view())))),
 {
     assume(false);
     input  // TODO(jonh): haven't actually implemented

@@ -22,7 +22,7 @@ proof fn lemma_fibo_is_monotonic(i: nat, j: nat)
     requires
         i <= j,
     ensures
-        af(fibo(i) <= fibo(j)),
+        af(done(fibo(i) <= fibo(j))),
     decreases j - i,
 {
     if j < 2 {
@@ -42,7 +42,7 @@ exec fn fibo_impl(n: u64) -> (result: u64)
     requires
         fibo_fits_u64(n as nat),
     ensures
-        af(result == fibo(n as nat)),
+        af(done(result == fibo(n as nat))),
 {
     if n == 0 {
         return 0;

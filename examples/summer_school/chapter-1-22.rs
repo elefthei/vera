@@ -62,7 +62,7 @@ proof fn sorted_tree_means_sorted_sequence(tree: Tree)
     requires
         tree.is_sorted(),
     ensures
-        af(sequence_is_sorted(tree@)),
+        af(done(sequence_is_sorted(tree@))),
     decreases tree  // guessed by Dafny ,
 {
     // reveal_with_fuel(sorted_tree_means_sorted_sequence, 3); // TODO(utaal) ICE revealing current method with fuel panics in AIR
@@ -82,13 +82,13 @@ enum TreeSortedness {
 
 fn check_is_sorted_tree(tree: &Tree) -> (ret: TreeSortedness)
     ensures
-        af(tree.is_sorted() == !ret.is_Unsorted()),
-        af(tree.is_Nil() == ret.is_Empty()),
-        af(if let TreeSortedness::Bounded(l, r) = ret {
+        af(done(tree.is_sorted() == !ret.is_Unsorted())),
+        af(done(tree.is_Nil() == ret.is_Empty())),
+        af(done(if let TreeSortedness::Bounded(l, r) = ret {
             l == tree@[0] && r == tree@.last()
         } else {
             true
-        }),
+        })),
 // TODO: suboptimal span for error message:
 // error: postcondition not satisfied
 //   --> rust_verify/example/summer_school.rs:82:13
@@ -171,7 +171,7 @@ fn find_in_binary_tree(tree: &Tree, needle: i64) -> (ret: bool)
     requires
         tree.is_sorted(),
     ensures
-        af(ret == tree@.contains(needle as int)),
+        af(done(ret == tree@.contains(needle as int))),
     decreases tree,
 {
     match tree {
