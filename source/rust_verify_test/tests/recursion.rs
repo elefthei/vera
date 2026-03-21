@@ -868,7 +868,7 @@ test_verify_one_file! {
 
         #[verifier(decreases_by)]
         proof fn check_arith_sum(i: int)
-            ensures af(i >= 0)
+            ensures af(done(i >= 0))
         {
         }
     } => Err(err) => assert_vir_error_msg(err, "decreases_by/recommends_by function cannot have ensures clauses")
@@ -976,7 +976,7 @@ test_verify_one_file! {
         }
 
         proof fn test()
-            ensures af(f(3) == f(4) + 1)
+            ensures af(done(f(3) == f(4) + 1))
         {
         }
 
@@ -1082,7 +1082,7 @@ test_verify_one_file! {
         }
 
         proof fn reveal_id(i: int)
-            ensures af(id(i) == i)
+            ensures af(done(id(i) == i))
         {
             reveal(id);
         }
@@ -1205,7 +1205,7 @@ test_verify_one_file_with_options! {
         }
 
         proof fn bad()
-            ensures af(false)
+            ensures af(done(false))
         {
             inline_air_stmt("(assert (= (f.? (I 300) (I 3)) (Add (f.? (I 300) (I 3)) 1)))");
             inline_air_stmt("(assume (= (f.? (I 300) (I 3)) (Add (f.? (I 300) (I 3)) 1)))");
@@ -1605,7 +1605,7 @@ test_verify_one_file! {
         }
 
         proof fn p(s: S)
-            ensures af(false)
+            ensures af(done(false))
             decreases s
         {
             p((s.x)(0));
@@ -1648,8 +1648,8 @@ test_verify_one_file! {
             // TODO: broadcast_forall
             pub proof fn lemma_height_s<A, B>(s: S<A, B>)
                 ensures
-                    af(decreases_to!(s => s.get0())),
-                    af(decreases_to!(s => s.get1())),
+                    af(done(decreases_to!(s => s.get0()))),
+                    af(done(decreases_to!(s => s.get1()))),
             {
             }
         }
@@ -1940,7 +1940,7 @@ test_verify_one_file! {
 
 test_verify_one_file! {
     #[test] decreases_checks_preconditions verus_code! {
-        proof fn p() requires false ensures af(false) { }
+        proof fn p() requires false ensures af(done(false)) { }
 
         #[via_fn]
         proof fn ff(i: int) {
@@ -1971,7 +1971,7 @@ test_verify_one_file! {
         }
 
         proof fn bad_lemma()
-            ensures af(false),
+            ensures af(done(false)),
         {
             assert(false); // FAILS
         }
@@ -1993,7 +1993,7 @@ test_verify_one_file! {
         }
 
         proof fn bad_lemma()
-            ensures af(false),
+            ensures af(done(false)),
         {
             assert(impossible_fun() == !impossible_fun());
             assert(false);
@@ -2102,7 +2102,7 @@ test_verify_one_file! {
 
             pub broadcast proof fn is_lt<T: Tr>(t: T)
                 ensures
-                    af(t.n() != 0 ==> (#[trigger] t.get_lt()).n() < t.n())
+                    af(done(t.n() != 0 ==> (#[trigger] t.get_lt()).n() < t.n()))
             {
                 assume(false);
             }
@@ -2141,7 +2141,7 @@ test_verify_one_file! {
                 node.right.as_set().contains(key),
                 node.key != key,
             ensures
-                af(Link(Some(Box::new(node))).as_set().contains(key)),
+                af(done(Link(Some(Box::new(node))).as_set().contains(key))),
         {
         }
 

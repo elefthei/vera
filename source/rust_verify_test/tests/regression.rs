@@ -110,10 +110,10 @@ test_verify_one_file! {
 
 
         fn test(a: u32) -> (res: Enum)
-            ensures af((match res {
+            ensures af(done((match res {
                 Enum::A => a <= 10,
                 Enum::B => a > 10, // FAILS
-            })) {
+            }))) {
 
             Enum::B
         }
@@ -165,7 +165,7 @@ test_verify_one_file! {
         use vstd::map::*;
 
         proof fn some_proof() -> (m: Map<int, int>)
-            ensures af(m === Map::empty())
+            ensures af(done(m === Map::empty()))
         {
             Map::empty()
         }
@@ -185,7 +185,7 @@ test_verify_one_file! {
         }
 
         fn g() -> (res: bool)
-            ensures af(forall|i: nat| f(i))
+            ensures af(done(forall|i: nat| f(i)))
         {
             return true;
         }
@@ -820,7 +820,7 @@ test_verify_one_file! {
         use std::rc::Rc;
         #[verifier(external_body)]
         pub exec fn rc_clone(rc: &Rc<Vec<u8>>) -> (res: Rc<Vec<u8>>)
-            ensures af((*rc)@ == (*res)@)
+            ensures af(done((*rc)@ == (*res)@))
         {
             Rc::clone(&rc)
         }
@@ -894,7 +894,7 @@ test_verify_one_file! {
 
         // If the `pub` access specifier is added then the error message goes away
         proof fn truey()
-            ensures af(true)
+            ensures af(done(true))
         {
             assume(false);
         }
@@ -933,7 +933,7 @@ test_verify_one_file! {
 
                 spec fn b2(t: T::V) -> bool;
 
-                proof fn b_proof(t: T) requires Self::b1(t), ensures af(Self::b2(t@));
+                proof fn b_proof(t: T) requires Self::b1(t), ensures af(done(Self::b2(t@)));
             }
 
         }
@@ -1031,7 +1031,7 @@ test_verify_one_file! {
 
                 pub proof fn p(s: S)
                     requires p1(s),
-                    ensures af(p2(s)) {
+                    ensures af(done(p2(s))) {
 
                     assume(false);
                 }
@@ -1039,10 +1039,10 @@ test_verify_one_file! {
                 pub trait A {
                     proof fn two(s: S)
                         requires p1(s),
-                        ensures af(p2(s));
+                        ensures af(done(p2(s)));
 
                     proof fn one()
-                        ensures af(forall|s: S| p1(s) ==> p2(s));
+                        ensures af(done(forall|s: S| p1(s) ==> p2(s)));
                 }
             }
         }
@@ -1183,16 +1183,16 @@ test_verify_one_file! {
         // Make sure a type gets translated when it gets copied into
         // the macro-generated 'ensures' call.
         pub proof fn test(x: nat) -> (t: spec_fn(nat) -> nat)
-            ensures af(true),
+            ensures af(done(true)),
         {
             |i| i
         }
 
         pub fn test2(x: nat)
-            ensures af(true),
+            ensures af(done(true)),
         {
             let clos = || -> (t: Ghost<spec_fn(nat) -> nat>)
-                ensures af(true)
+                ensures af(done(true))
             {
                 let ghost s = |i| i;
                 Ghost(s)
@@ -1240,7 +1240,7 @@ test_verify_one_file! {
     #[test] seq_add_axiom_issue990 verus_code! {
         use vstd::{prelude::*, seq::*};
         proof fn seq_bad()
-            ensures af(false)
+            ensures af(done(false))
         {
             let s1: Seq<int> = seq![1];
             let s1_2: Seq<int> = seq![1, 2];
@@ -1400,7 +1400,7 @@ test_verify_one_file! {
         impl core::cmp::PartialEq<A> for A {
             fn eq(&self, other: &A) -> (r: bool)
             ensures
-                af(self.0 != other.0)
+                af(done(self.0 != other.0))
             {
                 proof{
                     assert(false); // FAILS
@@ -1478,7 +1478,7 @@ test_verify_one_file! {
         trait TraitA {
             proof fn prop(chain: Seq<Option<A>>, i: int)
                 ensures
-                    af(0 <= i < chain.len() ==> {
+                    af(done(0 <= i < chain.len() ==> {
                         let c = chain[i];
                         if c is Some {
                             let MISSING_KEY = c->0;
@@ -1486,7 +1486,7 @@ test_verify_one_file! {
                         } else {
                             false
                         }
-                    })
+                    }))
                     ;
         }
 

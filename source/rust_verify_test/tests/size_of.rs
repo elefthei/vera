@@ -92,7 +92,7 @@ test_verify_one_file! {
             pub spec fn is_sized<T: ?Sized>() -> bool;
 
             pub broadcast proof fn is_sized_from_trait<T: Sized>()
-                ensures af(is_sized::<T>())
+                ensures af(done(is_sized::<T>()))
             {
                 assume(false);
             }

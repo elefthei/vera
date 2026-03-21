@@ -16,15 +16,15 @@ const PROPH: &str = verus_code_str! {
 
         #[verifier::external_body]
         pub proof fn new() -> (tracked s: Self)
-            ensures af(s.may_resolve())
+            ensures af(done(s.may_resolve()))
         { unimplemented!() }
 
         #[verifier::external_body]
         pub proof fn resolve(tracked &mut self, value: T)
             requires old(self).may_resolve(),
-            ensures af(!self.may_resolve()),
-                af(self.value() == old(self).value()),
-                af(self.value() == value),
+            ensures af(done(!self.may_resolve())),
+                af(done(self.value() == old(self).value())),
+                af(done(self.value() == value)),
         { unimplemented!() }
     }
 };
@@ -55,7 +55,7 @@ test_verify_one_file! {
             }
 
             pub fn new() -> (s: Self)
-                ensures af(s.wf()),
+                ensures af(done(s.wf())),
             {
                 OnceFlip {
                     value: None,
@@ -67,9 +67,9 @@ test_verify_one_file! {
                 requires
                     old(self).wf(),
                 ensures
-                    af(self.wf()),
-                    af(self.result() == old(self).result()),
-                    af(b == self.result()),
+                    af(done(self.wf())),
+                    af(done(self.result() == old(self).result())),
+                    af(done(b == self.result())),
             {
                 if self.value.is_none() {
                     let flip = rand();
@@ -234,7 +234,7 @@ test_verify_one_file! {
         }
 
         fn fens(tracked t: Prophecy<bool>)
-            ensures af(t.value() == false),
+            ensures af(done(t.value() == false)),
         { assume(false); }
 
         proof fn test_ens(tracked t: Prophecy<bool>)
@@ -271,7 +271,7 @@ test_verify_one_file! {
             let tracked mut t = t;
 
             let clos = |t: Prophecy<bool>|
-                ensures af(t.value() == false),
+                ensures af(done(t.value() == false)),
             { assume(false); };
 
             proof {
@@ -719,11 +719,11 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] lemma_call_ok verus_code! {
         proof fn easy_lemma(a: int, b: int)
-            ensures af(a <= b ==> a <= b + 1)
+            ensures af(done(a <= b ==> a <= b + 1))
         { }
 
         proof fn lemma_add(a: int, b: int) -> (r: int)
-            ensures af(r == a + b)
+            ensures af(done(r == a + b))
         { a + b }
 
         #[verifier::prophetic] uninterp spec fn proph() -> bool;
@@ -744,7 +744,7 @@ test_verify_one_file! {
         #[verifier::prophetic] uninterp spec fn proph_int() -> int;
 
         proof fn lemma_add(a: int, b: int) -> (r: int)
-            ensures af(r == a + b)
+            ensures af(done(r == a + b))
         { a + b }
 
         proof fn test(b: bool) {
