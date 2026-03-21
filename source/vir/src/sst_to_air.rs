@@ -2920,9 +2920,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let mut invs_entry = Arc::new(invs_entry);
             let mut invs_exit = Arc::new(invs_exit);
 
-            // Save AG obligations so we can restore after processing this loop body.
-            // This handles nested loops correctly — inner loops get their own obligations.
-            let saved_ag_obligations = std::mem::take(&mut state.ag_state_obligations);
+            // Save AG obligations from parent scope. Inner loops INHERIT parent AG
+            // obligations — AG(φ) must hold at every state, including inside nested loops.
+            let saved_ag_obligations = state.ag_state_obligations.clone();
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -2970,7 +2970,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                             _ => None,
                         })
                         .collect();
-                    state.ag_state_obligations = ag_props;
+                    // Extend (not replace) — nested AG loops inherit parent AG obligations
+                    state.ag_state_obligations.extend(ag_props);
                 }
             } else {
                 is_utility_loop_in_temporal = false;
