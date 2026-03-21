@@ -1094,3 +1094,134 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === PASS corner case tests (P1-P6) ===
+
+// P1: Early return in AU context
+test_verify_one_file! {
+    #[test] test_corner_early_return_af verus_code! {
+        fn early_return(x: &mut u64)
+            requires *old(x) >= 0,
+            ensures af(*x == 0),
+        {
+            if *x == 0 { return; }
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// P2: Nested calls preserving AG invariant
+test_verify_one_file! {
+    #[test] test_corner_nested_calls_ag verus_code! {
+        fn bounded_step(x: &mut u64)
+            requires *old(x) <= 20,
+            ensures af(*x <= 20),
+        {
+            if *x >= 20 { *x = 0; }
+        }
+
+        fn bounded_forever(x: &mut u64)
+            requires *old(x) == 0,
+            ensures ag(*x <= 20),
+        {
+            loop
+                invariant *x <= 20,
+            {
+                bounded_step(x);
+            }
+        }
+    } => Ok(())
+}
+
+// P3: AU goal already true at entry
+test_verify_one_file! {
+    #[test] test_corner_au_goal_at_entry verus_code! {
+        fn already_done(x: &mut u64)
+            requires *old(x) == 0,
+            ensures af(*x == 0),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// P4: Two sequential AF properties (two-phase)
+test_verify_one_file! {
+    #[test] test_corner_two_phase_af verus_code! {
+        fn two_phases(x: &mut u64)
+            requires *old(x) == 10,
+            ensures af(*x == 0),
+        {
+            while *x > 5
+                invariant *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+            while *x > 0
+                invariant *x <= 5,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// P5: Conditional — both branches satisfy AG
+test_verify_one_file! {
+    #[test] test_corner_conditional_ag verus_code! {
+        fn conditional_ag(x: &mut u64, flag: bool)
+            requires *old(x) == 0,
+            ensures ag(*x <= 100),
+        {
+            if flag {
+                loop
+                    invariant *x <= 100,
+                {
+                    if *x < 100 { *x = *x + 1; } else { *x = 0; }
+                }
+            } else {
+                loop
+                    invariant *x <= 100,
+                {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// P6: Utility loop then AG loop (prefix composition)
+test_verify_one_file! {
+    #[test] test_corner_utility_then_ag verus_code! {
+        fn setup_then_run(x: &mut u64)
+            requires *old(x) < 100,
+            ensures ag(*x <= 200),
+        {
+            // Utility loop: setup phase
+            while *x < 50
+                invariant *x <= 200,
+                decreases 50 - *x as int,
+            {
+                *x = *x + 1;
+            }
+            // AG loop: run forever
+            loop
+                invariant *x <= 200,
+            {
+                if *x < 200 { *x = *x + 1; } else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
