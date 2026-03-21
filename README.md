@@ -76,17 +76,20 @@ impl Queue {
     { self.data.remove(0) }
 }
 
-/// Round-robin loop: AG(AF(peek == x)) fairness postcondition.
-/// The loop invariant serves as the temporal refinement mapping R.
-/// No `decreases` → AG (infinite loop). R → φ is checked automatically.
-fn round_robin(queue: &mut Queue)
-    requires old(queue).view().len() > 0,
+/// Round-robin fairness: AG(AF(peek == x)).
+/// The element x at the head always eventually returns to the head.
+fn round_robin(queue: &mut Queue, x: u64)
+    requires
+        old(queue).view().len() > 0,
+        x == old(queue).peek_spec(),
+    ensures
+        ag(af(queue.peek_spec() == x)),
 {
     loop
         invariant queue.view().len() > 0,
     {
-        let x = queue.dequeue();
-        queue.enqueue(x);
+        let val = queue.dequeue();
+        queue.enqueue(val);
     }
 }
 
