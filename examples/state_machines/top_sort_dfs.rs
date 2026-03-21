@@ -465,7 +465,7 @@ fn init_node_states(
         /*let ghost i_spec = i;
         assert_forall_by(|j: int| {
             requires(0 <= j && j < i);
-            ensures(af(node_states@.index(j).well_formed(j, instance)));
+            ensures(af(done(node_states@.index(j).well_formed(j, instance))));
 
             if j + 1 < i_spec {
                 assert(old_node_states@.index(j).well_formed(j, instance));

@@ -8,7 +8,7 @@ verus! {
 /*
 struct R { f: spec_fn(R) -> int }
 proof fn bad()
-    ensures af(false)
+    ensures af(done(false))
 {
     let f1 = |r: R| -> int {
         (r.f)(r) + 1

@@ -82,8 +82,8 @@ tokenized_state_machine! {InternSystem<T> {
     fn insert_inductive(pre: Self, post: Self, val: T) {
         /*assert_forall_by(|k| {
             requires(post.frag.dom().contains(k));
-            ensures(af(0 <= k && k < post.auth.len()
-                && equal(post.auth.index(k), post.frag.index(k))));
+            ensures(af(done(0 <= k && k < post.auth.len()
+                && equal(post.auth.index(k), post.frag.index(k)))));
 
             assert(pre.frag.dom().contains(k));
             assert(k < pre.auth.len());
@@ -96,7 +96,7 @@ tokenized_state_machine! {InternSystem<T> {
                 0 <= j && j < post.auth.len() &&
                 i != j
             );
-            ensures(af(!equal(post.auth.index(i), post.auth.index(j))));
+            ensures(af(done(!equal(post.auth.index(i), post.auth.index(j)))));
 
             if i == post.auth.len() as int - 1 {
                 if j == post.auth.len() as int - 1 {

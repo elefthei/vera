@@ -117,7 +117,7 @@ tokenized_state_machine!(
             /*
             assert_forall_by(|i: int| {
               requires(post.storage_map.dom().contains(i));
-              ensures(af(0 <= i && i < post.m));
+              ensures(af(done(0 <= i && i < post.m)));
               if pre.storage_map.dom().contains(i) {
                   assert(0 <= i && i < post.m);
               } else {

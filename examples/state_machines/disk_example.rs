@@ -216,9 +216,9 @@ fn take_step(
     ensures(
         |ret: (Tracked<AuthFrag::auth<nat, Block>>, Tracked<LinearTree>, Gho<TreeSM::State>)| {
             let (Tracked(interp2), Tracked(lt2), Gho(tree2)) = ret;
-            af(equal(interp2, state_interp_fn(inst, state2))
+            af(done(equal(interp2, state_interp_fn(inst, state2))
                 && TreeSM::State::update_child(tree1_state, tree2, is_left, new_val)
-                && tree_relation(inst, lt2, tree2))
+                && tree_relation(inst, lt2, tree2)))
         },
     );
     #[verifier::proof]
