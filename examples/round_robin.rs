@@ -91,7 +91,7 @@ impl Queue {
 /// The ghost accumulator tracks whether peek == x held at any intermediate
 /// state during the loop body. Combined with index_of(x) as decreasing
 /// metric, this proves x always eventually reaches the front.
-fn round_robin(queue: &mut Queue, x: u64)
+fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
         old(queue).view().len() > 1,
         old(queue).view().contains(x),
@@ -105,8 +105,45 @@ fn round_robin(queue: &mut Queue, x: u64)
             queue.view().contains(x),
         decreases queue.view().index_of(x),
     {
+        let ghost old_view = queue.view();
+        let ghost old_len = old_view.len() as int;
+        let ghost old_idx = old_view.index_of(x) as int;
+
         let val = queue.dequeue();
         queue.enqueue(val);
+
+        let ghost new_view = queue.view();
+
+        proof {
+            // After dequeue(first) + enqueue(first): rotation by 1
+            // new_view == old_view.subrange(1, old_len).push(old_view[0])
+            let tail = old_view.subrange(1, old_len);
+
+            // Prove new_view == tail.push(val)
+            assert(val == old_view.first());
+            assert(new_view =~= tail.push(val));
+
+            // Prove len preserved
+            assert(new_view.len() == old_len);
+
+            // Prove contains(x) preserved:
+            // Case 1: x == val (was at front)
+            // Case 2: x != val (was in tail)
+            if old_idx == 0 {
+                // x was at front, val == x
+                assert(val == x);
+                // x is pushed at the end of new_view
+                assert(new_view[new_view.len() - 1] == x);
+            } else {
+                // x was in tail at position old_idx - 1
+                assert(tail.len() == old_len - 1);
+                assert(tail[old_idx - 1] == x);
+                // tail.push(val) contains x at same position
+                assert(new_view[old_idx - 1] == x);
+            }
+            // In both cases: new_view.contains(x)
+            assert(new_view.contains(x));
+        }
     }
 }
 
