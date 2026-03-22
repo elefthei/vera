@@ -1,92 +1,41 @@
 # <a href="https://verus-lang.github.io/verus/verus/logo.html"><img height="60px" src="https://verus-lang.github.io/verus/verus/assets/verus-color.svg" alt="Verus" /></a> Vera (Verus Always)
 
 **Vera** extends [Verus](https://github.com/verus-lang/verus) with **CTL temporal logic**
-to prove **liveness** and **fairness** properties of Rust programs at compile time.
-
-While Verus proves *safety* (something bad never happens), Vera adds the ability to prove
-*liveness* (something good eventually happens) — including **always-eventually** (fairness)
-properties for infinite-running systems like schedulers, servers, and event loops.
-
-Vera is built on the [TICL](https://github.com/eioannidis/ticl) framework, which provides
-sound structural rules for decomposing CTL temporal obligations into standard first-order
-verification conditions checked by Z3.
+to prove **liveness** and **fairness** properties of Rust programs at compile time,
+built on the [TICL](https://arxiv.org/abs/2410.14906) framework.
 
 ## Temporal Operators
 
 | Operator | Meaning |
 |----------|---------|
 | `ag(φ)` | **Always globally**: φ holds at every state of an infinite computation |
-| `af(φ)` | **Always finally**: φ is eventually reached (sugar for `au(true, φ)`) |
-| `au(φ, ψ)` | **Always until**: φ holds at every state until ψ is reached |
+| `af(done(Q))` | **Always finally**: program terminates with postcondition Q |
+| `af(now(Q))` | **Always finally**: Q holds at some future state (no termination needed) |
+| `au(φ, ψ)` | **Always until**: φ holds at every step until ψ is reached |
 
-Operators compose structurally — `ag(af(φ))`, `au(φ, ag(ψ))`, `ag(ag(φ))`, etc. all
-work via recursive decomposition into leaf obligations. For example, `ag(af(φ))` is just
-`AG` wrapping `AU(⊤, φ)`: the outer AG requires an infinite loop with invariance, the
-inner AU requires progress toward φ on each iteration.
-
-## How It Works
-
-Temporal postconditions in `ensures` clauses are decomposed into standard first-order
-verification conditions using TICL structural rules:
-
-- **`ensures ag(φ)`** — the function must contain an infinite loop (`loop` without `decreases`)
-  whose invariant R implies φ. The loop may never exit.
-- **`ensures af(φ)`** — equivalent to standard termination + postcondition for sequential code.
-  The loop needs a `decreases` clause proving progress toward φ.
-- **`ensures au(φ, ψ)`** — path property φ holds until goal ψ is reached. Requires `decreases`
-  weakened to ψ ∨ (measure decreased).
-- **Prefix code** (assignments, calls before the temporal loop) must maintain φ at every step
-  (sequence composition rules: `ag_seq`, `aul_seq`).
-
-The key insight: `{P} prog {Q}` in Verus Hoare logic corresponds to `{P} prog {AF(done ∧ Q)}`
-in temporal logic. Standard `ensures` + `decreases` already proves `AF(Q)` — temporal operators
-add genuinely new capabilities for infinite computations (`AG`) and fairness (`AG(AF)`).
+Operators compose structurally via [TICL](https://arxiv.org/abs/2410.14906) rules.
+`now(Q)` is a state predicate (holds at a single state); `done(Q)` requires termination.
+`ag(af(now(Q)))` expresses **fairness** — Q recurrently holds forever.
 
 ## Example: Round-Robin Fairness
 
-A round-robin scheduler dequeues from the front and re-enqueues at the back.
-The fairness property: every element eventually returns to the head.
-
 ```rust
 use vstd::prelude::*;
-
 verus! {
 
-struct Queue {
-    data: Vec<u64>,
-}
-
-impl Queue {
-    spec fn view(&self) -> Seq<u64> { self.data@ }
-    spec fn peek_spec(&self) -> u64  { self.view().first() }
-
-    fn new() -> (q: Queue)
-        ensures q.view().len() == 0,
-    { Queue { data: Vec::new() } }
-
-    fn enqueue(&mut self, val: u64)
-        ensures self.view() == old(self).view().push(val),
-    { self.data.push(val); }
-
-    fn dequeue(&mut self) -> (val: u64)
-        requires old(self).view().len() > 0,
-        ensures
-            val == old(self).view().first(),
-            self.view() == old(self).view().subrange(1, old(self).view().len() as int),
-    { self.data.remove(0) }
-}
-
-/// Round-robin fairness: AG(AF(peek == x)).
-/// The element x at the head always eventually returns to the head.
-fn round_robin(queue: &mut Queue, x: u64)
+/// AG(AF(now(peek == x))): every element always eventually returns to the head.
+fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
-        old(queue).view().len() > 0,
-        x == old(queue).peek_spec(),
+        old(queue).view().len() > 1,
+        old(queue).view().contains(x),
     ensures
-        ag(af(queue.peek_spec() == x)),
+        ag(af(now(queue.peek_spec() == x))),
 {
     loop
-        invariant queue.view().len() > 0,
+        invariant
+            queue.view().len() > 1,
+            queue.view().contains(x),
+        decreases queue.view().index_of_first(x),
     {
         let val = queue.dequeue();
         queue.enqueue(val);
@@ -96,50 +45,28 @@ fn round_robin(queue: &mut Queue, x: u64)
 } // verus!
 ```
 
-See also [`examples/drain.rs`](examples/drain.rs) for an `AF` (progress/termination) proof.
+See [`examples/round_robin.rs`](examples/round_robin.rs) for the full proof
+and [`examples/drain.rs`](examples/drain.rs) for an `AF(done(Q))` termination proof.
 
 ## Building
 
-Vera requires a **forked `syn`** crate (vendored in `dependencies/syn/` as `verus_syn`)
-that adds temporal keyword parsing. Everything is checked into this branch — no extra
-setup beyond Z3.
-
 ```sh
-# 1. Get Z3
-./tools/get-z3.sh           # downloads Z3 4.12.5, sets VERUS_Z3_PATH
+./tools/get-z3.sh                         # download Z3 4.12.5
+cd source && source ../tools/activate     # set up vargo
+vargo build --vstd-no-verify              # build Vera
 
-# 2. Build (from source/ directory)
-cd source
-source ../tools/activate     # sets up vargo (cargo wrapper for Verus)
-vargo build --vstd-no-verify # fast build, skips vstd SMT verification
-
-# 3. Run examples
+# Run examples
 ./target-verus/release/verus --crate-type=lib ../examples/round_robin.rs
 ./target-verus/release/verus --crate-type=lib ../examples/drain.rs
+
+# Run tests (103 temporal + 62 loop)
+vargo test -p rust_verify_test --test temporal
+vargo test -p rust_verify_test --test loops
 ```
-
-### Running Tests
-
-```sh
-cd source
-source ../tools/activate
-vargo test -p rust_verify_test --test temporal   # 66 temporal logic tests
-vargo test -p rust_verify_test --test loops      # 62 loop regression tests
-```
-
-## Examples
-
- * [`examples/round_robin.rs`](examples/round_robin.rs) — AG(AF) fairness: every element eventually returns to the head
- * [`examples/drain.rs`](examples/drain.rs) — AF progress: draining a queue eventually empties it
- * [More Verus examples](examples) illustrating various features
 
 ## Built on Verus
 
-Vera is a fork of [Verus](https://github.com/verus-lang/verus), a tool for verifying
-the correctness of Rust code using SMT solvers. All standard Verus features (safety
-verification, vstd, state machines, etc.) remain fully functional.
+Vera is a fork of [Verus](https://github.com/verus-lang/verus). All standard
+Verus features remain functional.
 
- * [📖 Verus Tutorial and reference](https://verus-lang.github.io/verus/guide/)
- * [📖 vstd API documentation](https://verus-lang.github.io/verus/verusdoc/vstd/)
- * [💬 Verus Zulip](https://verus-lang.zulipchat.com/)
- * [Verus License](LICENSE)
+ * [📖 Verus docs](https://verus-lang.github.io/verus/guide/) · [📖 vstd API](https://verus-lang.github.io/verus/verusdoc/vstd/) · [💬 Zulip](https://verus-lang.zulipchat.com/) · [License](LICENSE)
