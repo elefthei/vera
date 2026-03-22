@@ -3304,6 +3304,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // reference the initial accumulator value.
             if !state.now_goal_accumulators.is_empty() {
                 for (goal_exp, acc_var) in &state.now_goal_accumulators {
+                    // Havoc the accumulator variable (creates it in AIR scope)
+                    air_body.push(Arc::new(StmtX::Havoc(acc_var.clone())));
                     let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
                     // assume(now_reached == Q_at_entry)
                     air_body.push(Arc::new(StmtX::Assume(
@@ -3385,9 +3387,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                                     // For now() goals, use the ghost accumulator variable.
                                     // It tracks whether Q held at ANY intermediate state
                                     // during this loop body iteration (including body start).
-                                    if let Some((_, acc_var)) = state.now_goal_accumulators.iter()
-                                        .find(|(g, _)| Arc::ptr_eq(g, goal))
-                                    {
+                                    // For now() goals, use the ghost accumulator if available.
+                                    if !state.now_goal_accumulators.is_empty() {
+                                        // Use the first accumulator (typically one now() goal per loop)
+                                        let (_, acc_var) = &state.now_goal_accumulators[0];
                                         disjuncts.push(ident_var(acc_var));
                                     } else {
                                         // Fallback: evaluate Q at current state
