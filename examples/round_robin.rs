@@ -91,6 +91,18 @@ impl Queue {
 /// The ghost accumulator tracks whether peek == x held at any intermediate
 /// state during the loop body. Combined with index_of(x) as decreasing
 /// metric, this proves x always eventually reaches the front.
+/// Round-robin fairness proof: AG(AF(now(peek == x)))
+///
+/// Invariant R: queue is non-empty AND x is either at the head or
+///   somewhere in the tail (with a known position via index_of).
+///
+/// Measure f: index_of(x) in the queue.
+///   - When x is NOT at head: index decreases each rotation (progress)
+///   - When x IS at head: now(peek == x) holds (AF satisfied immediately)
+///
+/// The AG rule splits each iteration into two cases:
+///   LEFT (h = x): AF(now(peek == x)) holds now — accumulator captures it
+///   RIGHT (h ≠ x): index_of(x) decreases — progress toward future satisfaction
 fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
         old(queue).view().len() > 1,
@@ -103,46 +115,50 @@ fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
         invariant
             queue.view().len() > 1,
             queue.view().contains(x),
-        decreases queue.view().index_of(x),
+        decreases ({
+            // Use index_of_first for deterministic first-occurrence position
+            match queue.view().index_of_first(x) {
+                Some(i) => i,
+                None => 0int, // unreachable: invariant guarantees contains(x)
+            }
+        }),
     {
         let ghost old_view = queue.view();
         let ghost old_len = old_view.len() as int;
-        let ghost old_idx = old_view.index_of(x) as int;
+        proof { old_view.index_of_first_ensures(x); }
+        let ghost old_idx = old_view.index_of_first(x).unwrap();
 
         let val = queue.dequeue();
         queue.enqueue(val);
 
-        let ghost new_view = queue.view();
-
         proof {
-            // After dequeue(first) + enqueue(first): rotation by 1
-            // new_view == old_view.subrange(1, old_len).push(old_view[0])
             let tail = old_view.subrange(1, old_len);
+            let new_view = tail.push(val);
 
-            // Prove new_view == tail.push(val)
+            assert(queue.view() =~= new_view);
             assert(val == old_view.first());
-            assert(new_view =~= tail.push(val));
 
-            // Prove len preserved
-            assert(new_view.len() == old_len);
-
-            // Prove contains(x) preserved:
-            // Case 1: x == val (was at front)
-            // Case 2: x != val (was in tail)
+            // Prove contains(x) preserved
             if old_idx == 0 {
-                // x was at front, val == x
                 assert(val == x);
-                // x is pushed at the end of new_view
                 assert(new_view[new_view.len() - 1] == x);
             } else {
-                // x was in tail at position old_idx - 1
-                assert(tail.len() == old_len - 1);
                 assert(tail[old_idx - 1] == x);
-                // tail.push(val) contains x at same position
                 assert(new_view[old_idx - 1] == x);
             }
-            // In both cases: new_view.contains(x)
             assert(new_view.contains(x));
+
+            // Prove decreases: index_of_first(x) decreased
+            if old_idx > 0 {
+                // x was NOT at front, at position old_idx
+                // In new_view, x is at position old_idx - 1
+                assert(new_view[old_idx - 1] == x);
+                // Use index_of_first lemma to bound the first occurrence
+                new_view.index_of_first_ensures(x);
+                // index_of_first returns first i where new_view[i] == x
+                // Since new_view[old_idx - 1] == x, first index <= old_idx - 1
+                // Therefore index_of_first(x) < old_idx (strict decrease)
+            }
         }
     }
 }
