@@ -906,21 +906,9 @@ fn check_one_place<Emit: EmitError>(
     Ok(())
 }
 
-fn check_var(function: &Function, span: &Span, area: Area, x: &VarIdent) -> Result<(), VirErr> {
-    if let Area::PreState(clause_name) = area {
-        for param in function.x.params.iter().filter(|p| p.x.is_mut) {
-            if *x == param.x.name {
-                return Err(error(
-                    span,
-                    format!(
-                        "in {}, use `old({})` to refer to the pre-state of an &mut variable",
-                        clause_name,
-                        crate::def::user_local_name(&param.x.name)
-                    ),
-                ));
-            }
-        }
-    }
+fn check_var(_function: &Function, _span: &Span, _area: Area, _x: &VarIdent) -> Result<(), VirErr> {
+    // Vera: bare &mut params in requires/ensures refer to pre-state (depth 0).
+    // old() is no longer required — the depth-aware visitor handles it.
     Ok(())
 }
 
