@@ -289,10 +289,18 @@ fn req_ens_to_sst(
     if !pre && matches!(function.x.mode, Mode::Exec | Mode::Proof) && function.x.ens_has_return {
         pars_mut.push(param_to_par(&function.x.ret, false));
     }
+    // Wrap bare Var(x) references to &mut params in VarAt(x, Pre) at depth 0
+    // so that requires/ensures refer to pre-state without needing old().
+    let mut_params = ast_visitor::extract_mut_params(&function.x.params);
     let mut exps: Vec<Exp> = Vec::new();
     for e in specs.iter() {
+        let e = if pre && !mut_params.is_empty() {
+            ast_visitor::wrap_mut_params_pre(e, &mut_params)
+        } else {
+            e.clone()
+        };
         // Use expr_to_exp_skip_checks because we check req/ens in body
-        let exp = expr_to_exp_skip_checks(ctx, diagnostics, &pars, e)?;
+        let exp = expr_to_exp_skip_checks(ctx, diagnostics, &pars, &e)?;
         exps.push(exp);
     }
     Ok((pars, exps))

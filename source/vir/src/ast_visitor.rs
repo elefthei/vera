@@ -4,13 +4,15 @@ use crate::ast::{
     FunctionX, GenericBound, GenericBoundX, Krate, KrateX, LoopInvariant, LoopInvariants, MaskSpec,
     NullaryOpr, Param, ParamX, Params, Pattern, PatternBinding, PatternX, Place, PlaceX,
     SpannedTyped, Stmt, StmtX, Trait, TraitImpl, TraitImplX, TraitX, Typ, TypDecorationArg, TypX,
-    Typs, UnaryOpr, UnwindSpec, VarBinder, VarBinderX, VarBinders, VarIdent, Variant, VirErr,
+    Typs, UnaryOpr, UnwindSpec, VarAt, VarBinder, VarBinderX, VarBinders, VarIdent, Variant,
+    VirErr,
 };
 use crate::def::Spanned;
 use crate::messages::Span;
 use crate::util::vec_map_result;
 pub(crate) use crate::visitor::{Returner, Rewrite, VisitorControlFlow, Walk};
 use air::scope_map::ScopeMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 pub(crate) trait Scoper {
@@ -1976,4 +1978,83 @@ where
 {
     let mut visitor = MapTypVisitorEnv { env, ft };
     visitor.visit_assoc_type_impl(assoc)
+}
+
+// ---------------------------------------------------------------------------
+// Depth-aware visitor: wrap bare Var(x) references to &mut params with
+// VarAt(x, Pre) when at depth 0 (outside temporal operators).
+// Inside temporal operators (Temporal/Now/Done), depth > 0 and Var(x) is
+// left unchanged — the VCGen determines state there.
+// ---------------------------------------------------------------------------
+
+struct WrapMutParamsPreVisitor<'a> {
+    mut_params: &'a HashSet<VarIdent>,
+}
+
+impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
+    fn visit_typ(&mut self, typ: &Typ) -> Result<Typ, VirErr> {
+        self.visit_typ_rec(typ)
+    }
+
+    fn visit_expr(&mut self, expr: &Expr) -> Result<Expr, VirErr> {
+        match &expr.x {
+            ExprX::Var(x) if self.mut_params.contains(x) => {
+                // At depth 0: bare reference to &mut param → pre-state
+                Ok(SpannedTyped::new(&expr.span, &expr.typ, ExprX::VarAt(x.clone(), VarAt::Pre)))
+            }
+            ExprX::ReadPlace(place, _kind) => {
+                // *x where x is &mut param at depth 0:
+                // ReadPlace(Local(x), kind) → VarAt(x, Pre)
+                if let PlaceX::Local(x) = &place.x {
+                    if self.mut_params.contains(x) {
+                        return Ok(SpannedTyped::new(
+                            &expr.span,
+                            &expr.typ,
+                            ExprX::VarAt(x.clone(), VarAt::Pre),
+                        ));
+                    }
+                }
+                // Not a &mut param local — recurse normally
+                self.visit_expr_rec(expr)
+            }
+            ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => {
+                // Temporal operators mark depth > 0: stop recursion.
+                // Var(x) inside these is left for VCGen to resolve.
+                Ok(expr.clone())
+            }
+            _ => {
+                // Normal top-down recursion into children
+                self.visit_expr_rec(expr)
+            }
+        }
+    }
+
+    fn visit_stmt(&mut self, stmt: &Stmt) -> Result<Vec<Stmt>, VirErr> {
+        Ok(vec![self.visit_stmt_rec(stmt)?])
+    }
+
+    fn visit_place(&mut self, place: &Place) -> Result<Place, VirErr> {
+        self.visit_place_rec(place)
+    }
+
+    fn visit_pattern(&mut self, pattern: &Pattern) -> Result<Pattern, VirErr> {
+        self.visit_pattern_rec(pattern)
+    }
+}
+
+/// Wrap bare `Var(x)` references to `&mut` params in `VarAt(x, Pre)` when
+/// outside temporal operators (depth 0). Inside temporal operators
+/// (Temporal/Now/Done), leave `Var(x)` unchanged — the VCGen determines state.
+pub fn wrap_mut_params_pre(expr: &Expr, mut_params: &HashSet<VarIdent>) -> Expr {
+    if mut_params.is_empty() {
+        return expr.clone();
+    }
+    let mut visitor = WrapMutParamsPreVisitor { mut_params };
+    // unwrap is safe: our visitor never returns Err
+    visitor.visit_expr(expr).unwrap()
+}
+
+/// Extract the set of `&mut` parameter names from a function's params.
+pub fn extract_mut_params(params: &Params) -> HashSet<VarIdent> {
+    params.iter().filter(|p| p.x.is_mut).map(|p| p.x.name.clone()).collect()
 }

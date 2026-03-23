@@ -513,12 +513,12 @@ test_verify_one_file! {
 }
 
 test_verify_one_file! {
-    #[test] opens_invariants_old_fail verus_code! {
+    #[test] opens_invariants_no_old_required verus_code! {
         fn stuff6(x: &mut u8)
           opens_invariants [ ((*x) as int) ]
         {
         }
-    } => Err(err) => assert_vir_error_msg(err, "in opens_invariants clause, use `old(x)` to refer to the pre-state of an &mut variable")
+    } => Ok(()) // bare *x in opens_invariants auto-wraps to pre-state
 }
 
 test_verify_one_file! {

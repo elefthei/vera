@@ -101,22 +101,22 @@ test_verify_one_file! {
 }
 
 test_verify_one_file! {
-    #[test] test_mut_ref_arg_invalid_spec verus_code! {
+    #[test] test_mut_ref_arg_no_old_required verus_code! {
         fn add1(a: &mut u64)
             requires *a < 10
         {
             *a = *a + 1;
         }
-    } => Err(err) => assert_vir_error_msg(err, "in requires, use `old(a)` to refer to the pre-state of an &mut variable") // error: in requires, use `old(a)` to refer to the pre-state of an &mut variable
+    } => Ok(()) // bare *a in requires auto-wraps to pre-state
 }
 
 test_verify_one_file! {
-    #[test] test_mut_ref_arg_invalid_spec_decreases verus_code! {
+    #[test] test_mut_ref_arg_decreases_no_old verus_code! {
         proof fn add1(a: &mut u64)
             decreases (*a as int),
         {
         }
-    } => Err(err) => assert_vir_error_msg(err, "in decreases clause, use `old(a)` to refer to the pre-state of an &mut variable")
+    } => Ok(()) // bare *a in decreases no longer requires old()
 }
 
 test_verify_one_file! {
