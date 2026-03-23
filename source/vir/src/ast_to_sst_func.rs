@@ -299,7 +299,7 @@ fn req_ens_to_sst(
             // to VarAt(Pre). Only for pre-state specs (requires/decreases/inv_masks).
             // NOT applied to ensures — ensures use MutRefFinal for post-state refs;
             // temporal ensures get separate wrapping in func_decl_to_sst.
-            ast_visitor::wrap_mut_params_pre(e, &mut_params)
+            ast_visitor::wrap_mut_params_pre(e, &mut_params, false)
         } else {
             e.clone()
         };
@@ -328,7 +328,7 @@ pub fn func_decl_to_sst(
     let mut_params = crate::ast_visitor::extract_mut_params(&function.x.params);
     let wrap_ens = |exprs: &Arc<Vec<Expr>>| -> Arc<Vec<Expr>> {
         if mut_params.is_empty() || !has_temporal { return exprs.clone(); }
-        Arc::new(exprs.iter().map(|e| crate::ast_visitor::wrap_mut_params_pre(e, &mut_params)).collect())
+        Arc::new(exprs.iter().map(|e| crate::ast_visitor::wrap_mut_params_pre(e, &mut_params, true)).collect())
     };
 
     let (pars, reqs) = req_ens_to_sst(ctx, diagnostics, function, &function.x.require, true)?;
@@ -844,7 +844,7 @@ pub fn func_def_to_sst(
     let mut_params_body = crate::ast_visitor::extract_mut_params(&function.x.params);
     let wrap_ens_body = |e: &Expr| -> Expr {
         if mut_params_body.is_empty() || !has_temporal_ens { return e.clone(); }
-        crate::ast_visitor::wrap_mut_params_pre(e, &mut_params_body)
+        crate::ast_visitor::wrap_mut_params_pre(e, &mut_params_body, true)
     };
 
     if let Some(lo_inheritance) = &lo_inheritance {

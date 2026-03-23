@@ -1989,6 +1989,11 @@ where
 
 struct WrapMutParamsPreVisitor<'a> {
     mut_params: &'a HashSet<VarIdent>,
+    /// When true, also convert PlaceX::Local(x) for &mut params
+    /// to PlaceX::Temporary(VarAt(x, Pre)). Only used for temporal ensures
+    /// where DerefMut(Local(x)) in let-binding inits must be converted.
+    /// Requires wrapping must NOT use this, as it breaks iterator specs.
+    convert_places: bool,
 }
 
 impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
@@ -2057,20 +2062,23 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
     }
 
     fn visit_place(&mut self, place: &Place) -> Result<Place, VirErr> {
-        // At depth 0: if this is a bare Local(x) for a &mut param,
-        // convert to Temporary(VarAt(x, Pre)) to reference pre-state.
-        if let PlaceX::Local(x) = &place.x {
-            if self.mut_params.contains(x) {
-                let expr = SpannedTyped::new(
-                    &place.span,
-                    &place.typ,
-                    ExprX::VarAt(x.clone(), VarAt::Pre),
-                );
-                return Ok(SpannedTyped::new(
-                    &place.span,
-                    &place.typ,
-                    PlaceX::Temporary(expr),
-                ));
+        if self.convert_places {
+            // At depth 0: if this is a bare Local(x) for a &mut param,
+            // convert to Temporary(VarAt(x, Pre)) to reference pre-state.
+            // This handles DerefMut(Local(x)) in let-binding inits of temporal ensures.
+            if let PlaceX::Local(x) = &place.x {
+                if self.mut_params.contains(x) {
+                    let expr = SpannedTyped::new(
+                        &place.span,
+                        &place.typ,
+                        ExprX::VarAt(x.clone(), VarAt::Pre),
+                    );
+                    return Ok(SpannedTyped::new(
+                        &place.span,
+                        &place.typ,
+                        PlaceX::Temporary(expr),
+                    ));
+                }
             }
         }
         self.visit_place_rec(place)
@@ -2084,11 +2092,16 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
 /// Wrap bare `Var(x)` references to `&mut` params in `VarAt(x, Pre)` when
 /// outside temporal operators (depth 0). Inside temporal operators
 /// (Temporal/Now/Done), leave `Var(x)` unchanged — the VCGen determines state.
-pub fn wrap_mut_params_pre(expr: &Expr, mut_params: &HashSet<VarIdent>) -> Expr {
+///
+/// When `convert_places` is true, also converts `PlaceX::Local(x)` for &mut
+/// params to `PlaceX::Temporary(VarAt(x, Pre))`. This is needed for temporal
+/// ensures where let-binding inits contain `DerefMut(Local(x))`, but must NOT
+/// be used for requires wrapping as it breaks iterator specs.
+pub fn wrap_mut_params_pre(expr: &Expr, mut_params: &HashSet<VarIdent>, convert_places: bool) -> Expr {
     if mut_params.is_empty() {
         return expr.clone();
     }
-    let mut visitor = WrapMutParamsPreVisitor { mut_params };
+    let mut visitor = WrapMutParamsPreVisitor { mut_params, convert_places };
     // unwrap is safe: our visitor never returns Err
     visitor.visit_expr(expr).unwrap()
 }
@@ -2106,10 +2119,23 @@ pub fn expr_contains_temporal(expr: &Expr) -> bool {
         ExprX::Now(..) | ExprX::Done(..) => true,
         ExprX::UnaryOpr(crate::ast::UnaryOpr::ProofNote(_), inner) => expr_contains_temporal(inner),
         ExprX::UnaryOpr(crate::ast::UnaryOpr::CustomErr(_), inner) => expr_contains_temporal(inner),
+        ExprX::Unary(_, inner) => expr_contains_temporal(inner),
+        ExprX::Binary(_, e1, e2) => expr_contains_temporal(e1) || expr_contains_temporal(e2),
         ExprX::Block(stmts, final_expr) => {
             stmts.iter().any(|s| stmt_contains_temporal(s))
                 || final_expr.as_ref().map_or(false, |e| expr_contains_temporal(e))
         }
+        ExprX::If(cond, thn, els) => {
+            expr_contains_temporal(cond)
+                || expr_contains_temporal(thn)
+                || els.as_ref().map_or(false, |e| expr_contains_temporal(e))
+        }
+        ExprX::Match(_, arms) => {
+            arms.iter().any(|a| expr_contains_temporal(&a.x.body))
+        }
+        ExprX::Quant(_, _, body) => expr_contains_temporal(body),
+        ExprX::Call(_, _, args) => args.iter().any(|a| expr_contains_temporal(a)),
+        ExprX::Old(inner) => expr_contains_temporal(inner),
         _ => false,
     }
 }
