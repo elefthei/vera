@@ -295,6 +295,8 @@ fn req_ens_to_sst(
     let mut exps: Vec<Exp> = Vec::new();
     for e in specs.iter() {
         let e = if pre && !mut_params.is_empty() {
+            // Wrap bare &mut param references at depth 0 (outside temporal operators)
+            // to VarAt(Pre). Only for pre-state specs (requires/decreases).
             ast_visitor::wrap_mut_params_pre(e, &mut_params)
         } else {
             e.clone()

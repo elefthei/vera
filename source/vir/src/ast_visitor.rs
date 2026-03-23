@@ -2021,6 +2021,16 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
                 // Not a &mut param local — recurse normally
                 self.visit_expr_rec(expr)
             }
+            ExprX::Unary(crate::ast::UnaryOp::MutRefFinal(_), inner) => {
+                // MutRefFinal in ensures at depth 0: post-state reference to &mut param.
+                // At depth 0 we want pre-state, so convert to VarAt(Pre).
+                match &inner.x {
+                    ExprX::Var(x) if self.mut_params.contains(x) => {
+                        Ok(SpannedTyped::new(&expr.span, &expr.typ, ExprX::VarAt(x.clone(), VarAt::Pre)))
+                    }
+                    _ => self.visit_expr_rec(expr),
+                }
+            }
             ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => {
                 // Temporal operators mark depth > 0: stop recursion.
                 // Var(x) inside these is left for VCGen to resolve.
