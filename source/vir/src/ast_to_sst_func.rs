@@ -297,6 +297,8 @@ fn req_ens_to_sst(
         let e = if pre && !mut_params.is_empty() {
             // Wrap bare &mut param references at depth 0 (outside temporal operators)
             // to VarAt(Pre). Only for pre-state specs (requires/decreases).
+            // NOT applied to ensures — ensures use MutRefFinal for post-state refs
+            // and old() for pre-state cross-state references.
             ast_visitor::wrap_mut_params_pre(e, &mut_params)
         } else {
             e.clone()
