@@ -2020,9 +2020,22 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
             ExprX::Unary(crate::ast::UnaryOp::MutRefFinal(_), inner) => {
                 // MutRefFinal in ensures at depth 0: post-state reference to &mut param.
                 // At depth 0 we want pre-state, so convert to VarAt(Pre).
+                // The inner expression can be Var(x), ReadPlace(Local(x), _), or other forms.
                 match &inner.x {
                     ExprX::Var(x) if self.mut_params.contains(x) => {
                         Ok(SpannedTyped::new(&expr.span, &expr.typ, ExprX::VarAt(x.clone(), VarAt::Pre)))
+                    }
+                    ExprX::ReadPlace(place, _kind) => {
+                        if let PlaceX::Local(x) = &place.x {
+                            if self.mut_params.contains(x) {
+                                return Ok(SpannedTyped::new(
+                                    &expr.span,
+                                    &expr.typ,
+                                    ExprX::VarAt(x.clone(), VarAt::Pre),
+                                ));
+                            }
+                        }
+                        self.visit_expr_rec(expr)
                     }
                     _ => self.visit_expr_rec(expr),
                 }
@@ -2044,6 +2057,22 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
     }
 
     fn visit_place(&mut self, place: &Place) -> Result<Place, VirErr> {
+        // At depth 0: if this is a bare Local(x) for a &mut param,
+        // convert to Temporary(VarAt(x, Pre)) to reference pre-state.
+        if let PlaceX::Local(x) = &place.x {
+            if self.mut_params.contains(x) {
+                let expr = SpannedTyped::new(
+                    &place.span,
+                    &place.typ,
+                    ExprX::VarAt(x.clone(), VarAt::Pre),
+                );
+                return Ok(SpannedTyped::new(
+                    &place.span,
+                    &place.typ,
+                    PlaceX::Temporary(expr),
+                ));
+            }
+        }
         self.visit_place_rec(place)
     }
 
@@ -2067,4 +2096,27 @@ pub fn wrap_mut_params_pre(expr: &Expr, mut_params: &HashSet<VarIdent>) -> Expr 
 /// Extract the set of `&mut` parameter names from a function's params.
 pub fn extract_mut_params(params: &Params) -> HashSet<VarIdent> {
     params.iter().filter(|p| p.x.is_mut).map(|p| p.x.name.clone()).collect()
+}
+
+/// Check whether an expression contains a temporal operator anywhere in its tree.
+/// Peels through blocks, proof notes, custom errors, and other wrappers.
+pub fn expr_contains_temporal(expr: &Expr) -> bool {
+    match &expr.x {
+        ExprX::Temporal(..) => true,
+        ExprX::Now(..) | ExprX::Done(..) => true,
+        ExprX::UnaryOpr(crate::ast::UnaryOpr::ProofNote(_), inner) => expr_contains_temporal(inner),
+        ExprX::UnaryOpr(crate::ast::UnaryOpr::CustomErr(_), inner) => expr_contains_temporal(inner),
+        ExprX::Block(stmts, final_expr) => {
+            stmts.iter().any(|s| stmt_contains_temporal(s))
+                || final_expr.as_ref().map_or(false, |e| expr_contains_temporal(e))
+        }
+        _ => false,
+    }
+}
+
+fn stmt_contains_temporal(stmt: &crate::ast::Stmt) -> bool {
+    match &stmt.x {
+        crate::ast::StmtX::Expr(e) => expr_contains_temporal(e),
+        crate::ast::StmtX::Decl { .. } => false,
+    }
 }

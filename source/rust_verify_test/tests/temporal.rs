@@ -1853,3 +1853,93 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === old()-free ensures for temporal functions ===
+// With temporal_depth-aware VIR wrapping, bare *x at depth 0 in ensures
+// of temporal functions is automatically treated as pre-state (VarAt(Pre)),
+// so old() is no longer needed.
+
+// Simple ensures without cross-state: *x inside af(done()) is post-state
+test_verify_one_file! {
+    #[test] test_no_old_simple_ensures verus_code! {
+        fn test_simple(x: &mut u64)
+            requires *x == 5,
+            ensures af(done(*x == 6)),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}
+
+// Cross-state WITHOUT old(): let binding captures pre-state at depth 0
+test_verify_one_file! {
+    #[test] test_no_old_cross_state verus_code! {
+        fn test_no_old(x: &mut u64)
+            requires *x == 5,
+            ensures
+                ({ let pre = *x; af(done(*x == pre + 1)) }),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}
+
+// Wrong cross-state value should fail (sanity check)
+test_verify_one_file! {
+    #[test] test_no_old_cross_state_wrong_value verus_code! {
+        fn test_wrong(x: &mut u64)
+            requires *x == 5,
+            ensures
+                ({ let pre = *x; af(done(*x == pre + 2)) }), // FAILS
+        {
+            *x = *x + 1;
+        }
+    } => Err(err) => assert_one_fails(err)
+}
+
+// Multiple &mut params without old()
+test_verify_one_file! {
+    #[test] test_no_old_multi_params verus_code! {
+        fn test_multi(x: &mut u64, y: &mut u64)
+            requires *x == 3, *y == 7,
+            ensures
+                ({ let px = *x; let py = *y;
+                   af(done(*x == px + py)) }),
+        {
+            *x = *x + *y;
+        }
+    } => Ok(())
+}
+
+// AG invariant without old(): *x at depth 0 is pre-state (AG requires infinite loop)
+test_verify_one_file! {
+    #[test] test_no_old_ag_invariant verus_code! {
+        fn test_ag(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                if *x < 10 {
+                    *x = *x + 1;
+                } else {
+                    *x = 0;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// Backward compatibility: old() still works in ensures
+test_verify_one_file! {
+    #[test] test_old_still_works_in_ensures verus_code! {
+        fn test_compat(x: &mut u64)
+            requires *x == 5,
+            ensures
+                ({ let pre = *old(x); af(done(*x == pre + 1)) }),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}

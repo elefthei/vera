@@ -749,6 +749,7 @@ fn verus_item_to_vir<'tcx, 'a>(
                         TemporalItem::Eg => vir::ast::TemporalOp::EG,
                         _ => unreachable!(),
                     };
+                    let bctx = &BodyCtxt { temporal_depth: bctx.temporal_depth + 1, ..bctx.clone() };
                     let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
                     mk_expr(ExprX::Temporal(op, vir_arg, None))
@@ -768,6 +769,7 @@ fn verus_item_to_vir<'tcx, 'a>(
                         TemporalItem::En => vir::ast::TemporalOp::EN,
                         _ => unreachable!(),
                     };
+                    let bctx = &BodyCtxt { temporal_depth: bctx.temporal_depth + 1, ..bctx.clone() };
                     let vir_arg1 = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
                     let vir_arg2 = expr_to_vir(bctx, &args[1], ExprModifier::REGULAR)?
@@ -782,6 +784,7 @@ fn verus_item_to_vir<'tcx, 'a>(
                         "expected now/done with one argument",
                         &args
                     );
+                    let bctx = &BodyCtxt { temporal_depth: bctx.temporal_depth + 1, ..bctx.clone() };
                     let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
                     match temporal_item {
