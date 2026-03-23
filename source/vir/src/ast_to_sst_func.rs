@@ -290,15 +290,15 @@ fn req_ens_to_sst(
         pars_mut.push(param_to_par(&function.x.ret, false));
     }
     // Wrap bare Var(x) references to &mut params in VarAt(x, Pre) at depth 0
-    // so that requires/ensures refer to pre-state without needing old().
+    // so that requires/inv_masks/unwind_conditions refer to pre-state without needing old().
     let mut_params = ast_visitor::extract_mut_params(&function.x.params);
     let mut exps: Vec<Exp> = Vec::new();
     for e in specs.iter() {
         let e = if pre && !mut_params.is_empty() {
             // Wrap bare &mut param references at depth 0 (outside temporal operators)
-            // to VarAt(Pre). Only for pre-state specs (requires/decreases).
-            // NOT applied to ensures — ensures use MutRefFinal for post-state refs
-            // and old() for pre-state cross-state references.
+            // to VarAt(Pre). Only for pre-state specs (requires/decreases/inv_masks).
+            // NOT applied to ensures — ensures use MutRefFinal for post-state refs;
+            // temporal ensures get separate wrapping in func_decl_to_sst.
             ast_visitor::wrap_mut_params_pre(e, &mut_params)
         } else {
             e.clone()
@@ -315,10 +315,28 @@ pub fn func_decl_to_sst(
     diagnostics: &impl air::messages::Diagnostics,
     function: &Function,
 ) -> Result<FuncDeclSst, VirErr> {
+    // Ensures wrapping for temporal functions:
+    // When ensures contain temporal operators, bare *x at depth 0 (outside temporal
+    // operators) is wrapped to VarAt(Pre), giving pre-state semantics without old().
+    // Inside temporal operators (Temporal/Now/Done), *x is left as MutRefFinal
+    // and resolves to post-state via VCGen.
+    // Non-temporal functions (including iterator trait methods) keep standard Verus
+    // &mut handling — MutRefFinal for post-state in ensures, old() for pre-state.
+    // Requires wrapping is handled inside req_ens_to_sst (when pre=true).
+    let has_temporal = function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
+        .any(|e| crate::ast_visitor::expr_contains_temporal(e));
+    let mut_params = crate::ast_visitor::extract_mut_params(&function.x.params);
+    let wrap_ens = |exprs: &Arc<Vec<Expr>>| -> Arc<Vec<Expr>> {
+        if mut_params.is_empty() || !has_temporal { return exprs.clone(); }
+        Arc::new(exprs.iter().map(|e| crate::ast_visitor::wrap_mut_params_pre(e, &mut_params)).collect())
+    };
+
     let (pars, reqs) = req_ens_to_sst(ctx, diagnostics, function, &function.x.require, true)?;
+    let wrapped_ensure0 = wrap_ens(&function.x.ensure.0);
+    let wrapped_ensure1 = wrap_ens(&function.x.ensure.1);
     let (ens_pars, enss0) =
-        req_ens_to_sst(ctx, diagnostics, function, &function.x.ensure.0, false)?;
-    let (_, enss1) = req_ens_to_sst(ctx, diagnostics, function, &function.x.ensure.1, false)?;
+        req_ens_to_sst(ctx, diagnostics, function, &wrapped_ensure0, false)?;
+    let (_, enss1) = req_ens_to_sst(ctx, diagnostics, function, &wrapped_ensure1, false)?;
 
     let mut inv_masks: Vec<Exps> = Vec::new();
     match &function.x.mask_spec {
@@ -819,14 +837,25 @@ pub fn func_def_to_sst(
     }
 
     // Ensures: combine from both sources
+    // For temporal functions, wrap ensures to convert MutRefFinal/Local at depth 0
+    // to VarAt(Pre), matching the treatment in func_decl_to_sst.
+    let has_temporal_ens = function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
+        .any(|e| crate::ast_visitor::expr_contains_temporal(e));
+    let mut_params_body = crate::ast_visitor::extract_mut_params(&function.x.params);
+    let wrap_ens_body = |e: &Expr| -> Expr {
+        if mut_params_body.is_empty() || !has_temporal_ens { return e.clone(); }
+        crate::ast_visitor::wrap_mut_params_pre(e, &mut_params_body)
+    };
+
     if let Some(lo_inheritance) = &lo_inheritance {
         // We're overriding req_ens_function, so we only inherit the non-default-ensures
         let non_default_ensure = &lo_inheritance.function.x.ensure.0.clone();
         for expr in non_default_ensure.iter() {
+            let expr = wrap_ens_body(expr);
             let exp = lo_inheritance.lower_pure(
                 ctx,
                 &mut state,
-                expr,
+                &expr,
                 &mut ens_spec_precondition_stms,
             )?;
             if !ctx.checking_spec_preconditions() {
@@ -836,7 +865,8 @@ pub fn func_def_to_sst(
         }
     }
     for expr in lo_current.function.x.ensure.0.iter().chain(lo_current.function.x.ensure.1.iter()) {
-        let exp = lo_current.lower_pure(ctx, &mut state, expr, &mut ens_spec_precondition_stms)?;
+        let expr = wrap_ens_body(expr);
+        let exp = lo_current.lower_pure(ctx, &mut state, &expr, &mut ens_spec_precondition_stms)?;
         if !ctx.checking_spec_preconditions() {
             let exp = crate::heuristics::maybe_insert_auto_ext_equal(ctx, &exp, |x| x.ensures);
             enss.push(exp_pre(&exp));

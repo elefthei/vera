@@ -87,6 +87,10 @@ pub(crate) struct BodyCtxt<'tcx> {
     pub(crate) in_old: bool,
     /// Are we inside an "after_borrow" or "has_resolved" node? (new-mut-ref only)
     pub(crate) in_explicit_prophecy_node: bool,
+    /// How many temporal operators (ag, af, au, now, done, etc.) we are nested inside.
+    /// 0 = outside any temporal operator (top-level ensures).
+    /// >0 = inside temporal operator(s).
+    pub(crate) temporal_depth: u32,
     /// params for the enclosing function and all enclosing non-spec-closures
     pub(crate) params: Rc<Vec<Vec<vir::ast::VarIdent>>>,
     /// unwrapped params encountered so far (inner_name -> outer_name) e.g. (x -> verus_tmp_x)
