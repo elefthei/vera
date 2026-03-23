@@ -1812,3 +1812,44 @@ test_verify_one_file! {
         }
     } => Err(err) => assert_one_fails(err)
 }
+
+// === Let bindings with temporal operators (old() replacement) ===
+
+// Let binding captures pre-state, af(done()) sees return state
+test_verify_one_file! {
+    #[test] test_let_cross_state verus_code! {
+        fn test_let_cross(x: &mut u64)
+            requires *old(x) == 5,
+            ensures
+                ({ let pre_val = *old(x); af(done(*x == pre_val + 1)) }),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}
+
+// Let binding with simple constant
+test_verify_one_file! {
+    #[test] test_let_simple_constant verus_code! {
+        fn test_let_const() -> (ret: u64)
+            ensures
+                ({ let v: u64 = 42; af(done(ret == v)) }),
+        {
+            42
+        }
+    } => Ok(())
+}
+
+// Multiple let bindings for cross-state reference
+test_verify_one_file! {
+    #[test] test_let_multi_cross_state verus_code! {
+        fn test_multi_let(x: &mut u64, y: &mut u64)
+            requires *old(x) == 3, *old(y) == 7,
+            ensures
+                ({ let px = *old(x); let py = *old(y);
+                   af(done(*x == px + py)) }),
+        {
+            *x = *x + *y;
+        }
+    } => Ok(())
+}

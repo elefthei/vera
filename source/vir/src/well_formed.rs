@@ -36,6 +36,8 @@ fn is_temporal_ensures(expr: &Expr) -> bool {
         ExprX::Now(..) | ExprX::Done(..) => true,
         ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
         ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
+        // Peel through blocks (let bindings) — the temporal operator may be the final expression
+        ExprX::Block(_, Some(final_expr)) => is_temporal_ensures(final_expr),
         _ => false,
     }
 }
