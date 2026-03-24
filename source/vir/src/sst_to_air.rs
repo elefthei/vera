@@ -3791,8 +3791,8 @@ pub(crate) fn body_stm_to_air(
         inside_ag: bool,
         obligations: &mut Vec<Proposition>,
     ) {
-        // Track whether we're nested inside an AG (coinductive invariance needed)
-        let inside_ag = inside_ag || matches!(op, crate::ast::TemporalOp::AG);
+        // Track whether we're nested inside an AG/EG (coinductive invariance needed)
+        let inside_ag = inside_ag || matches!(op, crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG);
         match &prop.x {
             ExpX::Temporal(inner_op, inner_prop, inner_path) => {
                 // Outer operator (e.g., AG) is structural — recurse into inner.
@@ -3801,14 +3801,16 @@ pub(crate) fn body_stm_to_air(
             }
             _ => {
                 let obligation = match op {
-                    crate::ast::TemporalOp::AG => {
+                    crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => {
+                        // For deterministic programs, EG ≡ AG (single execution path).
                         Proposition::Always {
                             property: prop.clone(),
                             requires_invariance: inside_ag,
                         }
                     }
-                    crate::ast::TemporalOp::AU => {
-                        let raw_goal = path_prop.clone().expect("AU requires a goal (second argument)");
+                    crate::ast::TemporalOp::AU | crate::ast::TemporalOp::EU => {
+                        // For deterministic programs, EU ≡ AU (single execution path).
+                        let raw_goal = path_prop.clone().expect("AU/EU requires a goal (second argument)");
                         // Detect now/done wrappers on the goal expression
                         let (goal, goal_kind) = match &raw_goal.x {
                             ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
@@ -3822,11 +3824,23 @@ pub(crate) fn body_stm_to_air(
                             requires_invariance: inside_ag,
                         }
                     }
-                    crate::ast::TemporalOp::AN => {
-                        // AN (next-state) not yet supported for VCGen
-                        return;
+                    crate::ast::TemporalOp::AN | crate::ast::TemporalOp::EN => {
+                        // AN/EN: next-step operator. For deterministic programs, EN ≡ AN.
+                        // Treat AN(P, Q) like AU(P, Q) — single step.
+                        // The function must establish Q in one step while P holds at entry.
+                        let raw_goal = path_prop.clone().expect("AN/EN requires a goal (second argument)");
+                        let (goal, goal_kind) = match &raw_goal.x {
+                            ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
+                            ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
+                            _ => (raw_goal, GoalKind::Done), // default: done (backward compat)
+                        };
+                        Proposition::Until {
+                            path: prop.clone(),
+                            goal,
+                            goal_kind,
+                            requires_invariance: inside_ag,
+                        }
                     }
-                    _ => return, // EG, EU, EN not yet supported
                 };
                 obligations.push(obligation);
             }
