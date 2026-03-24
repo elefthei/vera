@@ -796,25 +796,15 @@ fn check_one_expr<Emit: EmitError>(
             match area {
                 Area::PostState => {
                     match op {
-                        TemporalOp::AG | TemporalOp::AU | TemporalOp::AN => {
-                            // Allowed — will be processed by temporal VCGen
-                        }
-                        TemporalOp::EG | TemporalOp::EU | TemporalOp::EN => {
-                            let op_name = match op {
-                                TemporalOp::EG => "eg",
-                                TemporalOp::EU => "eu",
-                                TemporalOp::EN => "en",
-                                _ => unreachable!(),
-                            };
-                            return Err(error(
-                                &expr.span,
-                                &format!("existential temporal operator `{op_name}` is not yet supported for verification"),
-                            ));
+                        TemporalOp::AG | TemporalOp::AU | TemporalOp::AN
+                        | TemporalOp::EG | TemporalOp::EU | TemporalOp::EN => {
+                            // Allowed — universal and existential operators are processed by
+                            // temporal VCGen. For deterministic programs, ∀ ≡ ∃ (single path).
                         }
                     }
                     // Reject contradictory temporal combinations:
-                    // ag(done(Q)) — AG requires infinite computation, done(Q) requires termination
-                    if matches!(op, TemporalOp::AG) {
+                    // ag/eg(done(Q)) — globally requires infinite computation, done(Q) requires termination
+                    if matches!(op, TemporalOp::AG | TemporalOp::EG) {
                         if contains_done(e1) {
                             return Err(error(
                                 &expr.span,
@@ -822,8 +812,8 @@ fn check_one_expr<Emit: EmitError>(
                             ));
                         }
                     }
-                    // au(done(R), _) — done(R) cannot be a path property
-                    if matches!(op, TemporalOp::AU | TemporalOp::AN) {
+                    // au/an/eu/en(done(R), _) — done(R) cannot be a path property
+                    if matches!(op, TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN) {
                         if matches!(&e1.x, ExprX::Done(_)) {
                             return Err(error(
                                 &e1.span,

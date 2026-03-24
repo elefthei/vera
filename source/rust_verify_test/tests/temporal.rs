@@ -262,33 +262,54 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// === Existential operator rejection tests ===
+// === Existential operator acceptance tests ===
+// For deterministic programs, existential ≡ universal (single execution path).
 
 test_verify_one_file! {
-    #[test] test_temporal_eg_in_ensures_rejected verus_code! {
-        fn test_eg(x: u64)
-            ensures eg(x > 0),
+    #[test] test_temporal_eg_in_ensures_accepted verus_code! {
+        fn test_eg(x: &mut u64)
+            requires *x == 0,
+            ensures eg(*x <= 10),
         {
+            loop
+                invariant *x <= 10,
+            {
+                if *x < 10 { *x = *x + 1; } else { *x = 0; }
+            }
         }
-    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eg` is not yet supported for verification")
+    } => Ok(())
 }
 
 test_verify_one_file! {
-    #[test] test_temporal_eu_in_ensures_rejected verus_code! {
-        fn test_eu(x: u64)
-            ensures eu(x > 0, x == 0),
+    #[test] test_temporal_eu_in_ensures_accepted verus_code! {
+        fn test_eu(x: &mut u64)
+            requires *x == 10,
+            ensures eu(*x >= 0, done(*x == 0)),
         {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
         }
-    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eu` is not yet supported for verification")
+    } => Ok(())
 }
 
 test_verify_one_file! {
-    #[test] test_temporal_ef_sugar_in_ensures_rejected verus_code! {
-        fn test_ef(x: u64)
-            ensures ef(x == 0),
+    #[test] test_temporal_ef_sugar_in_ensures_accepted verus_code! {
+        fn test_ef(x: &mut u64)
+            requires *x > 0,
+            ensures ef(done(*x == 0)),
         {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
         }
-    } => Err(err) => assert_vir_error_msg(err, "existential temporal operator `eu` is not yet supported for verification")
+    } => Ok(())
 }
 
 // === Non-temporal ensures rejection tests ===
@@ -1942,4 +1963,66 @@ test_verify_one_file! {
             *x = *x + 1;
         }
     } => Ok(())
+}
+
+// === AN/AX (next-step) operator tests ===
+
+// AN: precondition P holds at entry, postcondition Q holds after function.
+// Uses let-binding at depth 0 to capture pre-state for the path property,
+// since *x inside temporal operators resolves to MutRefFinal (post-state).
+test_verify_one_file! {
+    #[test] test_an_basic verus_code! {
+        fn test_an(x: &mut u64)
+            requires *x < 100,
+            ensures ({ let pre = *x; an(pre < 100, done(*x == pre + 1)) }),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}
+
+// AX: postcondition Q holds after function (P = true)
+test_verify_one_file! {
+    #[test] test_ax_basic verus_code! {
+        fn test_ax(x: &mut u64)
+            ensures ax(done(*x == 0)),
+        {
+            *x = 0;
+        }
+    } => Ok(())
+}
+
+// EN: existential next-step (= AN for deterministic programs)
+test_verify_one_file! {
+    #[test] test_en_basic verus_code! {
+        fn test_en(x: &mut u64)
+            requires *x < 100,
+            ensures ({ let pre = *x; en(pre < 100, done(*x == pre + 1)) }),
+        {
+            *x = *x + 1;
+        }
+    } => Ok(())
+}
+
+// EX: existential next-step sugar (= AX for deterministic programs)
+test_verify_one_file! {
+    #[test] test_ex_basic verus_code! {
+        fn test_ex(x: &mut u64)
+            ensures ex(done(*x == 0)),
+        {
+            *x = 0;
+        }
+    } => Ok(())
+}
+
+// AN failure: postcondition not established (path = true via ax, wrong goal)
+test_verify_one_file! {
+    #[test] test_an_fail verus_code! {
+        fn test_an_bad(x: &mut u64)
+            requires *x == 5,
+            ensures ax(done(*x == 10)), // FAILS: *x is 6, not 10
+        {
+            *x = *x + 1;
+        }
+    } => Err(err) => assert_one_fails(err)
 }
