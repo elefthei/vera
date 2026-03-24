@@ -928,7 +928,7 @@ fn check_one_pattern<Emit: EmitError>(
 
 #[derive(Clone, Copy)]
 enum Area {
-    PreState(&'static str),
+    PreState,
     PostState,
     Body,
 }
@@ -1338,7 +1338,7 @@ fn check_function<Emit: EmitError>(
     for req in function.x.require.iter() {
         let msg = "'requires' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
-        check_expr(ctxt, function, req, disallow_private_access, Area::PreState("requires"), emit)?;
+        check_expr(ctxt, function, req, disallow_private_access, Area::PreState, emit)?;
     }
     for ens in function.x.ensure.0.iter().chain(function.x.ensure.1.iter()) {
         let msg = "'ensures' clause of public function";
@@ -1391,7 +1391,7 @@ fn check_function<Emit: EmitError>(
 
         let msg = "'requires' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
-        check_expr(ctxt, function, r, disallow_private_access, Area::PreState("returns"), emit)?;
+        check_expr(ctxt, function, r, disallow_private_access, Area::PreState, emit)?;
     }
     match &function.x.mask_spec {
         None => {}
@@ -1404,7 +1404,7 @@ fn check_function<Emit: EmitError>(
                     function,
                     expr,
                     disallow_private_access,
-                    Area::PreState("opens_invariants clause"),
+                    Area::PreState,
                     emit,
                 )?;
             }
@@ -1417,7 +1417,7 @@ fn check_function<Emit: EmitError>(
                 function,
                 expr,
                 disallow_private_access,
-                Area::PreState("opens_invariants clause"),
+                Area::PreState,
                 emit,
             )?
         }
@@ -1432,7 +1432,7 @@ fn check_function<Emit: EmitError>(
                 function,
                 expr,
                 disallow_private_access,
-                Area::PreState("opens_invariants clause"),
+                Area::PreState,
                 emit,
             )?;
         }
@@ -1445,7 +1445,7 @@ fn check_function<Emit: EmitError>(
             function,
             expr,
             disallow_private_access,
-            Area::PreState("decreases clause"),
+            Area::PreState,
             emit,
         )?;
     }
@@ -1469,7 +1469,7 @@ fn check_function<Emit: EmitError>(
             function,
             expr,
             disallow_private_access,
-            Area::PreState("when clause"),
+            Area::PreState,
             emit,
         )?;
     }
