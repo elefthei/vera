@@ -388,6 +388,7 @@ fn visit_and_insert_binders(
     Arc::new(new_bs)
 }
 
+#[derive(Debug)]
 enum InsertPars {
     Native,
     Poly,
@@ -1238,6 +1239,7 @@ fn visit_function(ctx: &Ctx, function: &FunctionSst) -> FunctionSst {
         ref exec_proof_check,
         ref recommends_check,
         ref safe_api_check,
+        ref async_ret,
     } = &function.x;
 
     if attrs.is_decrease_by {
@@ -1346,6 +1348,7 @@ fn visit_function(ctx: &Ctx, function: &FunctionSst) -> FunctionSst {
         exec_proof_check,
         recommends_check,
         safe_api_check,
+        async_ret: async_ret.clone(),
     };
     Spanned::new(function.span.clone(), functionx)
 }

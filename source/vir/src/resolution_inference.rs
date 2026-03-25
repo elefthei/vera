@@ -1206,6 +1206,10 @@ impl<'a> Builder<'a> {
             ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => {
                 panic!("Temporal/Now/Done should have been rejected by well_formed");
             }
+            ExprX::Await(e) => {
+                bb = self.build(e, bb)?;
+                Ok(bb)
+            }
         }
     }
 
