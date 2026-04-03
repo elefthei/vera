@@ -33,7 +33,7 @@ use crate::sst::{
     BndInfo, BndInfoUser, BndX, CallFun, Dest, Exp, ExpX, InternalFun, Stm, StmX, UniqueIdent,
     UnwindSst,
 };
-use crate::sst::{FuncCheckSst, Pars, PostConditionKind, Stms};
+use crate::sst::{FuncCheckSst, FunctionSst, Pars, PostConditionKind, Stms};
 use crate::sst_util::{sst_exp_get_proof_note, subst_typ_for_datatype};
 use crate::sst_vars::{AssignMap, get_loc_var};
 use crate::util::{vec_map, vec_map_result};
@@ -2183,6 +2183,132 @@ fn update_now_accumulators(
     Ok(stmts)
 }
 
+/// Decompose a temporal ensures expression into Proposition obligations.
+/// Recursively unwraps nested temporal operators (e.g., AG(AF(Q))) into
+/// leaf obligations (Always/Until) that the VCGen can process.
+fn decompose_temporal(
+    op: &crate::ast::TemporalOp,
+    prop: &Exp,
+    path_prop: &Option<Exp>,
+    inside_ag: bool,
+    obligations: &mut Vec<Proposition>,
+) {
+    let inside_ag =
+        inside_ag || matches!(op, crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG);
+    match &prop.x {
+        ExpX::Temporal(inner_op, inner_prop, inner_path) => {
+            decompose_temporal(inner_op, inner_prop, inner_path, inside_ag, obligations);
+        }
+        _ => {
+            let obligation = match op {
+                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => Proposition::Always {
+                    property: prop.clone(),
+                    requires_invariance: inside_ag,
+                },
+                crate::ast::TemporalOp::AU | crate::ast::TemporalOp::EU => {
+                    let raw_goal =
+                        path_prop.clone().expect("AU/EU requires a goal (second argument)");
+                    let (goal, goal_kind) = match &raw_goal.x {
+                        ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
+                        ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
+                        _ => (raw_goal, GoalKind::Done),
+                    };
+                    Proposition::Until { path: prop.clone(), goal, goal_kind, requires_invariance: inside_ag }
+                }
+                crate::ast::TemporalOp::AN | crate::ast::TemporalOp::EN => {
+                    let raw_goal =
+                        path_prop.clone().expect("AN/EN requires a goal (second argument)");
+                    let (goal, goal_kind) = match &raw_goal.x {
+                        ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
+                        ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
+                        _ => (raw_goal, GoalKind::Done),
+                    };
+                    Proposition::Until { path: prop.clone(), goal, goal_kind, requires_invariance: inside_ag }
+                }
+            };
+            obligations.push(obligation);
+        }
+    }
+}
+
+/// Extract temporal ensures from a callee's SST function declaration.
+/// Walks the callee's ensures expressions to find ExpX::Temporal nodes
+/// and decomposes them into Proposition objects.
+fn extract_callee_temporal_ensures(func: &FunctionSst) -> Vec<Proposition> {
+    let mut obligations = Vec::new();
+    for ens in func.x.decl.enss.0.iter().chain(func.x.decl.enss.1.iter()) {
+        if let ExpX::Temporal(op, prop, path_prop) = &ens.x {
+            decompose_temporal(op, prop, path_prop, false, &mut obligations);
+        }
+    }
+    obligations
+}
+
+/// Check if a callee's AST ensures contain temporal operators.
+/// Returns true if any ensure is an ExprX::Temporal expression.
+fn callee_has_temporal_ensures(func: &crate::ast::Function) -> bool {
+    let (regular, defaults) = &func.x.ensure;
+    regular.iter().chain(defaults.iter()).any(|e| matches!(&e.x, crate::ast::ExprX::Temporal(..)))
+}
+
+/// Emit temporal implication assertions at a function call site.
+/// When a callee has temporal ensures and the caller has temporal obligations,
+/// assert that the callee's temporal ensures imply the caller's obligations.
+/// This implements contract-based transparent temporal checking.
+fn emit_temporal_implication_check(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+    func: &crate::ast::Function,
+) -> Result<Vec<Stmt>, VirErr> {
+    if state.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
+        return Ok(Vec::new());
+    }
+    // Extract temporal ensures from the callee's SST declaration
+    // (the SST ensures have been lowered and contain ExpX::Temporal)
+    let callee_sst = &ctx.func_sst_map[&func.x.name];
+    let callee_temporal = extract_callee_temporal_ensures(callee_sst);
+    if callee_temporal.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut stmts = Vec::new();
+    for caller_prop in &state.temporal_context.propositions {
+        for callee_prop in &callee_temporal {
+            match (caller_prop, callee_prop) {
+                (
+                    Proposition::Always { property: caller_phi, .. },
+                    Proposition::Always { property: callee_psi, .. },
+                ) => {
+                    let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
+                    let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
+                    let implication = mk_implies(&psi_expr, &phi_expr);
+                    let err = error(
+                        span,
+                        "callee's AG temporal ensures must imply caller's AG obligation",
+                    );
+                    stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+                }
+                (
+                    Proposition::Until { .. },
+                    Proposition::Until { .. },
+                ) => {
+                    // AU caller + AU callee: the standard bind rule handles this.
+                    // The callee terminates with its ensures assumed, and the caller's
+                    // loop checks progress via prefix/state/path assertions.
+                    // No additional implication check needed.
+                }
+                _ => {
+                    // Mismatched temporal types — no implication emitted.
+                    // Until callee in Always caller: callee terminates, AG continues after.
+                    // Always callee in Until caller: callee diverges, AU handled elsewhere.
+                }
+            }
+        }
+    }
+    Ok(stmts)
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2458,6 +2584,11 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 stmts.push(Arc::new(StmtX::Assume(generic_ens_expr)));
             }
             let mut result = vec![Arc::new(StmtX::Block(Arc::new(stmts)))];
+            // Temporal implication check: if the callee has temporal ensures and
+            // the caller has temporal obligations, assert that the callee's temporal
+            // ensures imply the caller's obligations. This makes calls transparent
+            // for temporal properties (contract-based checking).
+            result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func)?);
             // TICL bind rule (aul_bind_r / ag_bind_r):
             //   {x <- a ;; k x}, w |= φ AU ψ
             //   ⟸  a, w |= φ AU AX done(R)   — callee ensures R (assumed above)
@@ -3768,85 +3899,6 @@ pub(crate) fn body_stm_to_air(
 
     /// Recursively decompose nested temporal expressions into flat leaf obligations.
     ///
-    /// Outer temporal operators are structural — they configure the loop-level proof
-    /// obligations rather than producing direct AIR assertions.  Only the innermost
-    /// (leaf) property becomes a `Proposition`.
-    ///
-    /// # Examples (conceptual)
-    ///
-    /// ```text
-    /// ensures ag(φ)        → Always { property: φ, requires_invariance: true }
-    /// ensures af(Q)        → Until  { path: true, goal: Q, requires_invariance: false }
-    /// ensures au(φ, ψ)     → Until  { path: φ, goal: ψ, requires_invariance: false }
-    /// ensures ag(au(φ, ψ)) → Until  { path: φ, goal: ψ, requires_invariance: true }
-    /// ensures ag(af(Q))    → Until  { path: true, goal: Q, requires_invariance: true }
-    /// ```
-    ///
-    /// The `inside_ag` flag tracks whether we are nested inside an AG operator,
-    /// which enables the TICL coinductive invariance rule on the resulting obligation.
-    fn decompose_temporal(
-        op: &crate::ast::TemporalOp,
-        prop: &Exp,
-        path_prop: &Option<Exp>,
-        inside_ag: bool,
-        obligations: &mut Vec<Proposition>,
-    ) {
-        // Track whether we're nested inside an AG/EG (coinductive invariance needed)
-        let inside_ag = inside_ag || matches!(op, crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG);
-        match &prop.x {
-            ExpX::Temporal(inner_op, inner_prop, inner_path) => {
-                // Outer operator (e.g., AG) is structural — recurse into inner.
-                // Only leaf (non-temporal property) obligations become AIR assertions.
-                decompose_temporal(inner_op, inner_prop, inner_path, inside_ag, obligations);
-            }
-            _ => {
-                let obligation = match op {
-                    crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => {
-                        // For deterministic programs, EG ≡ AG (single execution path).
-                        Proposition::Always {
-                            property: prop.clone(),
-                            requires_invariance: inside_ag,
-                        }
-                    }
-                    crate::ast::TemporalOp::AU | crate::ast::TemporalOp::EU => {
-                        // For deterministic programs, EU ≡ AU (single execution path).
-                        let raw_goal = path_prop.clone().expect("AU/EU requires a goal (second argument)");
-                        // Detect now/done wrappers on the goal expression
-                        let (goal, goal_kind) = match &raw_goal.x {
-                            ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
-                            ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-                            _ => (raw_goal, GoalKind::Done), // default: done (backward compat)
-                        };
-                        Proposition::Until {
-                            path: prop.clone(),
-                            goal,
-                            goal_kind,
-                            requires_invariance: inside_ag,
-                        }
-                    }
-                    crate::ast::TemporalOp::AN | crate::ast::TemporalOp::EN => {
-                        // AN/EN: next-step operator. For deterministic programs, EN ≡ AN.
-                        // Treat AN(P, Q) like AU(P, Q) — single step.
-                        // The function must establish Q in one step while P holds at entry.
-                        let raw_goal = path_prop.clone().expect("AN/EN requires a goal (second argument)");
-                        let (goal, goal_kind) = match &raw_goal.x {
-                            ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
-                            ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-                            _ => (raw_goal, GoalKind::Done), // default: done (backward compat)
-                        };
-                        Proposition::Until {
-                            path: prop.clone(),
-                            goal,
-                            goal_kind,
-                            requires_invariance: inside_ag,
-                        }
-                    }
-                };
-                obligations.push(obligation);
-            }
-        }
-    }
-
     // In Vera, ALL ensures are temporal. Non-temporal ensures Q is treated as af(Q)
     // internally: Until(true, Q) — Q checked at return via ens_exprs derivation.
     for ens in post_condition.ens_exps.iter() {
