@@ -3897,8 +3897,8 @@ pub(crate) fn body_stm_to_air(
     // - `ensures ag(Q)` → Always(Q) via decompose_temporal
     let mut temporal_obligations: Vec<Proposition> = Vec::new();
 
-    /// Recursively decompose nested temporal expressions into flat leaf obligations.
-    ///
+    // Recursively decompose nested temporal expressions into flat leaf obligations.
+    //
     // In Vera, ALL ensures are temporal. Non-temporal ensures Q is treated as af(Q)
     // internally: Until(true, Q) — Q checked at return via ens_exprs derivation.
     for ens in post_condition.ens_exps.iter() {
