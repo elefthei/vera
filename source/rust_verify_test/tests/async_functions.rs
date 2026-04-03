@@ -8,7 +8,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 1,
+                af(done(ret == 1)),
         {
             1
         }
@@ -20,7 +20,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 2,  // FAILS
+                af(done(ret == 2)),  // FAILS
         {
             1
         }
@@ -32,7 +32,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 1,
+                af(done(ret == 1)),
         {
             1
         }
@@ -50,7 +50,7 @@ test_verify_one_file! {
         use vstd::future::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 1,
+                af(done(ret == 1)),
         {
             1
         }
@@ -68,7 +68,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         async fn foo(x :&usize) -> (ret: usize)
             ensures
-                ret == 1,
+                af(done(ret == 1)),
         {
             1
         }
@@ -89,14 +89,14 @@ test_verify_one_file! {
         use vstd::future::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 233,
+                af(done(ret == 233)),
         {
             233
         }
 
         async fn foo_of_foo() -> (ret: impl Future<Output = usize>)
             ensures
-                ret.awaited() ==> ret@ == 233,
+                af(done(ret.awaited() ==> ret@ == 233)),
         {
             foo()
         }
@@ -113,7 +113,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         async fn foo() -> (ret: usize)
             ensures
-                ret == 233,
+                af(done(ret == 233)),
         {
             233
         }
@@ -136,7 +136,7 @@ test_verify_one_file! {
         #[verifier(external_fn_specification)]
         async fn negate_bool_requires_ensures(b: bool, x: u8) -> (ret_b: bool)
             requires x != 0,
-            ensures ret_b == !b
+            ensures af(done(ret_b == !b))
         {
             negate_bool(b, x).await
         }
@@ -154,7 +154,7 @@ test_verify_one_file! {
         use vstd::prelude::*;
         pub async fn bar(x: &mut usize) -> (ret: ())
             ensures
-                *x == 2333,
+                af(done(*x == 2333)),
         {
             *x = 2333;
         }

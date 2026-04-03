@@ -419,6 +419,7 @@ pub(crate) fn async_body_to_vir<'tcx>(
         in_old: false,
         in_explicit_prophecy_node: false,
         params: std::rc::Rc::new(vec![param_names]),
+        temporal_depth: 0,
         header_setting: HeaderSetting::Fn,
         unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(HashMap::new())),
         external_opaque_type_map,
@@ -2436,6 +2437,7 @@ fn handle_async_func<'tcx>(
         in_old: false,
         in_explicit_prophecy_node: false,
         params: std::rc::Rc::new(vec![param_names]),
+        temporal_depth: 0,
         unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(HashMap::new())),
         external_opaque_type_map: assume_specification_opaque_type_map,
     };
