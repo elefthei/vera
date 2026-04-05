@@ -2183,6 +2183,27 @@ fn update_now_accumulators(
     Ok(stmts)
 }
 
+/// Emit all temporal state assertions at an intermediate program point.
+/// This is the standard 4-assertion group emitted after state-changing statements
+/// (function calls, assignments) in a temporal context:
+/// 1. Prefix assertions (AG/AU path properties before temporal loop)
+/// 2. AG state assertions (AG property at every intermediate state)
+/// 3. AU path assertions (path ∨ goal at every intermediate state)
+/// 4. Now() goal accumulators (track whether now-goal held at any state)
+fn emit_temporal_state_assertions(
+    ctx: &Ctx,
+    state: &mut State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    let mut stmts = Vec::new();
+    stmts.extend(emit_prefix_assertions(ctx, state, span, expr_ctxt)?);
+    stmts.extend(emit_ag_state_assertions(ctx, state, span, expr_ctxt)?);
+    stmts.extend(emit_au_path_assertions(ctx, state, span, expr_ctxt)?);
+    stmts.extend(update_now_accumulators(ctx, state, span, expr_ctxt)?);
+    Ok(stmts)
+}
+
 /// Decompose a temporal ensures expression into Proposition obligations.
 /// Recursively unwraps nested temporal operators (e.g., AG(AF(Q))) into
 /// leaf obligations (Always/Until) that the VCGen can process.
@@ -2205,29 +2226,33 @@ fn decompose_temporal(
                     property: prop.clone(),
                     requires_invariance: inside_ag,
                 },
-                crate::ast::TemporalOp::AU | crate::ast::TemporalOp::EU => {
+                crate::ast::TemporalOp::AU
+                | crate::ast::TemporalOp::EU
+                | crate::ast::TemporalOp::AN
+                | crate::ast::TemporalOp::EN => {
                     let raw_goal =
-                        path_prop.clone().expect("AU/EU requires a goal (second argument)");
-                    let (goal, goal_kind) = match &raw_goal.x {
-                        ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
-                        ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-                        _ => (raw_goal, GoalKind::Done),
-                    };
-                    Proposition::Until { path: prop.clone(), goal, goal_kind, requires_invariance: inside_ag }
-                }
-                crate::ast::TemporalOp::AN | crate::ast::TemporalOp::EN => {
-                    let raw_goal =
-                        path_prop.clone().expect("AN/EN requires a goal (second argument)");
-                    let (goal, goal_kind) = match &raw_goal.x {
-                        ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
-                        ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-                        _ => (raw_goal, GoalKind::Done),
-                    };
-                    Proposition::Until { path: prop.clone(), goal, goal_kind, requires_invariance: inside_ag }
+                        path_prop.clone().expect("AU/EU/AN/EN requires a goal (second argument)");
+                    let (goal, goal_kind) = extract_goal_kind(raw_goal);
+                    Proposition::Until {
+                        path: prop.clone(),
+                        goal,
+                        goal_kind,
+                        requires_invariance: inside_ag,
+                    }
                 }
             };
             obligations.push(obligation);
         }
+    }
+}
+
+/// Extract the goal kind (Now vs Done) from a temporal goal expression.
+/// Strips the Now/Done wrapper if present; defaults to Done for backward compatibility.
+fn extract_goal_kind(raw_goal: Exp) -> (Exp, GoalKind) {
+    match &raw_goal.x {
+        ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
+        ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
+        _ => (raw_goal, GoalKind::Done),
     }
 }
 
@@ -2598,13 +2623,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // exp_to_expr extracts the first-order R from temporal expressions
             // (af(Q) → Q, ag(Q) → Q). The assumption above establishes R.
             // Prefix obligations below check φ in the continuation k x.
-            result.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AG soundness: check AG property at every intermediate state
-            result.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AU soundness: check path property at every intermediate state
-            result.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // Now() goal accumulators: OR in Q at this intermediate state
-            result.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
+            result.extend(emit_temporal_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             result
         }
         StmX::Assert(assert_id, error, expr) => {
@@ -2816,14 +2835,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
         StmX::Assign { lhs: Dest { dest, is_init: true }, rhs } => {
             let x = loc_is_var(dest).expect("is_init assign dest must be a variable");
             let mut stmts = stm_to_stmts(ctx, state, &assume_var(&stm.span, x, rhs))?;
-            // TICL ag_seq/aul_seq: prefix obligations after init assignment
-            stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AG soundness: check AG property at every intermediate state
-            stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AU soundness: check path property at every intermediate state
-            stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // Now() goal accumulators: OR in Q at this intermediate state
-            stmts.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
+            // TICL: temporal state assertions after init assignment
+            stmts.extend(emit_temporal_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
             stmts
         }
         StmX::Assign { lhs: Dest { dest, is_init: false }, rhs } => {
@@ -2916,14 +2929,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 }
             }
 
-            // TICL ag_seq/aul_seq: prefix obligations after mutation
-            stmts.extend(emit_prefix_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AG soundness: check AG property at every intermediate state
-            stmts.extend(emit_ag_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // AU soundness: check path property at every intermediate state
-            stmts.extend(emit_au_path_assertions(ctx, state, &stm.span, expr_ctxt)?);
-            // Now() goal accumulators: OR in Q at this intermediate state
-            stmts.extend(update_now_accumulators(ctx, state, &stm.span, expr_ctxt)?);
+            // TICL: temporal state assertions after mutation
+            stmts.extend(emit_temporal_state_assertions(ctx, state, &stm.span, expr_ctxt)?);
 
             stmts
         }

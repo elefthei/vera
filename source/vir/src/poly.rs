@@ -784,13 +784,11 @@ fn visit_exp(ctx: &Ctx, state: &mut State, exp: &Exp) -> Exp {
             let e2 = e2.as_ref().map(|e| visit_exp_native(ctx, state, e));
             mk_exp_typ(&exp.typ, ExpX::Temporal(*op, e1, e2))
         }
-        ExpX::Now(e) => {
-            let e = visit_exp_native(ctx, state, e);
-            mk_exp_typ(&exp.typ, ExpX::Now(e))
-        }
-        ExpX::Done(e) => {
-            let e = visit_exp_native(ctx, state, e);
-            mk_exp_typ(&exp.typ, ExpX::Done(e))
+        ExpX::Now(e) | ExpX::Done(e) => {
+            let e_new = visit_exp_native(ctx, state, e);
+            let wrapped =
+                if matches!(&exp.x, ExpX::Now(_)) { ExpX::Now(e_new) } else { ExpX::Done(e_new) };
+            mk_exp_typ(&exp.typ, wrapped)
         }
     }
 }

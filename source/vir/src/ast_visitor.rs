@@ -381,13 +381,14 @@ pub(crate) trait AstVisitor<R: Returner, Err, Scope: Scoper> {
                 };
                 R::ret(|| expr_new(ExprX::Temporal(*op, R::get(e1), e2.map(|e| R::get(e)))))
             }
-            ExprX::Now(e) => {
+            ExprX::Now(e) | ExprX::Done(e) => {
+                let is_now = matches!(&expr.x, ExprX::Now(_));
                 let e = self.visit_expr(e)?;
-                R::ret(|| expr_new(ExprX::Now(R::get(e))))
-            }
-            ExprX::Done(e) => {
-                let e = self.visit_expr(e)?;
-                R::ret(|| expr_new(ExprX::Done(R::get(e))))
+                R::ret(move || {
+                    let wrapped =
+                        if is_now { ExprX::Now(R::get(e)) } else { ExprX::Done(R::get(e)) };
+                    expr_new(wrapped)
+                })
             }
             ExprX::Closure(bs, e) => {
                 let binders = self.visit_binders_typ(bs)?;
