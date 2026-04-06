@@ -1,0 +1,311 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{metropolis}
+
+%% TICL paper macros
+\input{lib}
+
+%% Beamer adjustments — suppress duplicate package loads from lib.tex
+\usepackage{minted}
+
+%% Rust-specific macros
+\newcommand{\rust}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\rlet}[3]{\ensuremath{\rust{let}~#1 = #2\rust{;}~#3}}
+\newcommand{\rmut}[2]{\ensuremath{\rust{*}#1 = #2}}
+\newcommand{\rawait}[1]{\ensuremath{#1\rust{.await}}}
+\newcommand{\rasync}[1]{\ensuremath{\rust{async}~#1}}
+\newcommand{\rwhile}[2]{\ensuremath{\rust{while}~#1~\{#2\}}}
+\newcommand{\rloop}[1]{\ensuremath{\rust{loop}~\{#1\}}}
+\newcommand{\rif}[3]{\ensuremath{\rust{if}~#1~\{#2\}~\rust{else}~\{#3\}}}
+\newcommand{\rfn}[2]{\ensuremath{\rust{fn}~#1()~\{#2\}}}
+\newcommand{\rcall}[1]{\ensuremath{#1()}}
+
+%% Vera-specific entailment
+\newcommand{\ventailsL}[3]{\ensuremath{[#1, \ #2 \Vdash_L ~#3 ]_{\mathtt{Rust}}}}
+\newcommand{\ventailsR}[3]{\ensuremath{[#1, \ #2 \Vdash_R ~#3 ]_{\mathtt{Rust}}}}
+\newcommand{\ventailsRR}[2]{\ensuremath{[#1, \ #2 \Vdash_R ~ }}
+
+%% wp notation
+\newcommand{\wpx}[2]{\ensuremath{\mathtt{wp}(#1,~#2)}}
+
+\title{Vera: Weakest Preconditions for TICL over Rust}
+\subtitle{From Imp Structural Lemmas to Rust VCGen Rules}
+\author{Lef Ioannidis}
+\date{2026}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+% ============================================================================
+\section{Background: TICL over Imp}
+% ============================================================================
+
+\begin{frame}{TICL Structural Lemmas for Imp}
+  \begin{block}{Core idea (from the TICL paper)}
+    For a small imperative language \stimp with mutable state,
+    the entailment $\sentailsL{S}{t}{m}{\varphi}$ is proved
+    structurally via inference rules on the syntax of $t$.
+  \end{block}
+
+  \vspace{0.3cm}
+  Key rules from \texttt{imp-lemmas.tex}:
+  \begin{itemize}
+    \item \textbf{Seq}$_S$AU$_L$: sequential composition decomposes into bind
+    \item \textbf{If}$_S$AU$_L$: conditional branches both satisfy the obligation
+    \item \textbf{While}$_S$AG: infinite loop with coinductive invariant $\R$
+    \item \textbf{While}$_S$AU$_L$: terminating loop with ranking function $f$
+  \end{itemize}
+
+  \vspace{0.3cm}
+  \alert{Goal:} Lift these to Rust syntax $\to$ define $\wpx{\_}{\_}$ for Vera.
+\end{frame}
+
+% ============================================================================
+\section{wp(Rust, TICL) — Weakest Preconditions}
+% ============================================================================
+
+\begin{frame}{Notation}
+  \begin{align*}
+    \sigma &\in \text{State (mutable references, heap)} \\
+    \ventailsL{t}{\sigma}{\varphi} &\triangleq \text{``Rust term } t \text{ from state } \sigma \text{ satisfies } \varphi\text{''} \\
+    \wpx{t}{\varphi} &\triangleq \text{weakest precondition on } \sigma \text{ s.t.\ } \ventailsL{t}{\sigma}{\varphi}
+  \end{align*}
+
+  \begin{block}{Temporal formulas}
+    \begin{itemize}
+      \item $\varphi ::= \now{P} \mid \AG{\varphi} \mid \AU{\varphi}{\varphi'} \mid \varphi \land \varphi'$
+      \item Sugar: $\AF{\varphi'} = \AU{\top}{\varphi'}$, \quad $\AX{\varphi'} = \AN{\top}{\varphi'}$
+      \item $\done{Q}$: termination postcondition; \quad $\now{P}$: intermediate state predicate
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Assignment}
+  \begin{block}{Rust: \quad $\rmut{x}{e}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Assign$_\text{Rust}$AU$_L$]
+    {\sigma' = \sigma[x \mapsto v] \\
+     \varphi(\sigma') \\
+     \varphi'(\sigma') \lor \text{(continue checking)}}
+    {\ventailsL{\rmut{x}{e}}{\sigma}{\AU{\varphi}{\varphi'}}}
+  \end{mathpar}
+  }
+
+  \begin{block}{Weakest precondition}
+    $$\wpx{\rmut{x}{e}}{\AU{\varphi}{\varphi'}} ~=~ \varphi[\sigma'/\sigma] \land (\varphi'[\sigma'/\sigma] \lor \top)$$
+    where $\sigma' = \sigma[x \mapsto \llbracket e \rrbracket_\sigma]$
+  \end{block}
+
+  Analogous to \textbf{Assign} in Imp: $\sembra{S}{\IAssign{s}{x}}$ updates the state map.
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Sequential Composition (let-binding)}
+  \begin{block}{Rust: \quad $\rlet{x}{t}{u}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Let$_\text{Rust}$AU$_L$]
+    {\ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{\R}}}} \\\\
+     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{u[x]}{\sigma'}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rlet{x}{t}{u}}{\sigma}{\AU{\varphi}{\varphi'}}}
+  \end{mathpar}
+  }
+
+  \begin{block}{Weakest precondition}
+    $$\wpx{\rlet{x}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \wpx{t}{\AU{\varphi}{\AX{\done{\R}}}} ~\land~ \forall x, \sigma'.~ \R~x~\sigma' \to \wpx{u[x]}{\AU{\varphi}{\varphi'}}$$
+  \end{block}
+
+  Direct lift of \textbf{BindAU$_L$} / \textbf{Seq}$_S$AU$_L$ from TICL.
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Conditional}
+  \begin{block}{Rust: \quad $\rif{c}{t}{u}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=If$_\text{Rust}$AU$_L$]
+    {c \text{ pure (no side effects)} \\\\
+     c = \rust{true} \implies \ventailsL{t}{\sigma}{\AU{\varphi}{\varphi'}} \\
+     c = \rust{false} \implies \ventailsL{u}{\sigma}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rif{c}{t}{u}}{\sigma}{\AU{\varphi}{\varphi'}}}
+  \end{mathpar}
+  }
+
+  \begin{block}{Weakest precondition}
+    $$\wpx{\rif{c}{t}{u}}{\Phi} ~=~ (c \implies \wpx{t}{\Phi}) ~\land~ (\neg c \implies \wpx{u}{\Phi})$$
+  \end{block}
+
+  Direct lift of \textbf{If}$_S$AU$_L$.
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: While Loop (AU — terminating)}
+  \begin{block}{Rust: \quad $\rwhile{c}{t}$ \quad with \texttt{invariant} $\R$, \texttt{decreases} $f$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=While$_\text{Rust}$AU$_L$]
+    {\R~\sigma \\\\
+     {\begin{aligned}
+      \forall~\sigma,~&\R~\sigma \to \\
+      & \begin{cases}
+        \ventailsL{t}{\sigma}{\AU{\varphi}{\varphi'}} ~\lor \\
+        \quad \ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{(\lambda~\sigma' \Rightarrow \R~\sigma' \land f~\sigma' < f~\sigma)}}}}, &\text{if } c \\
+        \varphi'(\sigma), &\text{otherwise}
+      \end{cases}
+     \end{aligned}}}
+    {\ventailsL{\rwhile{c}{t}}{\sigma}{\AU{\varphi}{\varphi'}}}
+  \end{mathpar}
+  }
+
+  Direct lift of \textbf{While}$_S$AU$_L$. The \texttt{decreases} annotation provides $f$.
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Loop (AG — infinite)}
+  \begin{block}{Rust: \quad $\rloop{t}$ \quad with \texttt{invariant} $\R$ (no \texttt{decreases})}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Loop$_\text{Rust}$AG]
+    {\R~\sigma \\\\
+     {\begin{aligned}
+      \forall~\sigma,~&\R~\sigma \to \\
+      & \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
+      & \ventailsR{t}{\sigma}{\AX{(\varphi~\AU{}~\AX{\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}})}}
+     \end{aligned}}}
+    {\ventailsL{\rloop{t}}{\sigma}{\AG{\varphi}}}
+  \end{mathpar}
+  }
+
+  Direct lift of \textbf{While}$_S$AG / \textbf{IterAG}. Infinite loop $=$ no exit condition.
+  The coinductive hypothesis $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ enables proving the property
+  holds at the loop entry after each iteration.
+\end{frame}
+
+% ============================================================================
+\section{Function Calls and Async/Await}
+% ============================================================================
+
+\begin{frame}{Rule: Function Call (Bind Rule)}
+  \begin{block}{Rust: \quad $\rlet{x}{\rcall{f}}{k~x}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Call$_\text{Rust}$AU$_L$]
+    {f~\rust{ensures}~\AF{\done{\R}} \\\\
+     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rlet{x}{\rcall{f}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
+  \end{mathpar}
+  }
+
+  \begin{block}{Contract-based transparent checking (Vera extension)}
+    If $f$ has temporal ensures $\Psi$, additionally assert $\Psi \implies \Phi$
+    where $\Phi$ is the caller's temporal obligation.
+    This ensures $f$'s intermediate states satisfy the caller's properties.
+  \end{block}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Async Bind (Lazy Future Creation)}
+  \begin{block}{Rust: \quad $\rlet{p}{\rasync{\rcall{f}}}{k~p}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=AsyncBind$_\text{Rust}$]
+    {\text{No state change (lazy future)} \\\\
+     \ventailsL{k~p}{\sigma}{\Phi}}
+    {\ventailsL{\rlet{p}{\rasync{\rcall{f}}}{k~p}}{\sigma}{\Phi}}
+  \end{mathpar}
+  }
+
+  Rust futures are lazy: \texttt{async fn()} returns a handle, body runs at \texttt{.await}.
+  The temporal obligation $\Phi$ passes through to the continuation $k$ unchanged.
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Await (AU/AF — terminating callee)}
+  \begin{block}{Rust: \quad $\rlet{x}{\rawait{p}}{k~x}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Await$_\text{Rust}$AU$_L$]
+    {P[p]~\rust{ensures}~\AU{\varphi'}{\AX{\done{\R}}} \\\\
+     \varphi' \implies \varphi \quad\text{(transparent)} \\\\
+     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi''}}}
+    {\ventailsL{\rlet{x}{\rawait{p}}{k~x}}{\sigma}{\AU{\varphi}{\varphi''}}}
+  \end{mathpar}
+  }
+
+  \begin{itemize}
+    \item $P[p]$ is the async process behind future $p$
+    \item The callee's path property $\varphi'$ must imply the caller's $\varphi$ (transparent await)
+    \item After await returns with $\R$, continuation $k$ continues the obligation
+  \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Rule: Await (AG — diverging callee)}
+  \begin{block}{Rust: \quad $\rawait{p}$ \quad where $P[p]~\rust{ensures}~\AG{\psi}$}
+  \end{block}
+
+  {\footnotesize
+  \begin{mathpar}
+    \inferrule*[Right=Await$_\text{Rust}$AG]
+    {P[p]~\rust{ensures}~\AG{\psi} \\\\
+     \psi \implies \varphi}
+    {\ventailsL{\rawait{p}}{\sigma}{\AG{\varphi}}}
+  \end{mathpar}
+  }
+
+  \begin{itemize}
+    \item If the awaited process has $\AG{\psi}$, it runs forever
+    \item The await point becomes a \emph{divergence point}
+    \item The caller's $\AG{\varphi}$ is discharged if $\psi \implies \varphi$
+    \item Continuation after await is unreachable (dead code)
+  \end{itemize}
+\end{frame}
+
+% ============================================================================
+\section{Summary}
+% ============================================================================
+
+\begin{frame}{wp(Rust, TICL) — Complete Rule Set}
+  \begin{center}
+  \small
+  \begin{tabular}{l l l}
+    \textbf{Rust Construct} & \textbf{TICL Rule} & \textbf{Imp Analog} \\
+    \hline
+    $\rmut{x}{e}$ & State update, check $\varphi$ & Assign \\
+    $\rlet{x}{t}{u}$ & BindAU$_L$ & Seq$_S$AU$_L$ \\
+    $\rif{c}{t}{u}$ & Case split & If$_S$AU$_L$ \\
+    $\rwhile{c}{t}$ + \texttt{decreases} & IterAU$_L$ & While$_S$AU$_L$ \\
+    $\rloop{t}$ (no exit) & IterAG & While$_S$AG \\
+    $\rcall{f}$ & Bind + transparent & BindAU$_L$ \\
+    $\rlet{p}{\rasync{\rcall{f}}}{k}$ & No-op (lazy) & — \\
+    $\rawait{p}$ (AU callee) & Bind + implication & BindAU$_L$ \\
+    $\rawait{p}$ (AG callee) & Divergence & — \\
+  \end{tabular}
+  \end{center}
+
+  \vspace{0.3cm}
+  \textbf{Key extension over Imp}: contract-based transparent temporal checking
+  at function calls and \texttt{.await} boundaries.
+\end{frame}
+
+\end{document}

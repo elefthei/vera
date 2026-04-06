@@ -1,0 +1,461 @@
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{xspace}
+\usepackage{listings}
+\usepackage{mathpartir}
+\usepackage{syntax}
+\usepackage{subcaption}
+\usepackage{hyphenat}
+\usepackage{enumerate}
+\usepackage{fancyvrb}
+\usepackage{framed}
+\usepackage{relsize}
+\usepackage{bm}
+\usepackage{tcolorbox}
+\usepackage{textcomp}
+\usepackage{mathpartir}
+\usepackage{wrapfig}
+\usepackage{mathtools} % reduce vertical spacing in align environments
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{array}
+\usepackage[noend]{algorithm2e}
+\usepackage{environ}
+\usepackage{nopageno}
+\usepackage{multicol}
+\usepackage{lineno, blindtext}
+\usepackage{etoolbox}
+\usepackage{adjustbox}
+\usepackage{changepage} % Required for the adjustwidth environment
+\usepackage{tikz}
+\usetikzlibrary{arrows, automata, positioning, decorations.pathmorphing}
+\usepackage{forest}
+\useforestlibrary{linguistics}
+
+%% Detokenize string is empty check
+\newcommand{\ifempty}[3]{\ifstrequal{#1}{}{#2}{#3}}
+
+
+% Checkmark
+\newcommand{\mathscale}[2]{\displaystyle\vcenter{\hbox{\scalebox{#1}{$#2$}}}}
+\newcommand{\greencheck}{\mathscale{2}{\color{pinegreen}{\checkmark}}}
+
+\newcommand{\M}{\ensuremath\mathcal{M}}
+\newcommand{\Q}{\ensuremath\mathcal{Q}}
+
+% Define an environment for programs and formulas
+\NewEnviron{sentailsP}[7]{%
+  \resizebox{#7}{!}{$
+    \ifempty{#3}{}{\ensuremath{#3},~}
+      \left[
+      \hspace{-.8em}
+      \begin{minipage}{#1\textwidth}
+        \footnotesize
+        \begin{algorithm}[H]
+          #4
+        \end{algorithm}
+      \end{minipage}
+      \hspace{-0.09\hsize},~#5~\mathscale{1.5}{\Vdash}_{#2}~#6
+      \right]_S
+    $}
+  }
+
+\NewEnviron{qentailsP}[8]{%
+  \resizebox{#8}{!}{$
+    \ifempty{#3}{}{\ensuremath{#3},~}
+      \left[
+      \hspace{-.8em}
+      \begin{minipage}{#1\textwidth}
+        \footnotesize
+        \begin{algorithm}[H]
+          #4
+        \end{algorithm}
+      \end{minipage}
+      \hspace{-0.09\hsize},~#5,~#6~\mathscale{1.5}{\Vdash}_{#2}~#7
+      \right]_{\Queue}
+    $}
+}
+
+\NewEnviron{rentailsP}[8]{%
+  \resizebox{#8}{!}{$
+    \ifempty{#3}{}{\ensuremath{#3},~}
+      \left[
+      \hspace{-1em}
+      \begin{minipage}{#1\textwidth}
+        \footnotesize
+        \begin{algorithm}[H]
+          #4
+        \end{algorithm}
+      \end{minipage}
+      \hspace*{-.025\hsize},~#5,~#6~\mathscale{1.5}{\Vdash}_{#2}~#7
+      \right]_R
+    $}
+}
+
+\NewEnviron{plet}[5]{
+  \AlgoDontDisplayBlockMarkers\SetAlgoNoEnd
+  \mathscale{#4}{
+    \begin{minipage}{#5\textwidth}
+      $\bm{#1}~{#2}\coloneq~$ \\
+      \begin{algorithm}[H]
+        #3
+      \end{algorithm}
+    \end{minipage}
+  }
+}
+
+\newtheorem{theorem}{Theorem}
+
+% For author comments
+\ifx\noeditingmarks\undefined
+  \newcommand{\pgwrapper}[3]{\begingroup \color{#1} #2: #3 \endgroup}
+  \newcommand{\pgwrapperb}[1]{\textbf{#1}}
+\else
+   \newcommand{\pgwrapperb}[1]{}
+   \newcommand{\pgwrapper}[2]{}
+\fi
+
+\newsavebox{\procbox}
+
+%\newcommand{\sa}[1]{\pgwrapper{red}{SGA}{#1}\xspace}
+%\newcommand{\lef}[1]{\pgwrapper{olive}{Lef}{#1}\xspace}
+%\newcommand{\sz}[1]{\pgwrapper{blue}{SZ}{#1}\xspace}
+%\newcommand{\yz}[1]{\pgwrapper{orange}{YZ}{#1}\xspace}
+%newcommand{\todo}[1]{\pgwrapper{red}{TODO}{#1}\xspace}
+
+% Embedding Rocq code
+\usepackage{listings,lstlangcoq,lstautogobble}
+\lstdefinestyle{customcoq}{
+  columns=flexible,
+  mathescape=true,
+  belowcaptionskip=1\baselineskip,
+  breaklines=true,
+  numbers=none,
+  xleftmargin=\parindent,
+  language=Coq,
+  morekeywords={Variant, fun, Arguments, Type, cofix},
+  % morekeywords={SOCKAPI,ITREE,data_at,data_at_},
+  emph={%
+        ITree,CTree, Pid, Gt, Lt, Eq, proc, ur
+  },
+  emphstyle={\bfseries},
+  showstringspaces=false,
+  basicstyle=\small\ttfamily,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{red!40!black},
+  identifierstyle=\itshape,
+  stringstyle=\color{orange},
+  escapeinside={<@}{@>}
+}
+
+%% Meta
+\newcommand{\spaced}[1]{\ifempty{#1}{}{\ {#1}}}
+\newcommand{\spacedr}[1]{\ifempty{#1}{}{{#1}\ }}
+\newcommand{\dashed}[1]{\ifempty{#1}{\textcolor{gray}{\_}}{#1}}
+\newcommand{\ticl}{\texttt{ticl}\xspace}
+\newcommand{\Ticl}{\texttt{Ticl}\xspace}
+
+% Shared
+\newcommand{\typed}[2]{\ensuremath{#1~\textcolor{gray}{\in~#2}}}
+
+%% From vellvm
+\newcommand{\nt}[1]{\ensuremath{\mathit{#1}}} % nonterminals
+\newcommand{\tm}[1]{\ensuremath{\mathtt{#1}}} % terminals
+\newcommand{\kw}[1]{\ensuremath{\mathtt{#1}}} % "informal keywords"
+\newcommand{\PROP}{\ensuremath{\mathbb{P}}}
+\newcommand{\Type}{\ensuremath{\mathtt{Type}}}
+
+%% Misc
+\newcommand{\fin}[1]{\mathtt{fin}\spaced{#1}}
+\newcommand{\unit}{\ensuremath{\mathtt{unit}}}
+\newcommand{\ttt}{\mathtt{()}}
+\definecolor{dgreen}{rgb}{0.0, 0.6, 0.0} % RGB values for a darker green
+\definecolor{pinegreen}{rgb}{0.0, 0.47, 0.44}
+\newcommand{\cbwd}{\textcolor{blue}{$\Leftarrow$}\xspace}
+\newcommand{\ciff}{\textcolor{dgreen}{$\Leftrightarrow$}\xspace}
+\newcommand{\coindeq}{\stackrel{\mathsf{coind}}{=}}
+\newcommand{\ictree}[2]{\ensuremath{\mathtt{ictree}_{\ifempty{#1}{}{\textcolor{gray}{#1\ifempty{#2}{}{,~#2}}}}}}
+\newcommand{\bbar}{\bm{|}~}
+
+
+\newcommand{\ctree}{\todo{Do not refer to ctrees we have defined the syntax from scratch}\texttt{CTree}\xspace}
+\newcommand{\ctrees}{\todo{Do not refer to ctrees we have defined the syntax from scratch}\texttt{CTrees}\xspace}
+\newcommand{\CTree}{\todo{Do not refer to ctrees we have defined the syntax from scratch}\texttt{ctree}\xspace}
+\newcommand{\CTrees}{\todo{Do not refer to ctrees we have defined the syntax from scratch}\texttt{ctrees}\xspace}
+\newcommand{\itree}{\texttt{itree}\xspace}
+\newcommand{\itrees}{\texttt{itrees}\xspace}
+\newcommand{\ICTree}{\texttt{ICTree}\xspace}
+\newcommand{\ICTrees}{\texttt{ICTrees}\xspace}
+\newcommand{\ITree}{\texttt{ITree}\xspace}
+\newcommand{\ITrees}{\texttt{ITrees}\xspace}
+\newcommand{\sep}{~\mid~}
+\newcommand{\mkw}[1]{\mbox{\sc{#1}}}
+\newcommand{\upto}[1]{\ensuremath{\mkw{#1}^{UP}}}
+
+%% CTree/Core.v
+\newcommand{\Tau}[1]{\ensuremath{\mathtt{Tau}\spaced{#1}}}
+\newcommand{\Br}[2]{\ensuremath{\ifempty{#1}{\mathtt{Br}\spaced{#2}}{\mathtt{Br}\spaced{#1} \spaced{#2}}}}
+\newcommand{\VisX}[3]{\ensuremath{\mathtt{Vis} \spaced{#1} \spaced{#2} \spaced{#3}}}
+\newcommand{\Vis}[2]{\ensuremath{\mathtt{Vis} \spaced{#1} \spaced{#2}}}
+\newcommand{\Ret}[1]{\ensuremath{\mathtt{Ret} \spaced{#1}}}
+\newcommand{\stuck}{\ensuremath{\tm{\emptyset}}\xspace}
+
+%% CTree/Sbisim
+\newcommand{\sbisim}{\ensuremath{\sim}}
+\newcommand{\equ}{\ensuremath{\cong}}
+\newcommand{\R}{\ensuremath{\mathcal{R}}}
+\newcommand{\W}{\ensuremath{\mathcal{W}}}
+\newcommand{\bindc}{\ensuremath{>\!\!>\!\!=}}
+\newcommand{\bindt}[1]{\ensuremath{x \gets #1\tm{;\!;}}\xspace}
+\newcommand{\bind}[2]{\ensuremath{x \gets #1\tm{;\!;}~#2 ~x}\xspace}
+\newcommand{\bindv}[3]{\ensuremath{#1 \gets #2\tm{;\!;}~#3}\xspace}
+\newcommand{\bindn}{\tm{bind}\xspace}
+\newcommand{\wellfounded}[1]{\ensuremath{\mathtt{well\_founded}~#1}}
+\newcommand{\iter}[2]{\ensuremath{\tm{iter\spaced{~#1}~\spaced{#2}}}\xspace}
+\newcommand{\logE}[1]{\ensuremath{\mathtt{L}_{\textcolor{gray}{#1}}}}
+\newcommand{\Log}[1]{\ensuremath{\mathtt{Log} \spaced{#1}}}
+\newcommand{\llog}[1]{\ensuremath{\mathtt{log} \spaced{#1}}}
+\newcommand{\option}[1]{\ensuremath{\tm{option}_{#1}}\xspace}
+\newcommand{\Some}[1]{\ensuremath{\tm{Some}({#1})}\xspace}
+\newcommand{\None}{\ensuremath{\tm{None}}\xspace}
+\newcommand{\Map}[2]{\ensuremath{\tm{Map}_{\textcolor{gray}{\tm{#1, #2}}}}}
+\newcommand{\Ctx}{\ensuremath{\mathcal{M}}}
+\newcommand{\itern}{\tm{iter}\xspace}
+\newcommand{\trigger}[1]{\ensuremath{\tm{trigger}~#1}\xspace}
+\newcommand{\branch}{\tm{branch}\xspace}
+\newcommand{\brtwo}{\tm{br2}\xspace}
+\newcommand{\gfptop}[1]{\ensuremath{\tm{gfp}~#1}\xspace}
+\newcommand{\gfp}{\ensuremath{\tm{gfp}~}}
+\newcommand{\srd}[1]{\ensuremath{\tm{Rd}~{#1}}}
+\newcommand{\swr}[2]{\ensuremath{\tm{Wr}~#1~#2}}
+\newcommand{\sget}{\ensuremath{\tm{get}}}
+\newcommand{\sput}[1]{\ensuremath{\tm{put}~#1}}
+\newcommand{\cons}{\ensuremath{\tm{::}}}
+\newcommand{\app}{\ensuremath{\tm{\ ++\ }}}
+
+%% Denotation (general)
+\newcommand{\sembra}[2]{\ensuremath{\llbracket \dashed{#2} \rrbracket_{\ifempty{#1}{}{_{\textcolor{gray}{\tm{#1}}}}}}}
+
+% Equivalence
+\newcommand{\sbisimR}{\sim_\R}
+\newcommand{\sbisimn}{\ensuremath{\tm{sbisim}}\xspace}
+
+%% CTree/Interp
+\newcommand{\InstrM}[2]{\ensuremath{\mathtt{InstrM}_{\textcolor{gray}{{#1} ,{#2}}}}}
+\newcommand{\instrv}[3]{\ensuremath{\mathtt{instr} \spaced{#1} \spaced{#2} \spaced{#3}}}
+%% Instrument ctrees
+\newcommand{\instr}[2]{\ensuremath{\mathcal{J}\llbracket #2 \rrbracket_{\ifempty{#1}{}{_{\textcolor{gray}{\tm{#1}}}}}}}
+\newcommand{\stateT}[2]{\ensuremath{\mathtt{stateT}\spaced{\tm{#1}}\spaced{\tm{#2}}}}
+
+%% StImp syntax
+\newcommand{\stimp}{\ensuremath{\tm{StImp}}\xspace}
+\newcommand{\IAExp}{\ensuremath{\tm{AExp}}\xspace}
+\newcommand{\IBExp}{\ensuremath{\tm{BExp}}\xspace}
+\newcommand{\St}[2]{\ensuremath{\tm{state}_{\textcolor{gray}{#1}\ifempty{#2}{}{,#2}}}}
+\newcommand{\IVar}[1]{\ensuremath{\tm{var}}~{#1}}
+\newcommand{\IVal}[1]{\ensuremath{\tm{val}}~{#1}}
+\newcommand{\IAdd}[2]{\ensuremath{#1 ~ + ~ #2}}
+\newcommand{\ISub}[2]{\ensuremath{#1 ~ - ~ #2}}
+\newcommand{\IEq}[2]{\ensuremath{#1 ~ = ~ #2}}
+\newcommand{\ILt}[2]{\ensuremath{#1 ~ < ~ #2}}
+\newcommand{\ILe}[2]{\ensuremath{#1 ~ \leq ~ #2}}
+\newcommand{\IIf}[3]{\ensuremath{\text{\textbf{if}}~(#1)~\text{\textbf{then}}~ #2 ~\text{\textbf{else}}~ #3}}
+\newcommand{\IWhile}[2]{\ensuremath{\text{\textbf{while}}~(#1)~\{#2\}}}
+\newcommand{\IAssign}[2]{\ensuremath{#1~ \leftarrow ~ #2}}
+\newcommand{\ISeq}[2]{\ensuremath{#1~;~#2}}
+\newcommand{\IBr}[2]{\ensuremath{#1~\oplus~#2}}
+\newcommand{\ISkip}{\ensuremath{\tm{skip}}}
+
+%% MeQ syntax
+\newcommand{\meQ}[1]{\ensuremath{\tm{MeQ}\ifempty{#1}{}{_{#1}}}\xspace}
+\newcommand{\QPop}{\ensuremath{\tm{pop}}\xspace}
+\newcommand{\QPush}[1]{\ensuremath{\tm{push} \spaced{#1}}\xspace}
+\newcommand{\QWhile}[1]{\ensuremath{\text{\textbf{while}}~(\tm{true})~\{#1\}}}
+\newcommand{\QRet}[1]{\ensuremath{\tm{ret}~#1}}
+\newcommand{\QBind}[2]{\ensuremath{#1 \bindc #2}}
+
+%% MeS syntax
+\newcommand{\meS}[1]{\ensuremath{\tm{MeS}\ifempty{#1}{}{_{#1}}}\xspace}
+\newcommand{\SWrite}[3]{\ensuremath{\tm{write} \spaced{#1} \spaced{#2} \spaced{#3}}\xspace}
+\newcommand{\SRead}[2]{\ensuremath{\tm{read} \spaced{#1} \spaced{#2}}\xspace}
+\newcommand{\SIf}[3]{\ensuremath{\text{\textbf{if}} ~#1~ \text{\textbf{then}}~#2~\text{\textbf{else}}~#3}\xspace}
+\newcommand{\SRet}[1]{\ensuremath{\tm{ret}~#1}}
+\newcommand{\SBind}[2]{\ensuremath{#1 \bindc #2}}
+
+%% MeR syntax
+\newcommand{\meR}[1]{\ensuremath{\tm{MeR}\ifempty{#1}{}{_{#1}}}\xspace}
+\newcommand{\RLoop}[2]{\ensuremath{\tm{loop}} \spaced{#1} \spaced{#2} \xspace}
+\newcommand{\RBr}[2]{\ensuremath{#1~\oplus~#2}}
+\newcommand{\RCall}[1]{\ensuremath{\tm{call} ~#1}\xspace}
+\newcommand{\RRet}[1]{\ensuremath{\tm{ret}~#1}}
+\newcommand{\RBind}[2]{\ensuremath{#1 \bindc #2}}
+
+%% Logic/Kripke.v
+\newcommand{\World}[1]{\ensuremath{\mathcal{W}\ifempty{#1}{}{_{\textcolor{gray}{#1}}}}}
+\newcommand{\Pure}{\ensuremath{\mathtt{Pure}}\xspace}
+\newcommand{\Val}[1]{\ensuremath{\mathtt{Val} \spaced{#1}}\xspace}
+\newcommand{\Obs}[2]{\ensuremath{\mathtt{Obs} \spaced{#1} \spaced{#2}}\xspace}
+\newcommand{\Finish}[3]{\ensuremath{\mathtt{Finish} \spaced{#1} \spaced{#2} \spaced{#3}}\xspace}
+\newcommand{\notdone}[1]{\ensuremath{\mathtt{not\_done} \spaced{#1}}}
+\newcommand{\donewith}[2]{\ensuremath{\mathtt{done\_with} \spaced{#1} \spaced{#2}}}
+\newcommand{\canstep}[2]{\ensuremath{\mathtt{can\_step} \spaced{#1} \spaced{#2}}}
+\newcommand{\ktrans}[4]{\ensuremath{[\dashed{#1},\ \dashed{#2} ] \mapsto [ \dashed{#3},\ \dashed{#4} ]}}
+
+%%% Logic/Syntax.v
+\newcommand{\psix}{\ensuremath{\psi_\mathtt{X}}\xspace}
+\newcommand{\Px}{\ensuremath{P_\mathtt{X}}\xspace}
+\newcommand{\psiy}{\ensuremath{\psi_\mathtt{Y}}\xspace}
+\newcommand{\phic}{\ensuremath{\varphi}\xspace}
+\newcommand{\implL}{\ensuremath{\Rightarrow_L}}
+\newcommand{\implR}{\ensuremath{\Rightarrow_R}}
+\newcommand{\implLR}{\ensuremath{\Rightarrow_{LR}}}
+\newcommand{\iffL}{\ensuremath{\Leftrightarrow_L}}
+\newcommand{\iffR}{\ensuremath{\Leftrightarrow_R}}
+\newcommand{\iffLR}{\ensuremath{\Leftrightarrow_{LR}}}
+
+%%%% SBisim/Trans.v
+\newcommand{\lts}{\texttt{LTS}\xspace}
+\newcommand{\lbl}{\ensuremath{\mathtt{label}}\xspace}
+\newcommand{\ltau}{\ensuremath{\tau}\xspace}
+\newcommand{\lobs}[2]{\ensuremath{\mathtt{obs}\spaced{#1}\spaced{#2}}\xspace}
+\newcommand{\lval}[1]{\ensuremath{\mathtt{val}\spaced{#1}}\xspace}
+\newcommand{\lstep}[3]{#1 \xrightarrow{#2} #3\xspace}
+
+% base predicates
+\newcommand{\now}[1]{\ensuremath{\mathtt{now}\spaced{#1}}\xspace}
+\newcommand{\return}[1]{\ensuremath{\mathtt{return}\spaced{#1}}\xspace}
+% derived
+\newcommand{\done}[1]{\ensuremath{\mathtt{done}\spaced{#1}}\xspace}
+\newcommand{\doneq}[2]{\ensuremath{\mathtt{done_=}\spaced{#1}\spaced{#2}}\xspace}
+\newcommand{\val}[1]{\ensuremath{\mathtt{val}\spaced{#1}}\xspace}
+\newcommand{\finish}[1]{\ensuremath{\mathtt{finish}\spaced{#1}}\xspace}
+\newcommand{\pure}{\ensuremath{\mathtt{pure}}\xspace}
+\newcommand{\obs}[1]{\ensuremath{\mathtt{obs}\spaced{#1}}\xspace}
+% inl
+\newcommand{\inl}[1]{\ensuremath{\mathtt{inl}\spaced{#1}}\xspace}
+\newcommand{\inr}[1]{\ensuremath{\mathtt{inr}\spaced{#1}}\xspace}
+
+\newcommand{\AU}[2]{\ensuremath{\spacedr{#1} \tm{AU}      \spaced{#2}}\xspace}
+\newcommand{\EU}[2]{\ensuremath{\spacedr{#1} \tm{EU}      \spaced{#2}}\xspace}
+\newcommand{\AN}[2]{\ensuremath{\spacedr{#1} \tm{AN}      \spaced{#2}}\xspace}
+\newcommand{\EN}[2]{\ensuremath{\spacedr{#1} \tm{EN}      \spaced{#2}}\xspace}
+\newcommand{\AG}[1]{\ensuremath{\tm{AG}\spaced{#1}}\xspace}
+\newcommand{\EG}[1]{\ensuremath{\tm{EG}\spaced{#1}}\xspace}
+
+%% Syntactic sugar
+\newcommand{\AX}[1]{\ensuremath{\tm{AX} \spaced{#1}\xspace}}
+\newcommand{\EX}[1]{\ensuremath{\tm{EX} \spaced{#1}\xspace}}
+\newcommand{\AF}[1]{\ensuremath{\tm{AF} \spaced{#1}\xspace}}
+\newcommand{\EF}[1]{\ensuremath{\tm{EF} \spaced{#1}\xspace}}
+
+%% Entailment
+\newcommand{\entails}[3]{\ensuremath{\langle ~\dashed{#1}, \ \dashed{#2} \vDash ~\dashed{#3}~ \rangle}}
+\newcommand{\entailsL}[3]{\ensuremath{\langle ~\dashed{#1}, \ \dashed{#2} \vDash_L ~\dashed{#3}~ \rangle}}
+\newcommand{\entailsR}[3]{\ensuremath{\langle ~\dashed{#1}, \ \dashed{#2} \vDash_R ~\dashed{#3}~ \rangle}}
+\newcommand{\entailsRR}[2]{\ensuremath{\langle~ \dashed{#1}, \ \dashed{#2} \vDash_R ~}}
+\newcommand{\entailsLR}[3]{\ensuremath{\langle~ \dashed{#1}, \ \dashed{#2} \vDash_{LR} ~\dashed{#3} ~\rangle}}
+%% stimp entailment
+\newcommand{\sentailsL}[4]{\ensuremath{[\dashed{#2}, \ \dashed{#3} \Vdash_L ~\dashed{#4} ]_{#1}}}
+\newcommand{\sentailsR}[4]{\ensuremath{[\dashed{#2}, \ \dashed{#3} \Vdash_R ~\dashed{#4} ]_{#1}}}
+\newcommand{\sentailsLR}[4]{\ensuremath{[\dashed{#2}, \ \dashed{#3} \Vdash_{LR} ~\dashed{#4} ]_{#1}}}
+\newcommand{\sentailsRR}[2]{\ensuremath{[\dashed{#1}, \ \dashed{#2} \Vdash_R ~ }}
+
+%% Queue entailment
+\newcommand{\qentailsL}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_L ~\dashed{#4} ]_{\Queue}}}
+\newcommand{\qentailsR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~\dashed{#4} ]_{\Queue}}}
+\newcommand{\qentailsLR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_{LR} ~\dashed{#4} ]_{\Queue}}}
+\newcommand{\qentailsRR}[3]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~}}
+
+%% Sec memory entailment
+\newcommand{\mentailsL}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_L ~\dashed{#4} ]_{\Lbl}}}
+\newcommand{\mentailsR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~\dashed{#4} ]_{\Lbl}}}
+\newcommand{\mentailsLR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_{LR} ~\dashed{#4} ]_{\Lbl}}}
+\newcommand{\mentailsRR}[3]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~}}
+\newcommand{\rentailsL}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_L ~\dashed{#4} ]_{R}}}
+\newcommand{\rentailsR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~\dashed{#4} ]_{R}}}
+\newcommand{\rentailsLR}[4]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_{LR} ~\dashed{#4} ]_{R}}}
+\newcommand{\rentailsRR}[3]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_R ~}}
+\newcommand{\rentailsLL}[3]{\ensuremath{[\dashed{#1}, \ \dashed{#2},\ \dashed{#3} \Vdash_L ~}}
+
+%%% StImp
+\newcommand{\Get}{\ensuremath{\tm{Get}}}
+\newcommand{\Put}[1]{\ensuremath{\tm{Put~{#1}}}}
+\newcommand{\svar}[1]{\ensuremath{\tm{var}~{#1}}}
+
+%%% Examples, queue
+\newcommand{\Queue}{\ensuremath{\mathcal{Q}}}
+\newcommand{\qpop}{\tm{pop}}
+\newcommand{\qpush}[1]{\ensuremath{\tm{push}\spaced{#1}}}
+
+
+%%% Examples, secure memory
+\newcommand{\MS}{\ensuremath{\mathcal{M}_\mathcal{S}}}
+\newcommand{\Lbl}{\ensuremath{\mathcal{S}}}
+\newcommand{\stimpS}{\ensuremath{\stimp_\mathcal{S}}\xspace}
+\newcommand{\sread}[2]{\ensuremath{\tm{read}_{#1}~#2}}
+\newcommand{\swrite}[3]{\ensuremath{\tm{write}_{#1}~#2~#3}}
+\newcommand{\siseven}[1]{\ensuremath{\tm{is\_even}~#1}}
+\newcommand{\IAExpS}{\ensuremath{\tm{AExp_\mathcal{S}}}}
+\newcommand{\IBExpS}{\ensuremath{\tm{BExp_\mathcal{S}}}}
+
+%%% Examples, election
+\newcommand{\Pid}{\ensuremath{\tm{PID}_n}}
+\newcommand{\Enet}{\ensuremath{E_{\tm{net}}}}
+\newcommand{\hnet}{\ensuremath{h_{\tm{net}}}}
+\newcommand{\Msg}{\ensuremath{\tm{Msg}_n}}
+\newcommand{\Mailboxes}{\ensuremath{[\Msg]_n}}
+\newcommand{\esend}[2]{\ensuremath{\tm{send} \spaced{#1} \spaced{#2}}}
+\newcommand{\erecv}[1]{\ensuremath{\tm{recv} \spaced{#1}}}
+\newcommand{\proc}[1]{\ensuremath{\tm{proc} \spaced{#1}}}
+
+\usepackage{tabularray}
+
+\NewEnviron{typsyntax}[2]{%
+  \begin{flushleft}
+    \begin{tabular}{l l}
+      $\typed{#1}{#2}~=$
+      &
+        $\begin{aligned}[t] % Start aligned in math mode
+          \BODY
+        \end{aligned}$ % End aligned and math mode
+    \end{tabular}
+  \end{flushleft}
+}
+
+\NewEnviron{typcosyntax}[2]{%
+  \begin{flushleft}
+    \begin{tabular}{l l}
+      $\typed{#1}{#2}~=$
+      &
+        $\begin{aligned}[t] % Start aligned in math mode
+          \BODY
+        \end{aligned}$ % End aligned and math mode
+    \end{tabular}
+  \end{flushleft}
+}
+
+\NewEnviron{typfunction}[2]{%
+  \begin{flushleft}
+    \begin{tabular}{l}
+      \ensuremath{\mathtt{#1}~\textcolor{gray}{\in~#2}} \\[.5em]
+      {\begin{minipage}{\textwidth}
+          $\begin{aligned} % Start aligned in math mode
+            \BODY
+          \end{aligned}$
+        \end{minipage}
+      } % End aligned and math mode
+    \end{tabular}
+  \end{flushleft}
+}
+
+\newcommand{\typequation}[3]{
+  \begin{typsyntax}{#1}{#2}
+    #3 \\
+  \end{typsyntax}
+}
+
+\newcommand{\typcoequation}[3]{
+  \begin{typcosyntax}{#1}{#2}
+    #3 \\
+  \end{typcosyntax}
+}
