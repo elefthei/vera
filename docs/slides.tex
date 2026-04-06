@@ -1,6 +1,11 @@
 \documentclass[aspectratio=169]{beamer}
 \usetheme{metropolis}
 
+%% Suppress theorem redefinition from lib.tex (beamer defines it already)
+\let\theorem\relax
+\let\endtheorem\relax
+\let\c@theorem\relax
+
 %% TICL paper macros
 \input{lib}
 
@@ -134,17 +139,27 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=If$_\text{Rust}$AU$_L$]
-    {c \text{ pure (no side effects)} \\\\
-     c = \rust{true} \implies \ventailsL{t}{\sigma}{\AU{\varphi}{\varphi'}} \\
-     c = \rust{false} \implies \ventailsL{u}{\sigma}{\AU{\varphi}{\varphi'}}}
+    {\ventailsR{c}{\sigma}{\AX{\doneq{(b,\sigma')}{}}} \\\\
+     {
+       \begin{cases}
+         \ventailsL{t}{\sigma'}{\AU{\varphi}{\varphi'}}, &\text{if } b \\
+         \ventailsL{u}{\sigma'}{\AU{\varphi}{\varphi'}}, &\text{otherwise}
+       \end{cases}
+     }
+    }
     {\ventailsL{\rif{c}{t}{u}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
 
   \begin{block}{Weakest precondition}
-    $$\wpx{\rif{c}{t}{u}}{\Phi} ~=~ (c \implies \wpx{t}{\Phi}) ~\land~ (\neg c \implies \wpx{u}{\Phi})$$
+    $$\wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \wpx{c}{\AX{\doneq{(b,\sigma')}{}}} ~\land~
+    \begin{cases}
+      \wpx{t}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{if } b \\
+      \wpx{u}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{otherwise}
+    \end{cases}$$
   \end{block}
 
+  Evaluating $c$ takes steps that must satisfy the path property $\varphi$.
   Direct lift of \textbf{If}$_S$AU$_L$.
 \end{frame}
 
@@ -158,10 +173,11 @@
     \inferrule*[Right=While$_\text{Rust}$AU$_L$]
     {\R~\sigma \\\\
      {\begin{aligned}
-      \forall~\sigma,~&\R~\sigma \to \\
-      & \begin{cases}
+      \forall~\sigma,~&\R~\sigma \to \ventailsR{c}{\sigma}{\AX{\doneq{(b,\sigma)}{}}} \\
+      & \land \begin{cases}
         \ventailsL{t}{\sigma}{\AU{\varphi}{\varphi'}} ~\lor \\
-        \quad \ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{(\lambda~\sigma' \Rightarrow \R~\sigma' \land f~\sigma' < f~\sigma)}}}}, &\text{if } c \\
+        \quad \ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{(\lambda~\sigma' \Rightarrow
+            \R~\sigma' \land f~\sigma' < f~\sigma)}}}}, &\text{if } b \\
         \varphi'(\sigma), &\text{otherwise}
       \end{cases}
      \end{aligned}}}
