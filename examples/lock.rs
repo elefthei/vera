@@ -1,9 +1,9 @@
 // rust_verify/tests/example.rs ignore --- temporal verification example
 //
-// Lock deadlock-freedom example.
+// Lock release liveness example.
 //
-// This example demonstrates proving deadlock freedom for a simple lock
-// using temporal logic. The lock is modeled as a mutable integer:
+// This example demonstrates proving that a held lock is always eventually
+// released, using temporal logic. The lock is modeled as a mutable integer:
 //   0 = free
 //   nonzero = held by task with that ID
 //
@@ -13,9 +13,9 @@
 //   - now(): the lock being free is a state predicate — it holds at the
 //     moment of release, not necessarily at loop body end
 //
-// This proves deadlock freedom: no task holds the lock forever.
-// In each iteration, if the task holds the lock, it releases it (progress).
-// If the lock is free, the task acquires and releases it in one step.
+// This is a single-process liveness proof. Multi-process deadlock freedom
+// (multiple tasks contending for the lock) requires the multi-process WP
+// configuration model with async/await.
 //
 // Temporal VCGen:
 //   - AG: infinite loop (no terminating exit condition)
@@ -28,14 +28,13 @@ use vstd::prelude::*;
 
 verus! {
 
-/// Prove deadlock freedom: a task that acquires a lock always releases it.
+/// Prove lock release liveness: a task that acquires a lock always releases it.
 ///
 /// The temporal postcondition `ag(af(now(*lock == 0)))` means:
 ///   "The lock is always eventually free"
 ///
-/// This is the simplest form of deadlock freedom — a single task that
-/// acquires and releases a lock in a loop. The proof extends to
-/// multi-process scenarios via the WP configuration model.
+/// This is a single-process liveness proof. Multi-process deadlock freedom
+/// requires the WP configuration model with async/await.
 fn lock_holder(lock: &mut u64, id: u64)
     requires
         id > 0,

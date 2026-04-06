@@ -324,103 +324,6 @@
 \end{frame}
 
 % ============================================================================
-\section{Multi-Process Configuration}
-% ============================================================================
-
-\begin{frame}{Configuration}
-  A \textbf{configuration} $C = \Config{P}{\sigma}{i}$:
-  \vspace{-0.2cm}
-  \begin{align*}
-    P &: \PID \to \text{Term} && \text{process dictionary} \\
-    \sigma &\in \text{State} && \text{shared mutable state} \\
-    i &\in \PID && \text{active process}
-  \end{align*}
-  \vspace{-0.4cm}
-  \begin{itemize}
-    \item Temporal formulas $\varphi$ are over shared state $\sigma$
-    \item $\WPx{C}{\varphi}$ -- multi-process wp, defined by cases on $P(i)$
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Cooperative Scheduling}
-  Rust \texttt{async} uses \textbf{cooperative scheduling}:
-  each process runs uninterrupted until it reaches an \texttt{.await},
-  then yields control to the scheduler.
-
-  \vspace{0.3cm}
-  \begin{itemize}
-    \item \textbf{Within a process}: execution is sequential (single-process $\mathtt{wp}$ applies)
-    \item \textbf{At \texttt{.await}}: the active process $i$ suspends; the scheduler
-          picks a ready process $p$ to run (nondeterministic choice)
-    \item \textbf{No preemption}: a process cannot be interrupted mid-statement;
-          shared state $\sigma$ is only modified by the active process
-  \end{itemize}
-
-  \vspace{0.3cm}
-  This means nondeterminism arises \emph{only} at \texttt{.await} boundaries ---
-  between yield points, the program is deterministic and the single-process
-  rules apply unchanged.
-\end{frame}
-
-% ============================================================================
-\section{Multi-Process Weakest Preconditions}
-% ============================================================================
-
-\begin{frame}{WP: Sequential Step}
-  When $P(i)$ is a non-async construct (assignment, let, if, while, sync call):
-
-  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \wpx{P(i)}{\varphi}~\sigma$$
-
-  Delegate to single-process $\mathtt{wp}$. Process dictionary $P$ is unchanged.
-
-  \vspace{0.5cm}
-  Programs without \texttt{async}/\texttt{await} reduce entirely to single-process wp:
-  $$\WPx{\Config{\{0 \mapsto t\}}{\sigma}{0}}{\varphi} ~=~ \wpx{t}{\varphi}~\sigma$$
-\end{frame}
-
-\begin{frame}{WP: Async (Spawn a Future)}
-  \begin{block}{Rust: \quad $\rasync{e}$ evaluates to a fresh $p \in \PID$}
-  \end{block}
-
-  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[p \mapsto e]}{\sigma}{i}}{\varphi}$$
-
-  \begin{itemize}
-    \item Adds new process $p$ with body $e$ to $P$ (suspended)
-    \item Process $i$ continues running (active, unchanged)
-    \item No state change, no scheduling --- futures are lazy
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{WP: Await (AU -- terminating callee)}
-  \begin{block}{Rust: \quad $P(i) = \rlet{x}{\rawait{p}}{k~x}$}
-  \end{block}
-
-  \begin{align*}
-  &\WPx{\Config{P}{\sigma}{i}}{\AU{\varphi}{\varphi'}} ~= \\
-  & \quad \WPx{\Config{P}{\sigma}{p}}{\AU{\varphi}{\done{\R}}} \\
-  & \quad \land~ \forall~x, \sigma'.~ \R~x~\sigma' \to \WPx{\Config{P[i \mapsto k[x]]}{\sigma'}{i}}{\AU{\varphi}{\varphi'}}
-  \end{align*}
-
-  \begin{itemize}
-    \item Switch active process to $p$; run it maintaining $\varphi$
-    \item After $p$ terminates with result $x$ and state $\sigma'$, resume $i$
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{WP: Await (AG -- diverging callee)}
-  \begin{block}{Rust: \quad $P(i) = \rawait{p}$}
-  \end{block}
-
-  $$\WPx{\Config{P}{\sigma}{i}}{\AG{\varphi}} ~=~ \wpx{P(p)}{\AG{\varphi}}~\sigma$$
-
-  \begin{itemize}
-    \item Reduces to single-process $\mathtt{wp}$ on callee's body $P(p)$
-    \item Process $p$ must satisfy $\AG{\varphi}$ (runs forever)
-    \item Continuation after await is unreachable
-  \end{itemize}
-\end{frame}
-
-% ============================================================================
 \section{Vera Implementation}
 % ============================================================================
 
@@ -542,8 +445,8 @@ fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
   {\footnotesize \verb|now()| = state predicate (head $= x$ at loop start, not end). Ghost accumulator tracks it.}
 \end{frame}
 
-\begin{frame}[fragile]{Example: Lock Deadlock Freedom (AG(AF(now)))}
-  \begin{block}{The lock is always eventually free --- deadlock freedom}
+\begin{frame}[fragile]{Example: Lock Release Liveness (AG(AF(now)))}
+  \begin{block}{A held lock is always eventually released}
   \end{block}
   \vspace{-0.2cm}
   \begin{lstlisting}
@@ -566,7 +469,7 @@ fn lock_holder(lock: &mut u64, id: u64)
 }
   \end{lstlisting}
   \vspace{-0.3cm}
-  {\footnotesize \verb|now(*lock == 0)| holds at release point. Decreases: 1 if held, 0 if free.}
+  {\footnotesize Single-process liveness. \verb|now(*lock == 0)| holds at release point.}
 \end{frame}
 
 % ============================================================================
@@ -576,26 +479,21 @@ fn lock_holder(lock: &mut u64, id: u64)
 \begin{frame}{Complete Rule Set}
   \begin{center}
   \small
-  \begin{tabular}{l l l}
-    \textbf{Construct} & \textbf{Rule} & \textbf{Layer} \\
+  \begin{tabular}{l l}
+    \textbf{Construct} & \textbf{Rule} \\
     \hline
-    $\rmut{x}{e}$ & State update & $\mathtt{wp}$ \\
-    $\rlet{x}{t}{u}$ & BindAU$_L$ & $\mathtt{wp}$ \\
-    $\rif{c}{t}{u}$ & Case split (effectful $c$) & $\mathtt{wp}$ \\
-    $\rwhile{c}{t}$ + \texttt{dec.} & WhileAU$_L$ & $\mathtt{wp}$ \\
-    $\rwhile{c}{t}$ (no exit) & WhileAG & $\mathtt{wp}$ \\
-    $\rcall{f}{\vec{e}}$ & Contract-dependent & $\mathtt{wp}$ \\
-    \hline
-    Sequential step & Delegate to $\mathtt{wp}$ & $\mathtt{WP}$ \\
-    $\rasync{e}$ & Extend $P$, no-op & $\mathtt{WP}$ \\
-    $\rawait{p}$ (AU callee) & Switch active to $p$ & $\mathtt{WP}$ \\
-    $\rawait{p}$ (AG callee) & Divergence & $\mathtt{WP}$ \\
+    $\rmut{x}{e}$ & State update \\
+    $\rlet{x}{t}{u}$ & BindAU$_L$ \\
+    $\rif{c}{t}{u}$ & Case split (effectful $c$) \\
+    $\rwhile{c}{t}$ + \texttt{decreases} & WhileAU$_L$ \\
+    $\rwhile{c}{t}$ (no exit) & WhileAG (coinductive) \\
+    $\rcall{f}{\vec{e}}$ & Contract-dependent \\
   \end{tabular}
   \end{center}
 
   \vspace{0.3cm}
-  Two layers: $\wpx{t}{\varphi}$ for sequential Rust,
-  $\WPx{\Config{P}{\sigma}{i}}{\varphi}$ for async concurrency.
+  $\wpx{t}{\varphi}$ for sequential Rust.
+  Total correctness Hoare logic is the special case $\AF{\done{Q}}$.
 \end{frame}
 
 \end{document}
