@@ -270,26 +270,19 @@
 % ============================================================================
 
 \begin{frame}{Configuration}
-  A \textbf{configuration} $C = \Config{P}{\sigma}{i}$ consists of:
-
+  A \textbf{configuration} $C = \Config{P}{\sigma}{i}$:
+  \vspace{-0.2cm}
   \begin{align*}
     P &: \PID \to \text{Term} && \text{process dictionary} \\
-    \sigma &\in \text{State} && \text{shared mutable state (heap, \&mut refs)} \\
-    i &\in \PID && \text{currently active (scheduled) process}
+    \sigma &\in \text{State} && \text{shared mutable state} \\
+    i &\in \PID && \text{active process}
   \end{align*}
-
-  \begin{block}{Cooperative scheduling}
-    \begin{itemize}
-      \item Each process runs until it hits \texttt{.await}, then yields
-      \item The scheduler picks the next process from the ready set
-      \item Temporal formulas $\varphi$ are over shared state $\sigma$
-    \end{itemize}
-  \end{block}
-
-  \begin{block}{Multi-process wp}
-    $\WPx{C}{\varphi}$ -- weakest precondition on configuration $C$.
-    Defined by cases on the shape of $P(i)$.
-  \end{block}
+  \vspace{-0.4cm}
+  \begin{itemize}
+    \item Cooperative scheduling: run until \texttt{.await}, then yield
+    \item Temporal formulas $\varphi$ are over shared state $\sigma$
+    \item $\WPx{C}{\varphi}$ -- multi-process wp, defined by cases on $P(i)$
+  \end{itemize}
 \end{frame}
 
 % ============================================================================
