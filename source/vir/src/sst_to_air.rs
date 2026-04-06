@@ -2166,7 +2166,7 @@ pub(crate) trait SingleProcessWp {
     fn wp_stm(&mut self, ctx: &Ctx, stm: &Stm) -> Result<Vec<Stmt>, VirErr>;
 
     /// Sequential block: process statements in order.
-    fn wp_block(&mut self, ctx: &Ctx, stms: &[Arc<Stm>]) -> Result<Vec<Stmt>, VirErr>;
+    fn wp_block(&mut self, ctx: &Ctx, stms: &Stms) -> Result<Vec<Stmt>, VirErr>;
 }
 
 impl SingleProcessWp for State {
@@ -2174,11 +2174,16 @@ impl SingleProcessWp for State {
         stm_to_stmts_inner(ctx, self, stm)
     }
 
-    #[allow(dead_code)]
-    fn wp_block(&mut self, ctx: &Ctx, stms: &[Arc<Stm>]) -> Result<Vec<Stmt>, VirErr> {
+    fn wp_block(&mut self, ctx: &Ctx, stms: &Stms) -> Result<Vec<Stmt>, VirErr> {
+        if ctx.debug {
+            self.push_scope();
+        }
         let mut all_stmts = Vec::new();
-        for s in stms {
+        for s in stms.iter() {
             all_stmts.extend(self.wp_stm(ctx, s)?);
+        }
+        if ctx.debug {
+            self.pop_scope();
         }
         Ok(all_stmts)
     }
@@ -3574,17 +3579,9 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
         }
         StmX::Block(stms) => {
             if ctx.debug {
-                state.push_scope();
                 state.map_span(&stm, SpanKind::Start);
             }
-            let mut stmts: Vec<Stmt> = Vec::new();
-            for s in stms.iter() {
-                stmts.extend(stm_to_stmts(ctx, state, s)?);
-            }
-            if ctx.debug {
-                state.pop_scope();
-            }
-            stmts
+            state.wp_block(ctx, stms)?
         }
         StmX::Air(s) => {
             let mut parser = sise::Parser::new(s.as_bytes());
