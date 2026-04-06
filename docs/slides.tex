@@ -6,6 +6,9 @@
 \let\endtheorem\relax
 \let\c@theorem\relax
 
+%% stmaryrd for ⟦ ⟧ brackets used by lib.tex macros
+\usepackage{stmaryrd}
+
 %% TICL paper macros
 \input{lib}
 
@@ -139,7 +142,7 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=If$_\text{Rust}$AU$_L$]
-    {\ventailsR{c}{\sigma}{\AX{\doneq{(b,\sigma')}{}}} \\\\
+    {\ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\\\
      {
        \begin{cases}
          \ventailsL{t}{\sigma'}{\AU{\varphi}{\varphi'}}, &\text{if } b \\
@@ -152,15 +155,15 @@
   }
 
   \begin{block}{Weakest precondition}
-    $$\wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \wpx{c}{\AX{\doneq{(b,\sigma')}{}}} ~\land~
+    $$\wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} ~\land~
     \begin{cases}
       \wpx{t}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{if } b \\
       \wpx{u}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{otherwise}
     \end{cases}$$
   \end{block}
 
-  Evaluating $c$ takes steps that must satisfy the path property $\varphi$.
-  Direct lift of \textbf{If}$_S$AU$_L$.
+  Evaluating $c$ may take multiple steps; $\varphi$ must hold along the path.
+  Uses $\varphi~\AU{}~\doneq{}{}$ instead of $\AX{\doneq{}{}}$ because Rust conditions are effectful.
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -173,19 +176,20 @@
     \inferrule*[Right=While$_\text{Rust}$AU$_L$]
     {\R~\sigma \\\\
      {\begin{aligned}
-      \forall~\sigma,~&\R~\sigma \to \ventailsR{c}{\sigma}{\AX{\doneq{(b,\sigma)}{}}} \\
+      \forall~\sigma,~&\R~\sigma \to \ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\
       & \land \begin{cases}
-        \ventailsL{t}{\sigma}{\AU{\varphi}{\varphi'}} ~\lor \\
-        \quad \ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{(\lambda~\sigma' \Rightarrow
-            \R~\sigma' \land f~\sigma' < f~\sigma)}}}}, &\text{if } b \\
-        \varphi'(\sigma), &\text{otherwise}
+        \ventailsL{t}{\sigma'}{\AU{\varphi}{\varphi'}} ~\lor \\
+        \quad \ventailsR{t}{\sigma'}{\AU{\varphi}{\AF{\done{(\lambda~\sigma'' .~
+            \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}, &\text{if } b \\
+        \varphi'(\sigma'), &\text{otherwise}
       \end{cases}
      \end{aligned}}}
     {\ventailsL{\rwhile{c}{t}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
 
-  Direct lift of \textbf{While}$_S$AU$_L$. The \texttt{decreases} annotation provides $f$.
+  Condition evaluation uses $\AU{\varphi}{\doneq{}{}}$ (multi-step, path-preserving).
+  Direct lift of \textbf{While}$_S$AU$_L$ with effectful conditions.
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -200,8 +204,7 @@
      {\begin{aligned}
       \forall~\sigma,~&\R~\sigma \to \\
       & \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
-      & \ventailsR{t}{\sigma}{\AX{(\varphi~\AU{}~\AX{\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}})}}
-     \end{aligned}}}
+      & \ventailsR{t}{\sigma}{\varphi~\AU{}~\AF{\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}}}     \end{aligned}}}
     {\ventailsL{\rloop{t}}{\sigma}{\AG{\varphi}}}
   \end{mathpar}
   }
