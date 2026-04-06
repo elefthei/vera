@@ -115,6 +115,29 @@
   \end{block}
 \end{frame}
 
+\begin{frame}{Comparison with Hoare Logic}
+  \begin{block}{Total correctness Hoare triple}
+    $$\{P\}~c~\{Q\} \quad\iff\quad \forall~\sigma.~ P~\sigma \to \ventailsL{c}{\sigma}{\AF{\done{Q}}}$$
+  \end{block}
+
+  Hoare logic is a special case of TICL:
+  \begin{itemize}
+    \item $\AF{\done{Q}} = \AU{\top}{\done{Q}}$: trivial path, just reach $Q$
+    \item $P$ is the precondition (state predicate on $\sigma$)
+    \item $Q$ is the postcondition (predicate on return value and final state)
+  \end{itemize}
+
+  \vspace{0.3cm}
+  \begin{block}{What TICL adds beyond Hoare logic}
+    \begin{tabular}{l l}
+      $\AG{\varphi}$ & Safety invariant (infinite computation) \\
+      $\AU{\varphi}{\done{Q}}$ & Path property $\varphi$ until $Q$ \\
+      $\AG{\AF{\now{P}}}$ & Fairness / recurrence \\
+      $\AN{\varphi}{\done{Q}}$ & One-step (next) \\
+    \end{tabular}
+  \end{block}
+\end{frame}
+
 % ============================================================================
 \section{Inference Rules (Single-Process)}
 % ============================================================================
