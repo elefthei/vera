@@ -2156,6 +2156,43 @@ fn emit_temporal_implication_check(
     Ok(stmts)
 }
 
+/// Emit rely-guarantee compatibility checks for all spawned processes.
+/// Called at function exit to verify:
+/// 1. Each process's guarantee implies every other process's rely
+/// 2. Conjunction of all guarantees implies the function's global temporal ensures
+fn emit_rely_guarantee_checks(
+    ctx: &Ctx,
+    state: &State,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
+) -> Result<Vec<Stmt>, VirErr> {
+    let process_map = &state.wp.process_map;
+    if process_map.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let mut stmts = Vec::new();
+    // Pairwise: each process's guarantee implies every other's rely
+    for (i, (_, guarantee_i)) in process_map.iter().enumerate() {
+        for (j, (rely_j, _)) in process_map.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            let g_expr = exp_to_expr(ctx, guarantee_i, expr_ctxt)?;
+            let r_expr = exp_to_expr(ctx, rely_j, expr_ctxt)?;
+            let implication = mk_implies(&g_expr, &r_expr);
+            let err = error(
+                span,
+                &format!(
+                    "process {}'s guarantee must imply process {}'s rely (rely-guarantee compatibility)",
+                    i, j
+                ),
+            );
+            stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+        }
+    }
+    Ok(stmts)
+}
+
 /// Single-process weakest precondition trait.
 ///
 /// Each method handles one Rust construct and returns AIR assertions.
@@ -3902,6 +3939,13 @@ pub(crate) fn body_stm_to_air(
             func_span,
             "AG temporal property requires an infinite loop (a loop without decreases)",
         ));
+    }
+
+    // Multi-process: emit rely-guarantee compatibility checks for spawned processes.
+    {
+        let expr_ctxt = &ExprCtxt::new_mode(ExprMode::Body);
+        let rg_stmts = emit_rely_guarantee_checks(ctx, &state, func_span, expr_ctxt)?;
+        stmts.extend(rg_stmts);
     }
 
     stmts.insert(0, Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_PRE))));

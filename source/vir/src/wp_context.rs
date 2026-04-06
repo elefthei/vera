@@ -120,6 +120,10 @@ pub struct WpContext {
     pub now_goal_accumulators: Vec<(Exp, Ident)>,
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
+    /// Process map for multi-process rely-guarantee verification.
+    /// Each entry records (rely_exp, guarantee_exp) for a spawned process.
+    /// At function exit, pairwise compatibility is checked.
+    pub process_map: Vec<(Exp, Exp)>,
 }
 
 impl WpContext {
@@ -137,6 +141,7 @@ impl WpContext {
             au_path_obligations: Vec::new(),
             now_goal_accumulators: Vec::new(),
             now_acc_snapshot_counter: 0,
+            process_map: Vec::new(),
         }
     }
 }
