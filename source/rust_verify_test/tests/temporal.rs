@@ -2333,3 +2333,168 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// ============================================================================
+// Soundness Mutation Tests
+// Each test is a mutation of a passing test that MUST be rejected by the verifier.
+// These catch potential soundness bugs in the temporal VCGen.
+// ============================================================================
+
+// --- Loop + Invariant Mutations ---
+
+// Mutation of test_temporal_inv_preserved: invariant too weak for AG postcondition
+test_verify_one_file! {
+    #[test] test_mutation_invariant_too_weak verus_code! {
+        fn bounded(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 20,  // BUG: 20 > 10, invariant doesn't imply postcondition
+            {
+                if *x < 20 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation of test_tla_af_drain_to_zero_pass: missing decreases for AF
+test_verify_one_file! {
+    #[test] test_mutation_missing_decreases_af verus_code! {
+        fn drain(x: &mut u64)
+            requires *x > 0,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                // BUG: no decreases — can't prove progress toward goal
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: wrong decreases direction (non-decreasing metric)
+test_verify_one_file! {
+    #[test] test_mutation_wrong_decreases_direction verus_code! {
+        fn bad_metric(x: &mut u64)
+            requires *x == 0,
+            ensures af(done(*x == 10)),
+        {
+            while *x < 10
+                invariant *x <= 10,
+                decreases *x,  // BUG: x increases, so this metric goes UP not down
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: invariant contradicts postcondition in infinite loop
+test_verify_one_file! {
+    #[test] test_mutation_invariant_contradicts_post verus_code! {
+        fn bad_ag(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x < 5),
+        {
+            loop
+                invariant *x <= 100,  // BUG: invariant allows x up to 100, postcondition needs < 5
+            {
+                if *x < 100 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: prefix assignment violates AG before entering loop
+test_verify_one_file! {
+    #[test] test_mutation_prefix_violates_ag verus_code! {
+        fn bad_prefix(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 20),
+        {
+            *x = 999;  // BUG: violates AG property before loop
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: loop body doesn't preserve invariant
+test_verify_one_file! {
+    #[test] test_mutation_body_breaks_invariant verus_code! {
+        fn bad_body(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                *x = *x + 50;  // BUG: invariant *x <= 10 is violated
+                *x = 0;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// --- Mutable Memory Mutations ---
+
+// Mutation: AF postcondition not achieved (loop exits too early)
+test_verify_one_file! {
+    #[test] test_mutation_af_postcondition_wrong verus_code! {
+        fn bad_drain(x: &mut u64)
+            requires *x == 10,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 5  // BUG: exits at x == 5, not x == 0
+                invariant *x <= 10,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: AU path property violated at intermediate state
+test_verify_one_file! {
+    #[test] test_mutation_au_intermediate_violation verus_code! {
+        fn bad_au(x: &mut u64)
+            requires *x == 5 && *x <= 100,
+            ensures au(*x <= 10, done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x <= 100,  // BUG: allows x > 10, violating path property
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Mutation: AG(AF) missing decreases — unsound liveness claim
+test_verify_one_file! {
+    #[test] test_mutation_ag_af_missing_decreases verus_code! {
+        fn bad_cycling(x: &mut u64)
+            requires *x == 0,
+            ensures ag(af(now(*x == 0))),
+        {
+            loop
+                invariant *x <= 3,
+                // BUG: no decreases — can't prove AF progress
+            {
+                if *x < 3 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
