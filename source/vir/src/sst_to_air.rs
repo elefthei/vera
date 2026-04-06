@@ -2156,7 +2156,38 @@ fn emit_temporal_implication_check(
     Ok(stmts)
 }
 
+/// Single-process weakest precondition trait.
+///
+/// Each method handles one Rust construct and returns AIR assertions.
+/// Provides a default `wp_stm` dispatcher that matches on `StmX`
+/// and delegates to the appropriate method.
+pub(crate) trait SingleProcessWp {
+    /// Main dispatcher — processes a single SST statement into AIR assertions.
+    fn wp_stm(&mut self, ctx: &Ctx, stm: &Stm) -> Result<Vec<Stmt>, VirErr>;
+
+    /// Sequential block: process statements in order.
+    fn wp_block(&mut self, ctx: &Ctx, stms: &[Arc<Stm>]) -> Result<Vec<Stmt>, VirErr>;
+}
+
+impl SingleProcessWp for State {
+    fn wp_stm(&mut self, ctx: &Ctx, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
+        stm_to_stmts_inner(ctx, self, stm)
+    }
+
+    fn wp_block(&mut self, ctx: &Ctx, stms: &[Arc<Stm>]) -> Result<Vec<Stmt>, VirErr> {
+        let mut all_stmts = Vec::new();
+        for s in stms {
+            all_stmts.extend(self.wp_stm(ctx, s)?);
+        }
+        Ok(all_stmts)
+    }
+}
+
 fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
+    state.wp_stm(ctx, stm)
+}
+
+fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
     let result = match &stm.x {
