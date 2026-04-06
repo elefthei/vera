@@ -109,7 +109,8 @@
     \begin{itemize}
       \item $\varphi ::= \now{P} \mid \AG{\varphi} \mid \AU{\varphi}{\varphi'} \mid \AN{\varphi}{\varphi'} \mid \varphi \land \varphi'$
       \item Sugar: $\AF{\varphi'} = \AU{\top}{\varphi'}$, \quad $\AX{\varphi'} = \AN{\top}{\varphi'}$
-      \item $\done{Q}$: termination postcondition; \quad $\now{P}$: intermediate state predicate
+      \item $\now{P}$ where $P : \sigma \to \mathbb{P}$ --- state predicate on current state
+      \item $\done{Q}$ where $Q : \tau \to \sigma \to \mathbb{P}$ --- predicate on return value and final state
     \end{itemize}
   \end{block}
 \end{frame}
@@ -282,8 +283,8 @@
     where $k$ is the continuation after the call.
   \end{block}
 
-  \begin{block}{$f$ has temporal ensures $\Psi$: transparent checking}
-    Additionally assert $\Psi \implies \Phi$ where $\Phi$ is the caller's obligation.
+  \begin{block}{$f$ has temporal ensures $\psi$: transparent checking}
+    Additionally assert $\psi \implies \varphi$ where $\varphi$ is the caller's obligation.
   \end{block}
 
   \begin{block}{$f$ ensures $\AG{\psi}$: cannot prove $\AF{}$ for it}
@@ -351,7 +352,7 @@
   \begin{block}{Rust: \quad $P(i) = \rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}$}
   \end{block}
 
-  $$\WPx{\Config{P}{\sigma}{i}}{\Phi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto f_{\mathit{body}}]}{\sigma}{i}}{\Phi}$$
+  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto f_{\mathit{body}}]}{\sigma}{i}}{\varphi}$$
 
   \begin{itemize}
     \item Creates new process $p$ with body $f_{\mathit{body}}$ (suspended)
