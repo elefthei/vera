@@ -252,10 +252,10 @@
 
 \begin{frame}{wp: While Loop (AU)}
     \begin{align*}
-    \wpx{\rwhile{c}{t}}{\AU{\varphi}{\varphi'}} ~=~
-    & ~\R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & ~\wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} ~\land \\
-    & \begin{cases}
+    &\wpx{\rwhile{c}{t}}{\AU{\varphi}{\varphi'}} ~= \\
+    & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
+    & \quad \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} ~\land \\
+    & \quad \begin{cases}
       \wpx{t}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma] ~\lor \\
       \quad \wpx{t}{\AU{\varphi}{\AF{\done{(\lambda~\sigma''.~
           \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}& \\
