@@ -147,8 +147,8 @@
       \forall~\sigma,~&\R~\sigma \to \ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\
       & \land \begin{cases}
         \ventailsL{t}{\sigma'}{\AU{\varphi}{\varphi'}} ~\lor \\
-        \quad \ventailsR{t}{\sigma'}{\AU{\varphi}{\AF{\done{(\lambda~\sigma'' .~
-            \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}, &\text{if } b \\
+        \quad \ventailsR{t}{\sigma'}{\AU{\varphi}{\done{(\lambda~\sigma'' .~
+            \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}, &\text{if } b \\
         \varphi'(\sigma'), &\text{otherwise}
       \end{cases}
      \end{aligned}}}
@@ -167,7 +167,7 @@
      {\begin{aligned}
       \forall~\sigma,~&\R~\sigma \to \\
       & \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
-      & \ventailsR{t}{\sigma}{\varphi~\AU{}~\AF{\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}}}
+      & \ventailsR{t}{\sigma}{\varphi~\AU{}~\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}}
      \end{aligned}}}
     {\ventailsL{\rloop{t}}{\sigma}{\AG{\varphi}}}
   \end{mathpar}
@@ -260,8 +260,8 @@
     & \quad \wpx{c}{\AU{\varphi}{\done{\R'}}}~\sigma ~\land~ \forall~b,\sigma'.~ \R'~b~\sigma' \to \\
     & \quad \begin{cases}
       \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma' ~\lor \\
-      \quad \wpx{t}{\AU{\varphi}{\AF{\done{(\lambda~\_~\sigma''.~
-          \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}~\sigma', &\text{if } b \\
+      \quad \wpx{t}{\AU{\varphi}{\done{(\lambda~\_~\sigma''.~
+          \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}~\sigma', &\text{if } b \\
       \varphi'(\sigma'), &\text{o.w.}
     \end{cases}
     \end{align*}
@@ -272,7 +272,7 @@
     &\wpx{\rloop{t}}{\AG{\varphi}} ~=~ \lambda~\sigma. \\
     & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
     & \quad \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
-    & \quad \wpx{t}{\varphi~\AU{}~\AF{\done{(\lambda~\sigma'.~ \R~\sigma')}}}~\sigma
+    & \quad \wpx{t}{\varphi~\AU{}~\done{(\lambda~\sigma'.~ \R~\sigma')}}~\sigma
     \end{align*}
     Coinductive: $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
 \end{frame}
