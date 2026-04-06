@@ -348,16 +348,16 @@
   $$\WPx{\Config{\{0 \mapsto t\}}{\sigma}{0}}{\varphi} ~=~ \wpx{t}{\varphi}~\sigma$$
 \end{frame}
 
-\begin{frame}{WP: Async Bind (Lazy Future Creation)}
-  \begin{block}{Rust: \quad $P(i) = \rlet{p}{\rasync{e}}{k~p}$}
+\begin{frame}{WP: Async (Spawn a Future)}
+  \begin{block}{Rust: \quad $\rasync{e}$ evaluates to a fresh $p \in \PID$}
   \end{block}
 
-  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto e]}{\sigma}{i}}{\varphi}$$
+  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[p \mapsto e]}{\sigma}{i}}{\varphi}$$
 
   \begin{itemize}
-    \item Creates new process $p$ with body $e$ (suspended)
-    \item Replaces active process $i$'s term with continuation $k$
-    \item No state change, no scheduling -- futures are lazy
+    \item Adds new process $p$ with body $e$ to $P$ (suspended)
+    \item Process $i$ continues running (active, unchanged)
+    \item No state change, no scheduling --- futures are lazy
   \end{itemize}
 \end{frame}
 
