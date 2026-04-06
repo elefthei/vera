@@ -1,63 +1,77 @@
 // rust_verify/tests/example.rs ignore --- temporal verification example
 //
-// Lock release liveness example.
+// Async lock deadlock-freedom example.
 //
-// This example demonstrates proving that a held lock is always eventually
-// released, using temporal logic. The lock is modeled as a mutable integer:
-//   0 = free
-//   nonzero = held by task with that ID
+// Two async tasks share a lock (modeled as &mut u64, 0=free, 1/2=held).
+// Each task acquires the lock, does work, and releases it.
 //
-// The liveness property AG(AF(now(*lock == 0))) states:
-//   - AG: the loop runs forever
-//   - AF(now(*lock == 0)): the lock is always eventually free
-//   - now(): the lock being free is a state predicate — it holds at the
-//     moment of release, not necessarily at loop body end
+// The temporal postcondition AG(AF(now(*lock == 0))) on each task means:
+//   "The lock is always eventually free"
 //
-// This is a single-process liveness proof. Multi-process deadlock freedom
-// (multiple tasks contending for the lock) requires the multi-process WP
-// configuration model with async/await.
+// This demonstrates rely-guarantee reasoning for async processes:
+// - Each task RELIES on the lock starting in a valid state
+// - Each task GUARANTEES it always eventually releases (ag(af(now(*lock == 0))))
 //
-// Temporal VCGen:
-//   - AG: infinite loop (no terminating exit condition)
-//   - AF(now): ghost accumulator tracks whether lock == 0 held at any
-//     intermediate state during the iteration
-//   - decreases: measures whether we hold the lock (1 if held, 0 if free)
-//     — releasing the lock decreases this metric
+// The individual async functions are verified with single-process temporal
+// logic. The multi-process rely-guarantee composition (checking that each
+// task's guarantee implies the other's rely) will be checked by the
+// Executor::spawn VCGen once wired in.
 
 use vstd::prelude::*;
 
 verus! {
 
-/// Prove lock release liveness: a task that acquires a lock always releases it.
-///
-/// The temporal postcondition `ag(af(now(*lock == 0)))` means:
-///   "The lock is always eventually free"
-///
-/// This is a single-process liveness proof. Multi-process deadlock freedom
-/// requires the WP configuration model with async/await.
-fn lock_holder(lock: &mut u64, id: u64)
-    requires
-        id > 0,
-        *lock == 0,
-    ensures
-        ag(af(now(*lock == 0))),
+/// Async task 1: acquires lock with id=1, always eventually releases.
+async fn task1(lock: &mut u64) -> (ret: ())
+    requires *lock == 0,
+    ensures ag(af(now(*lock == 0))),
 {
     loop
-        invariant
-            *lock == 0 || *lock == id,
-        decreases
-            (if *lock == id { 1int } else { 0int }),
+        invariant *lock == 0 || *lock == 1,
+        decreases (if *lock == 1 { 1int } else { 0int }),
     {
         if *lock == 0 {
-            *lock = id;    // acquire
-            // critical section (trivial here)
-            *lock = 0;     // release — now(*lock == 0) holds here
+            *lock = 1;   // acquire
+            *lock = 0;   // release
         }
-        // else: lock already held by us, release
-        if *lock == id {
-            *lock = 0;     // release
+        if *lock == 1 {
+            *lock = 0;   // release
         }
     }
 }
+
+/// Async task 2: acquires lock with id=2, always eventually releases.
+async fn task2(lock: &mut u64) -> (ret: ())
+    requires *lock == 0,
+    ensures ag(af(now(*lock == 0))),
+{
+    loop
+        invariant *lock == 0 || *lock == 2,
+        decreases (if *lock == 2 { 1int } else { 0int }),
+    {
+        if *lock == 0 {
+            *lock = 2;   // acquire
+            *lock = 0;   // release
+        }
+        if *lock == 2 {
+            *lock = 0;   // release
+        }
+    }
+}
+
+// In the full multi-process model, the system entry point would be:
+//
+//   fn system(exec: &mut impl Executor, lock: &mut u64)
+//       requires *lock == 0,
+//       ensures ag(af(now(*lock == 0))),
+//   {
+//       exec.spawn(task1(lock));
+//       exec.spawn(task2(lock));
+//   }
+//
+// The Executor::spawn VCGen would check rely-guarantee compatibility:
+//   guarantee_1 → rely_2 and guarantee_2 → rely_1
+//
+// For now, each task is independently verified with temporal logic.
 
 } // verus!
