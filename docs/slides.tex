@@ -208,17 +208,19 @@
 \end{frame}
 
 \begin{frame}{Function Call}
-  \begin{block}{Rust: \quad $\rcall{f}{\vec{e}}$}
+  \begin{block}{Rust: \quad $\rcall{f}{e_1, \ldots, e_n}$}
   \end{block}
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=CallAU$_L$]
-    {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
-     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
-    {\ventailsL{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\varphi'}}}
+    {\forall~j,~ \ventailsR{e_j}{\sigma_j}{\AU{\varphi}{\done{\R_j}}} \\\\
+     \forall~v_1 \ldots v_n,\sigma',~\R_1~v_1~\sigma_1' \land \cdots \land \R_n~v_n~\sigma' \to \\\\
+     \ventailsR{\rcall{f}{v_1, \ldots, v_n}}{\sigma'}{\AU{\varphi}{\done{\R}}} \\\\
+     \forall~x,\sigma'',~\R~x~\sigma'' \to \ventailsL{k~x}{\sigma''}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rcall{f}{e_1, \ldots, e_n}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
-  Instance of bind: call produces value $x$, continuation $k$ uses it.
+  Each $e_j$ evaluated left-to-right maintaining $\varphi$; then $f$ called with values.
 \end{frame}
 
 % ============================================================================
