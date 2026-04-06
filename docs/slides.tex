@@ -22,7 +22,7 @@
 \newcommand{\rloop}[1]{\ensuremath{\rust{loop}~\{#1\}}}
 \newcommand{\rif}[3]{\ensuremath{\rust{if}~#1~\{#2\}~\rust{else}~\{#3\}}}
 \newcommand{\rfn}[2]{\ensuremath{\rust{fn}~#1()~\{#2\}}}
-\newcommand{\rcall}[1]{\ensuremath{#1()}}
+\newcommand{\rcall}[2]{\ensuremath{#1(#2)}}
 
 %% Vera-specific entailment
 \newcommand{\ventailsL}[3]{\ensuremath{[#1, \ #2 \Vdash_L ~#3 ]_{\mathtt{Rust}}}}
@@ -176,32 +176,15 @@
   holds at loop re-entry after each iteration.
 \end{frame}
 
-\begin{frame}{Function Call (Bind Rule)}
-  \begin{block}{Rust: \quad $\rlet{x}{\rcall{f}}{k~x}$}
-  \end{block}
-  {\footnotesize
-  \begin{mathpar}
-    \inferrule*[Right=Call$_\text{Rust}$AU$_L$]
-    {f~\rust{ensures}~\AF{\done{\R}} \\\\
-     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
-    {\ventailsL{\rlet{x}{\rcall{f}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
-  \end{mathpar}
-  }
-  \begin{block}{Contract-based transparent checking (Vera extension)}
-    If $f$ has temporal ensures $\Psi$, additionally assert $\Psi \implies \Phi$
-    where $\Phi$ is the caller's temporal obligation.
-  \end{block}
-\end{frame}
-
 \begin{frame}{Async Bind (Lazy Future Creation)}
-  \begin{block}{Rust: \quad $\rlet{p}{\rasync{\rcall{f}}}{k~p}$}
+  \begin{block}{Rust: \quad $\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}$}
   \end{block}
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=AsyncBind$_\text{Rust}$]
     {\text{No state change (lazy future)} \\\\
      \ventailsL{k~p}{\sigma}{\Phi}}
-    {\ventailsL{\rlet{p}{\rasync{\rcall{f}}}{k~p}}{\sigma}{\Phi}}
+    {\ventailsL{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\sigma}{\Phi}}
   \end{mathpar}
   }
   Rust futures are lazy: \texttt{async fn()} returns a handle, body runs at \texttt{.await}.
@@ -213,7 +196,7 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=Await$_\text{Rust}$AU$_L$]
-    {P[p]~\rust{ensures}~\AU{\varphi'}{\AX{\done{\R}}} \\\\
+    {\ventailsR{P[p]}{\sigma}{\AU{\varphi'}{\AX{\done{\R}}}} \\\\
      \varphi' \implies \varphi \quad\text{(transparent)} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi''}}}
     {\ventailsL{\rlet{x}{\rawait{p}}{k~x}}{\sigma}{\AU{\varphi}{\varphi''}}}
@@ -224,12 +207,12 @@
 \end{frame}
 
 \begin{frame}{Await (AG -- diverging callee)}
-  \begin{block}{Rust: \quad $\rawait{p}$ \quad where $P[p]~\rust{ensures}~\AG{\psi}$}
+  \begin{block}{Rust: \quad $\rawait{p}$ \quad where $P[p]$ satisfies $\AG{\psi}$}
   \end{block}
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=Await$_\text{Rust}$AG]
-    {P[p]~\rust{ensures}~\AG{\psi} \\\\
+    {\ventailsL{P[p]}{\sigma}{\AG{\psi}} \\\\
      \psi \implies \varphi}
     {\ventailsL{\rawait{p}}{\sigma}{\AG{\varphi}}}
   \end{mathpar}
@@ -288,16 +271,24 @@
     Coinductive: $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
 \end{frame}
 
-\begin{frame}{wp: Function Call}
-    $$\wpx{\rlet{x}{\rcall{f}}{k~x}}{\AU{\varphi}{\varphi'}} ~=~ \forall~x,\sigma'.~ \R_f~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi'}}$$
-    where $\R_f$ is $f$'s postcondition from $\rust{ensures}~\AF{\done{\R_f}}$.
+\begin{frame}{wp: Function Call -- $f$ ensures $\AF{\done{\R_f}}$}
+  \begin{block}{$f$ has terminating postcondition}
+    $$\wpx{\rcall{f}{e_1, \ldots, e_i}}{\AU{\varphi}{\varphi'}} ~=~ \forall~x,\sigma'.~ \R_f~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi'}}$$
+    where $k$ is the continuation after the call.
+  \end{block}
 
-    \vspace{0.3cm}
-    \textbf{Transparent:} If $f$ has temporal ensures $\Psi$, additionally $\Psi \implies \Phi$.
+  \begin{block}{$f$ has temporal ensures $\Psi$: transparent checking}
+    Additionally assert $\Psi \implies \Phi$ where $\Phi$ is the caller's obligation.
+  \end{block}
+
+  \begin{block}{$f$ ensures $\AG{\psi}$: cannot prove $\AF{}$ for it}
+    If $f$ has $\AG{\psi}$ (diverges), then $\wpx{\rcall{f}{\vec{e}}}{\AF{\varphi'}}$ is \textbf{unprovable} --
+    a diverging call can never reach the $\AF{}$ goal.
+  \end{block}
 \end{frame}
 
 \begin{frame}{wp: Async Bind}
-    $$\wpx{\rlet{p}{\rasync{\rcall{f}}}{k~p}}{\Phi} ~=~ \wpx{k~p}{\Phi}$$
+    $$\wpx{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\Phi} ~=~ \wpx{k~p}{\Phi}$$
     No-op: lazy future creation does not change state.
 \end{frame}
 
@@ -326,23 +317,25 @@
   \begin{center}
   \small
   \begin{tabular}{l l l}
-    \textbf{Rust Construct} & \textbf{TICL Rule} & \textbf{Imp Analog} \\
+    \textbf{Rust Construct} & \textbf{Rule} & \textbf{Section} \\
     \hline
-    $\rmut{x}{e}$ & State update, check $\varphi$ & Assign \\
-    $\rlet{x}{t}{u}$ & BindAU$_L$ & Seq$_S$AU$_L$ \\
-    $\rif{c}{t}{u}$ & Case split & If$_S$AU$_L$ \\
-    $\rwhile{c}{t}$ + \texttt{decreases} & IterAU$_L$ & While$_S$AU$_L$ \\
-    $\rloop{t}$ (no exit) & IterAG & While$_S$AG \\
-    $\rcall{f}$ & Bind + transparent & BindAU$_L$ \\
-    $\rlet{p}{\rasync{\rcall{f}}}{k}$ & No-op (lazy) & -- \\
-    $\rawait{p}$ (AU callee) & Bind + implication & BindAU$_L$ \\
-    $\rawait{p}$ (AG callee) & Divergence & -- \\
+    $\rmut{x}{e}$ & State update, check $\varphi$ & Inference \\
+    $\rlet{x}{t}{u}$ & BindAU$_L$ & Inference \\
+    $\rif{c}{t}{u}$ & Case split (effectful $c$) & Inference \\
+    $\rwhile{c}{t}$ + \texttt{decreases} & IterAU$_L$ & Inference \\
+    $\rloop{t}$ (no exit) & IterAG (coinductive) & Inference \\
+    $\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k}$ & No-op (lazy) & Inference \\
+    $\rawait{p}$ (AU callee) & Bind + transparent & Inference \\
+    $\rawait{p}$ (AG callee) & Divergence & Inference \\
+    \hline
+    $\rcall{f}{\vec{e}}$ (AF ensures) & Bind + assume $\R_f$ & WP only \\
+    $\rcall{f}{\vec{e}}$ (AG ensures) & Transparent $\Psi \implies \Phi$ & WP only \\
+    $\rcall{f}{\vec{e}}$ (AG + AF goal) & \textbf{Unprovable} & WP only \\
   \end{tabular}
   \end{center}
 
   \vspace{0.3cm}
-  \textbf{Key extension over Imp}: contract-based transparent temporal checking
-  at function calls and \texttt{.await} boundaries.
+  Function calls are contract-dependent $\to$ only in wp, not inference rules.
 \end{frame}
 
 \end{document}
