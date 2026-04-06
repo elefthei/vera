@@ -207,18 +207,18 @@
   Coinductive hypothesis $\ventailsL{\rwhile{c}{t}}{\sigma}{\varphi}$; condition must always be true.
 \end{frame}
 
-\begin{frame}{Function Call (Bind Rule)}
-  \begin{block}{Rust: \quad $\rlet{x}{\rcall{f}{\vec{e}}}{k~x}$}
+\begin{frame}{Function Call}
+  \begin{block}{Rust: \quad $\rcall{f}{\vec{e}}$}
   \end{block}
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=CallAU$_L$]
     {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
-    {\ventailsL{\rlet{x}{\rcall{f}{\vec{e}}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
-  Instance of Let rule. Call is a sub-expression that produces a value.
+  Instance of bind: call produces value $x$, continuation $k$ uses it.
 \end{frame}
 
 % ============================================================================
