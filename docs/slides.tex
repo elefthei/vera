@@ -111,7 +111,7 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=Let$_\text{Rust}$AU$_L$]
-    {\ventailsR{t}{\sigma}{\AU{\varphi}{\AX{\done{\R}}}} \\\\
+    {\ventailsR{t}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{u[x]}{\sigma'}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rlet{x}{t}{u}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
@@ -185,7 +185,7 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=Call$_\text{Rust}$AU$_L$]
-    {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\AX{\done{\R}}}} \\\\
+    {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rlet{x}{\rcall{f}{\vec{e}}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
@@ -208,7 +208,7 @@
 \begin{frame}{wp: Let-binding (Sequential Composition)}
     \begin{align*}
     \wpx{\rlet{x}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
-    &~ \wpx{t}{\AU{\varphi}{\AX{\done{\R}}}}~\sigma \\
+    &~ \wpx{t}{\AU{\varphi}{\done{\R}}}~\sigma \\
     \land~& ~\forall x, \sigma'.~ \R~x~\sigma' \to \wpx{u[x]}{\AU{\varphi}{\varphi'}}~\sigma'
     \end{align*}
 \end{frame}
