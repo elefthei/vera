@@ -216,12 +216,12 @@
     {\ventailsR{e_1}{\sigma_0}{\AU{\varphi}{\done{\R_1}}} \\\\
      \forall~v_1,\sigma_1.~ \R_1~v_1~\sigma_1 \to \ventailsR{e_2}{\sigma_1}{\AU{\varphi}{\done{\R_2}}} \\\\
      \cdots \\\\
-     \forall~v_n,\sigma_n.~ \R_n~v_n~\sigma_n \to \ventailsR{\rcall{f}{v_1, \ldots, v_n}}{\sigma_n}{\AU{\varphi}{\done{\R}}} \\\\
-     \forall~x,\sigma'.~ \R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
-    {\ventailsL{\rcall{f}{e_1, \ldots, e_n}}{\sigma_0}{\AU{\varphi}{\varphi'}}}
+     \forall~v_n,\sigma_n.~ \R_n~v_n~\sigma_n \to \ventailsR{\rcall{f}{v_1, \ldots, v_n}}{\sigma_n}{\AU{\varphi}{\done{\R}}}}
+    {\ventailsR{\rcall{f}{e_1, \ldots, e_n}}{\sigma_0}{\AU{\varphi}{\done{\R}}}}
   \end{mathpar}
   }
   Arguments evaluated left-to-right; $\R_i$ chains $\sigma_i$ into $e_{i+1}$.
+  Call produces result via $\done{\R}$; caller binds it with let.
 \end{frame}
 
 % ============================================================================
@@ -282,8 +282,12 @@
 
 \begin{frame}{wp: Function Call -- $f$ ensures $\AF{\done{\R_f}}$}
   \begin{block}{$f$ has terminating postcondition}
-    $$\wpx{\rcall{f}{e_1, \ldots, e_i}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~ \forall~x,\sigma'.~ \R_f~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi'}}~\sigma'$$
-    where $k$ is the continuation after the call.
+    \begin{align*}
+    &\wpx{\rcall{f}{e_1, \ldots, e_n}}{\AU{\varphi}{\done{\R}}} ~=~ \lambda~\sigma_0. \\
+    &\quad \wpx{e_1}{\AU{\varphi}{\done{\R_1}}}~\sigma_0 ~\land~ \forall~v_1,\sigma_1.~ \R_1~v_1~\sigma_1 \to \\
+    &\quad \cdots \\
+    &\quad \forall~v_n,\sigma_n.~ \R_n~v_n~\sigma_n \to \wpx{\rcall{f}{v_1,\ldots,v_n}}{\AU{\varphi}{\done{\R}}}~\sigma_n
+    \end{align*}
   \end{block}
 
   \begin{block}{$f$ has temporal ensures $\psi$: transparent checking}
