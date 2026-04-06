@@ -157,23 +157,23 @@
   }
 \end{frame}
 
-\begin{frame}{Loop (AG -- infinite)}
-  \begin{block}{Rust: \quad $\rloop{t}$ \quad with \texttt{invariant} $\R$ (no \texttt{decreases})}
+\begin{frame}{While Loop (AG -- infinite)}
+  \begin{block}{Rust: \quad $\rwhile{c}{t}$ \quad with \texttt{invariant} $\R$ (no \texttt{decreases})}
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=Loop$_\text{Rust}$AG]
+    \inferrule*[Right=While$_\text{Rust}$AG]
     {\R~\sigma \\\\
      {\begin{aligned}
       \forall~\sigma,~&\R~\sigma \to \\
-      & \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
+      & \ventailsL{\rwhile{c}{t}}{\sigma}{\varphi} ~\land \\
+      & \ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(\tm{true},\sigma)}{}}} ~\land \\
       & \ventailsR{t}{\sigma}{\varphi~\AU{}~\done{(\lambda~\sigma' \Rightarrow \R~\sigma')}}
      \end{aligned}}}
-    {\ventailsL{\rloop{t}}{\sigma}{\AG{\varphi}}}
+    {\ventailsL{\rwhile{c}{t}}{\sigma}{\AG{\varphi}}}
   \end{mathpar}
   }
-  Coinductive hypothesis $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ enables proving $\varphi$
-  holds at loop re-entry after each iteration.
+  Coinductive hypothesis $\ventailsL{\rwhile{c}{t}}{\sigma}{\varphi}$; condition must always be true.
 \end{frame}
 
 \begin{frame}{Async Bind (Lazy Future Creation)}
@@ -267,14 +267,15 @@
     \end{align*}
 \end{frame}
 
-\begin{frame}{wp: Loop (AG)}
+\begin{frame}{wp: While Loop (AG)}
     \begin{align*}
-    &\wpx{\rloop{t}}{\AG{\varphi}} ~=~ \lambda~\sigma. \\
+    &\wpx{\rwhile{c}{t}}{\AG{\varphi}} ~=~ \lambda~\sigma. \\
     & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & \quad \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
+    & \quad \ventailsL{\rwhile{c}{t}}{\sigma}{\varphi} ~\land \\
+    & \quad \wpx{c}{\AU{\varphi}{\doneq{(\tm{true},\sigma)}{}}}~\sigma ~\land \\
     & \quad \wpx{t}{\varphi~\AU{}~\done{(\lambda~\sigma'.~ \R~\sigma')}}~\sigma
     \end{align*}
-    Coinductive: $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
+    Coinductive: $\ventailsL{\rwhile{c}{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
 \end{frame}
 
 \begin{frame}{wp: Function Call -- $f$ ensures $\AF{\done{\R_f}}$}
@@ -329,7 +330,7 @@
     $\rlet{x}{t}{u}$ & BindAU$_L$ & Inference \\
     $\rif{c}{t}{u}$ & Case split (effectful $c$) & Inference \\
     $\rwhile{c}{t}$ + \texttt{decreases} & IterAU$_L$ & Inference \\
-    $\rloop{t}$ (no exit) & IterAG (coinductive) & Inference \\
+    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG (coinductive) & Inference \\
     $\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k}$ & No-op (lazy) & Inference \\
     $\rawait{p}$ (AU callee) & Bind + transparent & Inference \\
     $\rawait{p}$ (AG callee) & Divergence & Inference \\
