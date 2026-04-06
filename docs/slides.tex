@@ -421,7 +421,7 @@
   \vspace{-0.2cm}
   \begin{lstlisting}
 fn drain(q: &mut Queue)
-    requires old(q).view().len() > 0,
+    requires q.view().len() > 0,
     ensures  af(done(q.view().len() == 0)),
 {
     while q.len() > 0
@@ -443,7 +443,7 @@ fn drain(q: &mut Queue)
   \vspace{-0.2cm}
   \begin{lstlisting}
 fn bounded_counter(x: &mut u64)
-    requires *old(x) == 0,
+    requires *x == 0,
     ensures  ag(*x <= 15),
 {
     loop
@@ -469,7 +469,7 @@ fn reset_to_zero(x: &mut u64)
 { *x = 0; }
 
 fn ag_caller(x: &mut u64)
-    requires *old(x) == 0,
+    requires *x == 0,
     ensures  ag(*x <= 10),
 {
     loop
@@ -491,8 +491,8 @@ fn ag_caller(x: &mut u64)
   \begin{lstlisting}
 fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
-        old(queue).view().len() > 1,
-        old(queue).view().contains(x),
+        queue.view().len() > 1,
+        queue.view().contains(x),
     ensures
         ag(queue.view().len() > 0),
         ag(af(now(queue.peek_spec() == x))),
