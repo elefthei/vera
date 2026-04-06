@@ -107,7 +107,7 @@
 
   \begin{block}{Temporal formulas}
     \begin{itemize}
-      \item $\varphi ::= \now{P} \mid \AG{\varphi} \mid \AU{\varphi}{\varphi'} \mid \varphi \land \varphi'$
+      \item $\varphi ::= \now{P} \mid \AG{\varphi} \mid \AU{\varphi}{\varphi'} \mid \AN{\varphi}{\varphi'} \mid \varphi \land \varphi'$
       \item Sugar: $\AF{\varphi'} = \AU{\top}{\varphi'}$, \quad $\AX{\varphi'} = \AN{\top}{\varphi'}$
       \item $\done{Q}$: termination postcondition; \quad $\now{P}$: intermediate state predicate
     \end{itemize}
