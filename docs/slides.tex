@@ -12,6 +12,33 @@
 %% TICL paper macros
 \input{lib}
 
+%% Rust syntax highlighting for code listings
+\definecolor{rustkey}{rgb}{0.5, 0.0, 0.33}
+\definecolor{ruststr}{rgb}{0.0, 0.5, 0.0}
+\definecolor{rustcmt}{rgb}{0.4, 0.4, 0.4}
+\lstdefinelanguage{verus}{
+  language=C,
+  morekeywords={fn,let,mut,pub,struct,impl,self,loop,while,if,else,use,
+    requires,ensures,invariant,decreases,spec,proof,Ghost,
+    af,ag,au,eu,done,now,old},
+  morecomment=[l]{//},
+  morestring=[b]",
+  sensitive=true,
+}
+\lstset{
+  language=verus,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{rustkey}\bfseries,
+  commentstyle=\color{rustcmt}\itshape,
+  stringstyle=\color{ruststr},
+  showstringspaces=false,
+  columns=flexible,
+  breaklines=true,
+  frame=none,
+  aboveskip=0pt,
+  belowskip=0pt,
+}
+
 %% Rust-specific macros
 \newcommand{\rust}[1]{\ensuremath{\mathtt{#1}}}
 \newcommand{\rlet}[3]{\ensuremath{\rust{let}~#1 = #2\rust{;}~#3}}
@@ -391,8 +418,7 @@
   \begin{block}{Liveness: the queue eventually becomes empty}
   \end{block}
   \vspace{-0.2cm}
-  {\small
-  \begin{verbatim}
+  \begin{lstlisting}
 fn drain(q: &mut Queue)
     requires old(q).view().len() > 0,
     ensures  af(done(q.view().len() == 0)),
@@ -404,8 +430,7 @@ fn drain(q: &mut Queue)
         let _ = q.dequeue();
     }
 }
-  \end{verbatim}
-  }
+  \end{lstlisting}
   \vspace{-0.2cm}
   \verb|invariant| $= \R$, \quad
   \verb|decreases| $= f$ \quad $\Rightarrow$ \quad WhileAU$_L$ rule applies.
@@ -415,8 +440,7 @@ fn drain(q: &mut Queue)
   \begin{block}{Safety: the counter stays bounded forever}
   \end{block}
   \vspace{-0.2cm}
-  {\small
-  \begin{verbatim}
+  \begin{lstlisting}
 fn bounded_counter(x: &mut u64)
     requires *old(x) == 0,
     ensures  ag(*x <= 15),
@@ -428,8 +452,7 @@ fn bounded_counter(x: &mut u64)
         else       { *x = 0; }
     }
 }
-  \end{verbatim}
-  }
+  \end{lstlisting}
   \vspace{-0.2cm}
   No \verb|decreases| $\Rightarrow$ infinite loop $\Rightarrow$ WhileAG rule. \\
   \verb|invariant| $(\ast x \leq 10) \implies$ postcondition $(\ast x \leq 15)$.
@@ -439,8 +462,7 @@ fn bounded_counter(x: &mut u64)
   \begin{block}{AG caller invokes AF callee --- bind rule extracts postcondition}
   \end{block}
   \vspace{-0.2cm}
-  {\small
-  \begin{verbatim}
+  \begin{lstlisting}
 fn reset_to_zero(x: &mut u64)
     ensures af(done(*x == 0)),
 { *x = 0; }
@@ -456,8 +478,7 @@ fn ag_caller(x: &mut u64)
         if *x > 5  { reset_to_zero(x); }
     }
 }
-  \end{verbatim}
-  }
+  \end{lstlisting}
   \vspace{-0.2cm}
   After \verb|reset_to_zero|: assume $\ast x = 0$ (bind rule $\R$). Invariant preserved.
 \end{frame}
@@ -466,8 +487,7 @@ fn ag_caller(x: &mut u64)
   \begin{block}{Every element eventually reaches the head of the queue}
   \end{block}
   \vspace{-0.2cm}
-  {\small
-  \begin{verbatim}
+  \begin{lstlisting}
 fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
         old(queue).view().len() > 1,
@@ -480,15 +500,13 @@ fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
         invariant
             queue.view().len() > 1,
             queue.view().contains(x),
-        decreases
-            queue.view().index_of_first(x),
+        decreases queue.view().index_of_first(x),
     {
         let val = queue.dequeue();
         queue.enqueue(val);
     }
 }
-  \end{verbatim}
-  }
+  \end{lstlisting}
   \vspace{-0.3cm}
   {\footnotesize \verb|now()| = state predicate (head $= x$ at loop start, not end). Ghost accumulator tracks it.}
 \end{frame}
