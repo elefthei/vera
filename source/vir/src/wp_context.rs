@@ -7,7 +7,6 @@
 
 use crate::ast::Ident;
 use crate::sst::{Exp, ExpX, FunctionSst};
-use std::sync::Arc;
 
 /// Whether a temporal goal is a state predicate (Now) or termination condition (Done).
 /// - `Now`: the goal is checked at the state where it first holds; it is NOT checked at return.

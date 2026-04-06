@@ -77,6 +77,7 @@ pub mod traits;
 mod triggers;
 mod triggers_auto;
 pub mod wp_context;
+pub mod wp_multi;
 mod unicode;
 pub mod user_defined_type_invariants;
 pub mod util;
