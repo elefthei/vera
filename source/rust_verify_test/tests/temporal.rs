@@ -2088,3 +2088,248 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// ============================================================================
+// Temporal Logic Test Suite (based on learntla.com concepts)
+// Maps TLA+ temporal operators to Vera/TICL:
+//   []P  = ag(P)           — Always (safety)
+//   <>P  = af(done(P))     — Eventually (liveness)
+//   []<>P = ag(af(now(P))) — Recurrence (fairness)
+//   P AU Q = au(P, done(Q)) — Until
+// ============================================================================
+
+// --- Safety (AG) ---
+
+// []P: counter stays bounded in infinite loop
+test_verify_one_file! {
+    #[test] test_tla_ag_counter_bounded_pass verus_code! {
+        fn bounded(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 100),
+        {
+            loop
+                invariant *x <= 50,
+            {
+                if *x < 50 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// []P FAIL: invariant too weak for postcondition
+test_verify_one_file! {
+    #[test] test_tla_ag_counter_bounded_fail verus_code! {
+        fn bounded_bad(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 20,
+            {
+                if *x < 20 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// []P: resource always available (at least 1 of N)
+test_verify_one_file! {
+    #[test] test_tla_ag_resource_available_pass verus_code! {
+        fn resource_manager(avail: &mut u64)
+            requires *avail == 3,
+            ensures ag(*avail > 0),
+        {
+            loop
+                invariant *avail > 0 && *avail <= 3,
+            {
+                if *avail > 1 {
+                    *avail = *avail - 1;
+                } else {
+                    *avail = 3;
+                }
+            }
+        }
+    } => Ok(())
+}
+
+// []P: modular counter wraps before overflow
+test_verify_one_file! {
+    #[test] test_tla_ag_no_overflow_pass verus_code! {
+        fn modular_counter(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x < 256),
+        {
+            loop
+                invariant *x < 256,
+            {
+                if *x < 255 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// --- Liveness (AF) ---
+
+// <>P: counter drains to zero
+test_verify_one_file! {
+    #[test] test_tla_af_drain_to_zero_pass verus_code! {
+        fn drain(x: &mut u64)
+            requires *x > 0,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x >= 0,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// <>P FAIL: no decreases — can't prove progress
+test_verify_one_file! {
+    #[test] test_tla_af_drain_no_decreases_fail verus_code! {
+        fn drain_bad(x: &mut u64)
+            requires *x > 0,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x >= 0,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// <>P: search finds target
+test_verify_one_file! {
+    #[test] test_tla_af_find_target_pass verus_code! {
+        fn find_target(x: &mut u64, target: u64)
+            requires *x < target,
+            ensures af(done(*x == target)),
+        {
+            while *x < target
+                invariant *x <= target,
+                decreases (target - *x) as int,
+            {
+                *x = *x + 1;
+            }
+        }
+    } => Ok(())
+}
+
+// <>P: value converges (halving distance)
+test_verify_one_file! {
+    #[test] test_tla_af_convergence_pass verus_code! {
+        fn converge(x: &mut u64)
+            requires *x > 0 && *x <= 1000,
+            ensures af(done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x <= 1000,
+                decreases *x,
+            {
+                *x = *x / 2;
+            }
+        }
+    } => Ok(())
+}
+
+// --- Fairness / Recurrence (AG AF now) ---
+
+// []<>P: cycling counter always returns to 0
+test_verify_one_file! {
+    #[test] test_tla_ag_af_cycling_pass verus_code! {
+        fn cycling(x: &mut u64)
+            requires *x == 0,
+            ensures ag(af(now(*x == 0))),
+        {
+            loop
+                invariant *x <= 3,
+                decreases (3 - *x) as int,
+            {
+                if *x < 3 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// []<>P FAIL: AG(AF) without decreases is unsound
+test_verify_one_file! {
+    #[test] test_tla_ag_af_no_decreases_fail verus_code! {
+        fn cycling_bad(x: &mut u64)
+            requires *x == 0,
+            ensures ag(af(now(*x == 0))),
+        {
+            loop
+                invariant *x <= 3,
+            {
+                if *x < 3 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// []<>P: token rotates through positions
+test_verify_one_file! {
+    #[test] test_tla_ag_af_token_rotation_pass verus_code! {
+        fn rotate(pos: &mut u64)
+            requires *pos == 0,
+            ensures ag(af(now(*pos == 0))),
+        {
+            loop
+                invariant *pos <= 4,
+                decreases (4 - *pos) as int,
+            {
+                if *pos < 4 { *pos = *pos + 1; }
+                else { *pos = 0; }
+            }
+        }
+    } => Ok(())
+}
+
+// --- AU (Until) ---
+
+// P AU Q: path property holds until goal reached
+test_verify_one_file! {
+    #[test] test_tla_au_path_and_goal_pass verus_code! {
+        fn countdown(x: &mut u64)
+            requires *x > 0 && *x <= 100,
+            ensures au(*x > 0, done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x <= 100,
+                decreases *x,
+            {
+                *x = (*x - 1) as u64;
+            }
+        }
+    } => Ok(())
+}
+
+// P AU Q FAIL: invariant doesn't imply path property
+test_verify_one_file! {
+    #[test] test_tla_au_path_violated_fail verus_code! {
+        fn countdown_bad(x: &mut u64)
+            requires *x == 5,
+            ensures au(*x <= 10, done(*x == 0)),
+        {
+            while *x > 0
+                invariant *x <= 100,
+                decreases *x,
+            {
+                // Temporarily set x to 50 (violates path *x <= 10) before decrementing
+                let old_x: u64 = *x;
+                *x = 50;
+                *x = (old_x - 1) as u64;
+            }
+        }
+    } => Err(_err) => ()
+}

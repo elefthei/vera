@@ -55,7 +55,7 @@ use std::sync::Arc;
 // Re-export temporal types and helpers from wp_context module
 pub use crate::wp_context::{
     GoalKind, Proposition, PropositionContext, WpContext,
-    decompose_temporal, extract_goal_kind,
+    decompose_temporal,
     extract_callee_temporal_ensures, callee_has_temporal_ensures,
 };
 
@@ -2174,6 +2174,7 @@ impl SingleProcessWp for State {
         stm_to_stmts_inner(ctx, self, stm)
     }
 
+    #[allow(dead_code)]
     fn wp_block(&mut self, ctx: &Ctx, stms: &[Arc<Stm>]) -> Result<Vec<Stmt>, VirErr> {
         let mut all_stmts = Vec::new();
         for s in stms {
