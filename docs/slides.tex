@@ -363,6 +363,137 @@
 \end{frame}
 
 % ============================================================================
+\section{Vera Implementation}
+% ============================================================================
+
+\begin{frame}[fragile]{Vera Syntax}
+  Vera extends Verus with temporal postconditions and loop annotations:
+
+  \vspace{0.2cm}
+  \begin{tabular}{l l l}
+    \textbf{Annotation} & \textbf{TICL} & \textbf{Proof obligation} \\
+    \hline
+    \verb|ensures af(done(Q))| & $\AF{\done{Q}}$ & Loop + \verb|decreases| \\
+    \verb|ensures ag(P)| & $\AG{\varphi}$ & Infinite loop + \verb|invariant| \\
+    \verb|ensures au(P, done(Q))| & $\AU{P}{\done{Q}}$ & Loop + \verb|invariant| + \verb|decreases| \\
+    \verb|ensures ag(af(now(Q)))| & $\AG{\AF{\now{Q}}}$ & Ghost accumulator + \verb|decreases| \\
+    \hline
+    \verb|invariant R| & $\R$ & Temporal refinement mapping \\
+    \verb|decreases f| & $f$ & Well-founded metric (progress) \\
+  \end{tabular}
+
+  \vspace{0.3cm}
+  \verb|done(Q)|: $Q$ holds at termination. \quad
+  \verb|now(Q)|: $Q$ holds at some intermediate state.
+\end{frame}
+
+\begin{frame}[fragile]{Example: Queue Drain (AF)}
+  \begin{block}{Liveness: the queue eventually becomes empty}
+  \end{block}
+  \vspace{-0.2cm}
+  {\small
+  \begin{verbatim}
+fn drain(q: &mut Queue)
+    requires old(q).view().len() > 0,
+    ensures  af(done(q.view().len() == 0)),
+{
+    while q.len() > 0
+        invariant q.view().len() >= 0,
+        decreases q.view().len(),
+    {
+        let _ = q.dequeue();
+    }
+}
+  \end{verbatim}
+  }
+  \vspace{-0.2cm}
+  \verb|invariant| $= \R$, \quad
+  \verb|decreases| $= f$ \quad $\Rightarrow$ \quad WhileAU$_L$ rule applies.
+\end{frame}
+
+\begin{frame}[fragile]{Example: Bounded Counter (AG)}
+  \begin{block}{Safety: the counter stays bounded forever}
+  \end{block}
+  \vspace{-0.2cm}
+  {\small
+  \begin{verbatim}
+fn bounded_counter(x: &mut u64)
+    requires *old(x) == 0,
+    ensures  ag(*x <= 15),
+{
+    loop
+        invariant *x <= 10,
+    {
+        if *x < 10 { *x = *x + 1; }
+        else       { *x = 0; }
+    }
+}
+  \end{verbatim}
+  }
+  \vspace{-0.2cm}
+  No \verb|decreases| $\Rightarrow$ infinite loop $\Rightarrow$ WhileAG rule. \\
+  \verb|invariant| $(\ast x \leq 10) \implies$ postcondition $(\ast x \leq 15)$.
+\end{frame}
+
+\begin{frame}[fragile]{Example: Bind Rule (AG + AF callee)}
+  \begin{block}{AG caller invokes AF callee --- bind rule extracts postcondition}
+  \end{block}
+  \vspace{-0.2cm}
+  {\small
+  \begin{verbatim}
+fn reset_to_zero(x: &mut u64)
+    ensures af(done(*x == 0)),
+{ *x = 0; }
+
+fn ag_caller(x: &mut u64)
+    requires *old(x) == 0,
+    ensures  ag(*x <= 10),
+{
+    loop
+        invariant *x <= 10,
+    {
+        if *x < 10 { *x = *x + 1; }
+        if *x > 5  { reset_to_zero(x); }
+    }
+}
+  \end{verbatim}
+  }
+  \vspace{-0.2cm}
+  After \verb|reset_to_zero|: assume $\ast x = 0$ (bind rule $\R$). Invariant preserved.
+\end{frame}
+
+\begin{frame}[fragile]{Example: Round-Robin Fairness (AG(AF(now)))}
+  \begin{block}{Every element eventually reaches the head of the queue}
+  \end{block}
+  \vspace{-0.2cm}
+  {\small
+  \begin{verbatim}
+fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
+    requires
+        old(queue).view().len() > 1,
+        old(queue).view().contains(x),
+    ensures
+        ag(queue.view().len() > 0),
+        ag(af(now(queue.peek_spec() == x))),
+{
+    loop
+        invariant
+            queue.view().len() > 1,
+            queue.view().contains(x),
+        decreases
+            queue.view().index_of_first(x),
+    {
+        let val = queue.dequeue();
+        queue.enqueue(val);
+    }
+}
+  \end{verbatim}
+  }
+  \vspace{-0.3cm}
+  {\footnotesize \verb|now()| = state predicate (head $= x$ at loop start, not end). Ghost accumulator tracks it.}
+\end{frame}
+
+% ============================================================================
 \section{Summary}
 % ============================================================================
 
