@@ -279,10 +279,29 @@
   \end{align*}
   \vspace{-0.4cm}
   \begin{itemize}
-    \item Cooperative scheduling: run until \texttt{.await}, then yield
     \item Temporal formulas $\varphi$ are over shared state $\sigma$
     \item $\WPx{C}{\varphi}$ -- multi-process wp, defined by cases on $P(i)$
   \end{itemize}
+\end{frame}
+
+\begin{frame}{Cooperative Scheduling}
+  Rust \texttt{async} uses \textbf{cooperative scheduling}:
+  each process runs uninterrupted until it reaches an \texttt{.await},
+  then yields control to the scheduler.
+
+  \vspace{0.3cm}
+  \begin{itemize}
+    \item \textbf{Within a process}: execution is sequential (single-process $\mathtt{wp}$ applies)
+    \item \textbf{At \texttt{.await}}: the active process $i$ suspends; the scheduler
+          picks a ready process $p$ to run (nondeterministic choice)
+    \item \textbf{No preemption}: a process cannot be interrupted mid-statement;
+          shared state $\sigma$ is only modified by the active process
+  \end{itemize}
+
+  \vspace{0.3cm}
+  This means nondeterminism arises \emph{only} at \texttt{.await} boundaries ---
+  between yield points, the program is deterministic and the single-process
+  rules apply unchanged.
 \end{frame}
 
 % ============================================================================
