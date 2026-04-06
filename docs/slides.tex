@@ -93,13 +93,13 @@
   {\footnotesize
   \begin{mathpar}
     \inferrule*[Right=Assign$_\text{Rust}$AU$_L$]
-    {\sigma' = \sigma[x \mapsto v] \\
-     \varphi(\sigma') \\
-     \varphi'(\sigma') \lor \text{(continue checking)}}
+    {\ventailsR{e}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
+     \forall~v, \sigma',~\R~v~\sigma' \to \ventailsL{\ISkip}{\sigma'[x \mapsto v]}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rmut{x}{e}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
-  Analogous to \textbf{Assign} in Imp: $\sembra{S}{\IAssign{s}{x}}$ updates the state map.
+  Evaluating $e$ may take steps (function calls, etc.); $\varphi$ must hold along the path.
+  After $e$ produces $v$, the store $\sigma'[x \mapsto v]$ must satisfy $\varphi'$.
 \end{frame}
 
 \begin{frame}{Sequential Composition (let-binding)}
@@ -226,8 +226,12 @@
 % ============================================================================
 
 \begin{frame}{wp: Assignment}
-    $$\wpx{\rmut{x}{e}}{\AU{\varphi}{\varphi'}} ~=~ \varphi[\sigma'/\sigma] \land (\varphi'[\sigma'/\sigma] \lor \top)$$
-    where $\sigma' = \sigma[x \mapsto \llbracket e \rrbracket_\sigma]$.
+    \begin{align*}
+    \wpx{\rmut{x}{e}}{\AU{\varphi}{\varphi'}} ~=~
+    &~ \wpx{e}{\AU{\varphi}{\done{\R}}} \\
+    \land~& ~\forall~v, \sigma'.~ \R~v~\sigma' \to \varphi'(\sigma'[x \mapsto v])
+    \end{align*}
+    Evaluate $e$ (maintaining $\varphi$), then check $\varphi'$ after the store.
 \end{frame}
 
 \begin{frame}{wp: Let-binding (Sequential Composition)}
