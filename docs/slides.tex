@@ -44,7 +44,7 @@
 \newcommand{\rlet}[3]{\ensuremath{\rust{let}~#1 = #2\rust{;}~#3}}
 \newcommand{\rmut}[2]{\ensuremath{\rust{*}#1 = #2}}
 \newcommand{\rawait}[1]{\ensuremath{#1\rust{.await}}}
-\newcommand{\rasync}[1]{\ensuremath{\rust{async}~#1}}
+\newcommand{\rasync}[1]{\ensuremath{\rust{async}~\{#1\}}}
 \newcommand{\rwhile}[2]{\ensuremath{\rust{while}~#1~\{#2\}}}
 \newcommand{\rloop}[1]{\ensuremath{\rust{loop}~\{#1\}}}
 \newcommand{\rif}[3]{\ensuremath{\rust{if}~#1~\{#2\}~\rust{else}~\{#3\}}}
@@ -349,13 +349,13 @@
 \end{frame}
 
 \begin{frame}{WP: Async Bind (Lazy Future Creation)}
-  \begin{block}{Rust: \quad $P(i) = \rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}$}
+  \begin{block}{Rust: \quad $P(i) = \rlet{p}{\rasync{e}}{k~p}$}
   \end{block}
 
-  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto f_{\mathit{body}}]}{\sigma}{i}}{\varphi}$$
+  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto e]}{\sigma}{i}}{\varphi}$$
 
   \begin{itemize}
-    \item Creates new process $p$ with body $f_{\mathit{body}}$ (suspended)
+    \item Creates new process $p$ with body $e$ (suspended)
     \item Replaces active process $i$'s term with continuation $k$
     \item No state change, no scheduling -- futures are lazy
   \end{itemize}
@@ -530,7 +530,7 @@ fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     $\rcall{f}{\vec{e}}$ & Contract-dependent & $\mathtt{wp}$ \\
     \hline
     Sequential step & Delegate to $\mathtt{wp}$ & $\mathtt{WP}$ \\
-    $\rust{async}~\rcall{f}{\vec{e}}$ & Extend $P$, no-op & $\mathtt{WP}$ \\
+    $\rasync{e}$ & Extend $P$, no-op & $\mathtt{WP}$ \\
     $\rawait{p}$ (AU callee) & Switch active to $p$ & $\mathtt{WP}$ \\
     $\rawait{p}$ (AG callee) & Divergence & $\mathtt{WP}$ \\
   \end{tabular}
