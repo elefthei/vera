@@ -243,28 +243,31 @@
 \end{frame}
 
 \begin{frame}{wp: Conditional}
-    \begin{align*}
-    \wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
-    &~ \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}}~\sigma \\
-    \land~& \begin{cases}
+    Let $\R_c = \lambda~b~\sigma'.\
+    \begin{cases}
       \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma', &\text{if } b \\
       \wpx{u}{\AU{\varphi}{\varphi'}}~\sigma', &\text{otherwise}
-    \end{cases}
-    \end{align*}
+    \end{cases}$
+
+    \vspace{0.3cm}
+    $$\wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
+    \wpx{c}{\AU{\varphi}{\done{\R_c}}}~\sigma$$
 \end{frame}
 
 \begin{frame}{wp: While Loop (AU)}
+    Let $\R_c = \lambda~b~\sigma'.\
+    \begin{cases}
+      \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma' ~\lor~
+      \wpx{t}{\AU{\varphi}{\AF{\done{(\lambda~\_~\sigma''.~
+          \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}~\sigma', &\text{if } b \\
+      \varphi'(\sigma'), &\text{o.w.}
+    \end{cases}$
+
+    \vspace{0.3cm}
     \begin{align*}
     &\wpx{\rwhile{c}{t}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma. \\
-    & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & \quad \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}}~\sigma ~\land \\
-    & \quad \begin{cases}
-      \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma' ~\lor \\
-      \quad \wpx{t}{\AU{\varphi}{\AF{\done{(\lambda~\sigma''.~
-          \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}& \\
-      \quad\quad \sigma', &\text{if } b \\
-      \varphi'(\sigma'), &\text{o.w.}
-    \end{cases}
+    & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to
+    \wpx{c}{\AU{\varphi}{\done{\R_c}}}~\sigma
     \end{align*}
 \end{frame}
 
