@@ -30,11 +30,11 @@
 \newcommand{\ventailsR}[3]{\ensuremath{[#1, \ #2 \Vdash_R ~#3 ]_{\mathtt{Rust}}}}
 
 %% wp notation (single-process)
-\newcommand{\wpx}[2]{\ensuremath{\mathtt{wp}~#1~#2}}
+\newcommand{\wpx}[2]{\ensuremath{\mathtt{wp}(#1,~#2)}}
 
 %% WP notation (multi-process)
 \newcommand{\Config}[3]{\ensuremath{(#1,~#2,~#3)}}
-\newcommand{\WPx}[2]{\ensuremath{\mathtt{WP}~#1~#2}}
+\newcommand{\WPx}[2]{\ensuremath{\mathtt{WP}(#1,~#2)}}
 
 \title{Vera: Weakest Preconditions for TICL over Rust}
 \subtitle{From Imp Structural Lemmas to Rust VCGen Rules}
@@ -68,7 +68,7 @@
   \end{itemize}
 
   \vspace{0.3cm}
-  \alert{Goal:} Lift these to Rust syntax $\to$ define $\wpx{\_}{\_}$ for Vera.
+  \alert{Goal:} Lift these to Rust syntax $\to$ define $\mathtt{wp}$ for Vera.
 \end{frame}
 
 \begin{frame}{Notation}
@@ -294,7 +294,7 @@
 
   $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \wpx{P(i)}{\varphi}~\sigma$$
 
-  Delegate to single-process $\wpx{}{}$. Process dictionary $P$ is unchanged.
+  Delegate to single-process $\mathtt{wp}$. Process dictionary $P$ is unchanged.
 
   \vspace{0.5cm}
   Programs without \texttt{async}/\texttt{await} reduce entirely to single-process wp:
@@ -337,7 +337,7 @@
   $$\WPx{\Config{P}{\sigma}{i}}{\AG{\varphi}} ~=~ \wpx{P(p)}{\AG{\varphi}}~\sigma$$
 
   \begin{itemize}
-    \item Reduces to single-process $\wpx{}{}$ on callee's body $P(p)$
+    \item Reduces to single-process $\mathtt{wp}$ on callee's body $P(p)$
     \item Process $p$ must satisfy $\AG{\varphi}$ (runs forever)
     \item Continuation after await is unreachable
   \end{itemize}
@@ -353,17 +353,17 @@
   \begin{tabular}{l l l}
     \textbf{Construct} & \textbf{Rule} & \textbf{Layer} \\
     \hline
-    $\rmut{x}{e}$ & State update & $\wpx{}{}$ \\
-    $\rlet{x}{t}{u}$ & BindAU$_L$ & $\wpx{}{}$ \\
-    $\rif{c}{t}{u}$ & Case split (effectful $c$) & $\wpx{}{}$ \\
-    $\rwhile{c}{t}$ + \texttt{dec.} & While$_\text{Rust}$AU$_L$ & $\wpx{}{}$ \\
-    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG & $\wpx{}{}$ \\
-    $\rcall{f}{\vec{e}}$ & Contract-dependent & $\wpx{}{}$ \\
+    $\rmut{x}{e}$ & State update & $\mathtt{wp}$ \\
+    $\rlet{x}{t}{u}$ & BindAU$_L$ & $\mathtt{wp}$ \\
+    $\rif{c}{t}{u}$ & Case split (effectful $c$) & $\mathtt{wp}$ \\
+    $\rwhile{c}{t}$ + \texttt{dec.} & While$_\text{Rust}$AU$_L$ & $\mathtt{wp}$ \\
+    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG & $\mathtt{wp}$ \\
+    $\rcall{f}{\vec{e}}$ & Contract-dependent & $\mathtt{wp}$ \\
     \hline
-    Sequential step & Delegate to $\wpx{}{}$ & $\WPx{}{}$ \\
-    $\rust{async}~\rcall{f}{\vec{e}}$ & Extend $P$, no-op & $\WPx{}{}$ \\
-    $\rawait{p}$ (AU callee) & Switch active to $p$ & $\WPx{}{}$ \\
-    $\rawait{p}$ (AG callee) & Divergence & $\WPx{}{}$ \\
+    Sequential step & Delegate to $\mathtt{wp}$ & $\mathtt{WP}$ \\
+    $\rust{async}~\rcall{f}{\vec{e}}$ & Extend $P$, no-op & $\mathtt{WP}$ \\
+    $\rawait{p}$ (AU callee) & Switch active to $p$ & $\mathtt{WP}$ \\
+    $\rawait{p}$ (AG callee) & Divergence & $\mathtt{WP}$ \\
   \end{tabular}
   \end{center}
 
