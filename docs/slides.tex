@@ -331,14 +331,14 @@
 \end{frame}
 
 \begin{frame}{WP: Await (AG -- diverging callee)}
-  \begin{block}{Rust: \quad $P(i) = \rawait{p}$ \quad where $P(p)$ satisfies $\AG{\psi}$}
+  \begin{block}{Rust: \quad $P(i) = \rawait{p}$ \quad where $P(p)$ satisfies $\AG{\varphi}$}
   \end{block}
 
-  $$\WPx{\Config{P}{\sigma}{i}}{\AG{\varphi}} ~=~ \WPx{\Config{P}{\sigma}{p}}{\AG{\psi}} ~\land~ (\psi \implies \varphi)$$
+  $$\WPx{\Config{P}{\sigma}{i}}{\AG{\varphi}} ~=~ \WPx{\Config{P}{\sigma}{p}}{\AG{\varphi}}$$
 
   \begin{itemize}
     \item Process $p$ runs forever (AG); await diverges
-    \item Caller's $\AG{\varphi}$ discharged if $\psi \implies \varphi$
+    \item Caller's $\AG{\varphi}$ discharged by running $p$ with the same property
     \item Continuation after await is unreachable
   \end{itemize}
 \end{frame}
