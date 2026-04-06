@@ -1644,32 +1644,8 @@ struct State {
     post_condition_info: PostConditionInfo,
     loop_infos: Vec<LoopInfo>,
     static_prelude: Vec<Stmt>,
-    /// Temporal obligations from ensures clauses, threaded through VCGen
-    temporal_context: PropositionContext,
-    /// Set to true when any loop discharges temporal obligations (has invariant in temporal context)
-    temporal_discharged: bool,
-    /// Set to true when a loop without decreases exists in temporal context (AG = infinite loop)
-    has_infinite_temporal_loop: bool,
-    /// TICL ag_seq/aul_seq: properties that must hold at every intermediate state
-    /// in prefix code before the temporal loop. AG(φ) → [φ], AU(path, goal) → [path].
-    /// AF(ψ) = AU(⊤, ψ) → empty (trivial prefix).
-    temporal_prefix_obligations: Vec<Exp>,
-    /// Depth counter for loop nesting — prefix assertions only fire outside all loops.
-    /// Incremented at start of Loop handler, decremented at end.
-    in_loop_depth: u32,
-    /// AG(φ) properties that must be asserted at every intermediate state inside
-    /// an AG loop body. Empty outside AG loops.
-    ag_state_obligations: Vec<Exp>,
-    /// AU(φ,ψ) path+goal pairs asserted at every intermediate state inside AU loops.
-    /// Asserts φ ∨ ψ: path holds OR goal already reached.
-    au_path_obligations: Vec<(Exp, Exp)>,
-    /// Ghost accumulators for now() goals in AG(AF) loops.
-    /// Each entry is (goal_expr, accumulator_air_ident).
-    /// The accumulator tracks whether the now() goal Q held at ANY
-    /// intermediate state during the current loop body iteration.
-    now_goal_accumulators: Vec<(Exp, Ident)>,
-    /// Counter for generating unique snapshot names for now() goal accumulators.
-    now_acc_snapshot_counter: u32,
+    /// Temporal verification state (wp context).
+    wp: WpContext,
 }
 
 impl State {
@@ -1976,7 +1952,7 @@ fn temporal_loop_assertions(
         Some(mk_and(&r_exprs))
     };
 
-    for obligation in state.temporal_context.propositions.iter() {
+    for obligation in state.wp.temporal_context.propositions.iter() {
         match obligation {
             Proposition::Always { property, .. } => {
                 let phi = exp_to_expr(ctx, property, expr_ctxt)?;
@@ -2017,11 +1993,11 @@ fn emit_prefix_assertions(
     // Inside a loop (including its initialization code), the loop's invariant
     // machinery handles temporal properties. Only emit in straight-line prefix
     // code outside all loops.
-    if state.in_loop_depth > 0 {
+    if state.wp.in_loop_depth > 0 {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
-    for obligation_exp in &state.temporal_prefix_obligations {
+    for obligation_exp in &state.wp.temporal_prefix_obligations {
         let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
         let err = error(span, "temporal property must hold before entering the loop");
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
@@ -2039,7 +2015,7 @@ fn emit_ag_state_assertions(
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
-    for obligation_exp in &state.ag_state_obligations {
+    for obligation_exp in &state.wp.ag_state_obligations {
         let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
         let err = error(span, "AG property must hold at every intermediate state");
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
@@ -2058,7 +2034,7 @@ fn emit_au_path_assertions(
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
-    for (path_exp, goal_exp) in &state.au_path_obligations {
+    for (path_exp, goal_exp) in &state.wp.au_path_obligations {
         let phi = exp_to_expr(ctx, path_exp, expr_ctxt)?;
         let psi = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
         let phi_or_psi = mk_or(&vec![phi, psi]);
@@ -2078,17 +2054,17 @@ fn update_now_accumulators(
     _span: &Span,
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
-    if state.now_goal_accumulators.is_empty() {
+    if state.wp.now_goal_accumulators.is_empty() {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
     // Take a snapshot of the current accumulator values before havocing them.
     let snap_id = {
-        state.now_acc_snapshot_counter += 1;
-        Arc::new(format!("now_acc_{}", state.now_acc_snapshot_counter))
+        state.wp.now_acc_snapshot_counter += 1;
+        Arc::new(format!("now_acc_{}", state.wp.now_acc_snapshot_counter))
     };
     stmts.push(Arc::new(StmtX::Snapshot(snap_id.clone())));
-    for (goal_exp, acc_var) in &state.now_goal_accumulators {
+    for (goal_exp, acc_var) in &state.wp.now_goal_accumulators {
         let q_current = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
         // Havoc the accumulator to allow it to take a new value
         stmts.push(Arc::new(StmtX::Havoc(acc_var.clone())));
@@ -2133,7 +2109,7 @@ fn emit_temporal_implication_check(
     expr_ctxt: &ExprCtxt,
     func: &crate::ast::Function,
 ) -> Result<Vec<Stmt>, VirErr> {
-    if state.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
+    if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
         return Ok(Vec::new());
     }
     // Extract temporal ensures from the callee's SST declaration
@@ -2144,7 +2120,7 @@ fn emit_temporal_implication_check(
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
-    for caller_prop in &state.temporal_context.propositions {
+    for caller_prop in &state.wp.temporal_context.propositions {
         for callee_prop in &callee_temporal {
             match (caller_prop, callee_prop) {
                 (
@@ -2832,7 +2808,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 // for liveness but the loop is still semantically infinite).
                 // Pure AU loops (no AG wrapper) CAN exit when the goal is reached.
                 if *is_break && !loop_info.temporal_invs.is_empty() {
-                    let has_ag = state.temporal_context.has_always();
+                    let has_ag = state.wp.temporal_context.has_always();
                     if has_ag {
                         let error = error_with_label(
                             &stm.span,
@@ -2869,7 +2845,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     // TICL: weaken decreases at continue for ALL Until obligations (goal || m decreased).
                     // This includes af(Q) = Until(true, Q), giving it the weakened check Q || m decreased.
                     let au_goals: Vec<(&Exp, &Exp)> = if !loop_info.temporal_invs.is_empty() {
-                        state.temporal_context.propositions.iter()
+                        state.wp.temporal_context.propositions.iter()
                             .filter_map(|o| match o {
                                 Proposition::Until { path, goal, .. } => Some((path, goal)),
                                 _ => None,
@@ -2960,7 +2936,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             pre_modified_params,
         } => {
             let loop_isolation = *loop_isolation;
-            state.in_loop_depth += 1;
+            state.wp.in_loop_depth += 1;
             let (cond_stm, pos_assume, neg_assume) = if let Some((cond_stm, cond_exp)) = cond {
                 let pos_cond = exp_to_expr(ctx, &cond_exp, expr_ctxt)?;
                 let neg_cond = Arc::new(ExprX::Unary(air::ast::UnaryOp::Not, pos_cond.clone()));
@@ -3000,12 +2976,12 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
 
             // Save AG obligations from parent scope. Inner loops INHERIT parent AG
             // obligations — AG(φ) must hold at every state, including inside nested loops.
-            let saved_ag_obligations = state.ag_state_obligations.clone();
+            let saved_ag_obligations = state.wp.ag_state_obligations.clone();
             // Save AU obligations similarly — inner loops inherit parent AU obligations.
-            let saved_au_obligations = state.au_path_obligations.clone();
+            let saved_au_obligations = state.wp.au_path_obligations.clone();
             // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
-            let saved_now_accumulators = state.now_goal_accumulators.clone();
-            let saved_now_acc_counter = state.now_acc_snapshot_counter;
+            let saved_now_accumulators = state.wp.now_goal_accumulators.clone();
+            let saved_now_acc_counter = state.wp.now_acc_snapshot_counter;
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -3019,10 +2995,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // - is_au_loop:    pure AU — terminating loop with decreases + Until
             // - utility:       standard loop in temporal context (no temporal role)
             let is_utility_loop_in_temporal;
-            if !state.temporal_context.propositions.is_empty() {
+            if !state.wp.temporal_context.propositions.is_empty() {
                 // Detect AG(AF(Q)) / AG(AU(P,Q)): Until obligations nested inside AG.
                 // These have requires_invariance = true on the Until.
-                let has_invariance_until = state.temporal_context.has_invariance_until();
+                let has_invariance_until = state.wp.temporal_context.has_invariance_until();
 
                 // Pure AG: infinite loop, no AF/AU nested inside.
                 // For loops (for-in) terminate via iterator, never AG.
@@ -3033,7 +3009,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let is_ag_af_loop = has_invariance_until;
 
                 // Pure AU: terminating loop with Until (not nested in AG).
-                let has_au = state.temporal_context.has_until();
+                let has_au = state.wp.temporal_context.has_until();
                 let is_au_loop = decrease.len() > 0 && has_au && !has_invariance_until;
 
                 if is_ag_loop || is_au_loop || is_ag_af_loop {
@@ -3047,27 +3023,27 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
                 // for any Always obligations.
                 if is_ag_loop || is_ag_af_loop {
-                    let ag_props: Vec<Exp> = state.temporal_context.propositions.iter()
+                    let ag_props: Vec<Exp> = state.wp.temporal_context.propositions.iter()
                         .filter_map(|o| match o {
                             Proposition::Always { property, .. } => Some(property.clone()),
                             _ => None,
                         })
                         .collect();
                     // Extend (not replace) — nested AG loops inherit parent AG obligations
-                    state.ag_state_obligations.extend(ag_props);
+                    state.wp.ag_state_obligations.extend(ag_props);
                 }
 
                 // AU soundness: collect AU path+goal pairs for intermediate state checking.
                 // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
                 // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
                 if is_au_loop || is_ag_af_loop {
-                    let au_pairs: Vec<(Exp, Exp)> = state.temporal_context.propositions.iter()
+                    let au_pairs: Vec<(Exp, Exp)> = state.wp.temporal_context.propositions.iter()
                         .filter_map(|o| match o {
                             Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
                             _ => None,
                         })
                         .collect();
-                    state.au_path_obligations.extend(au_pairs);
+                    state.wp.au_path_obligations.extend(au_pairs);
                 }
 
                 // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
@@ -3079,14 +3055,14 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 if is_ag_af_loop {
                     let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
                     let mut now_counter = 0u32;
-                    for o in state.temporal_context.propositions.iter() {
+                    for o in state.wp.temporal_context.propositions.iter() {
                         if let Proposition::Until { goal, goal_kind: GoalKind::Now, requires_invariance: true, .. } = o {
                             let acc_var = Arc::new(format!("now_reached_{}", now_counter));
                             now_counter += 1;
                             now_accs.push((goal.clone(), acc_var));
                         }
                     }
-                    state.now_goal_accumulators = now_accs;
+                    state.wp.now_goal_accumulators = now_accs;
                 }
             } else {
                 is_utility_loop_in_temporal = false;
@@ -3095,10 +3071,10 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
             // the prefix temporal property φ. Add φ as additional loop invariant
             // so standard invariant checking covers the AU-prefix requirement.
-            if is_utility_loop_in_temporal && !state.temporal_prefix_obligations.is_empty() {
+            if is_utility_loop_in_temporal && !state.wp.temporal_prefix_obligations.is_empty() {
                 let mut entry_ext: Vec<_> = (*invs_entry).clone();
                 let mut exit_ext: Vec<_> = (*invs_exit).clone();
-                for prefix_exp in &state.temporal_prefix_obligations {
+                for prefix_exp in &state.wp.temporal_prefix_obligations {
                     let prefix_expr = exp_to_expr(ctx, prefix_exp, expr_ctxt)?;
                     entry_ext.push((prefix_exp.span.clone(), prefix_expr.clone(), None, true));
                     exit_ext.push((prefix_exp.span.clone(), prefix_expr, None, true));
@@ -3108,22 +3084,22 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
 
             // Track that this loop discharges temporal obligations.
-            if !temporal_invs.is_empty() && !state.temporal_context.propositions.is_empty() {
-                state.temporal_discharged = true;
+            if !temporal_invs.is_empty() && !state.wp.temporal_context.propositions.is_empty() {
+                state.wp.temporal_discharged = true;
                 // AG and AG(AF) loops are both semantically infinite:
                 // - AG: no decreases, loop runs forever
                 // - AG(AF): has decreases for liveness progress, but the weakened
                 //   check (Q ∨ m↓) allows the metric to not decrease when Q holds,
                 //   so the loop can run forever.
-                if decrease.len() == 0 || state.temporal_context.has_invariance_until() {
-                    state.has_infinite_temporal_loop = true;
+                if decrease.len() == 0 || state.wp.temporal_context.has_invariance_until() {
+                    state.wp.has_infinite_temporal_loop = true;
                 }
             }
 
             // AG(AF) / AG(AU) soundness: require decreases for liveness progress.
             // Without decreases, there's no proof that the AF/AU goal is ever reached.
             // This prevents unsound proofs like ag(af(false)) from passing.
-            if !temporal_invs.is_empty() && state.temporal_context.has_invariance_until()
+            if !temporal_invs.is_empty() && state.wp.temporal_context.has_invariance_until()
                 && decrease.len() == 0
             {
                 return Err(error(&stm.span,
@@ -3137,7 +3113,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // af(Q) alone with no decreases is fine: it's standard Hoare postcondition
             // semantics — Q is checked at return, no temporal progress needed.
             if !temporal_invs.is_empty() && decrease.len() == 0 {
-                let has_nontrivial_au = state.temporal_context.propositions.iter()
+                let has_nontrivial_au = state.wp.temporal_context.propositions.iter()
                     .any(|o| match o {
                         Proposition::Until { path, .. } => {
                             !matches!(&path.x, ExpX::Const(crate::ast::Constant::Bool(true)))
@@ -3237,7 +3213,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             let mut local = state.local_shared.clone();
             // Declare ghost accumulator variables for now() goals.
             // These are mutable booleans that track whether Q held at any intermediate state.
-            for (_, acc_var) in &state.now_goal_accumulators {
+            for (_, acc_var) in &state.wp.now_goal_accumulators {
                 local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
                 state.local_shared.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
             }
@@ -3274,7 +3250,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
             // Only fire for loops in temporal context (utility loops skip this)
-            if !state.temporal_context.propositions.is_empty() && !temporal_invs.is_empty() {
+            if !state.wp.temporal_context.propositions.is_empty() && !temporal_invs.is_empty() {
                 air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt, &temporal_invs)?);
             }
             for dec in decrease_init.iter() {
@@ -3286,8 +3262,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
             // evaluate Q and set now_reached = Q (Q might already hold at entry).
             // Take a snapshot so the first update_now_accumulators call can
             // reference the initial accumulator value.
-            if !state.now_goal_accumulators.is_empty() {
-                for (goal_exp, acc_var) in &state.now_goal_accumulators {
+            if !state.wp.now_goal_accumulators.is_empty() {
+                for (goal_exp, acc_var) in &state.wp.now_goal_accumulators {
                     // Havoc the accumulator variable (creates it in AIR scope)
                     air_body.push(Arc::new(StmtX::Havoc(acc_var.clone())));
                     let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
@@ -3298,8 +3274,8 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 }
                 // Take initial snapshot for the first accumulator update
                 let snap_id = {
-                    state.now_acc_snapshot_counter += 1;
-                    Arc::new(format!("now_acc_{}", state.now_acc_snapshot_counter))
+                    state.wp.now_acc_snapshot_counter += 1;
+                    Arc::new(format!("now_acc_{}", state.wp.now_acc_snapshot_counter))
                 };
                 air_body.push(Arc::new(StmtX::Snapshot(snap_id)));
             }
@@ -3354,7 +3330,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                     // For Now goals: use ghost accumulator (tracks Q at any intermediate state).
                     // For Done goals: use Q evaluated at body end (current state).
                     let au_goals: Vec<(&Exp, &GoalKind)> = if !temporal_invs.is_empty() {
-                        state.temporal_context.propositions.iter()
+                        state.wp.temporal_context.propositions.iter()
                             .filter_map(|o| match o {
                                 Proposition::Until { goal, goal_kind, .. } => Some((goal, goal_kind)),
                                 _ => None,
@@ -3372,9 +3348,9 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                                     // It tracks whether Q held at ANY intermediate state
                                     // during this loop body iteration (including body start).
                                     // For now() goals, use the ghost accumulator if available.
-                                    if !state.now_goal_accumulators.is_empty() {
+                                    if !state.wp.now_goal_accumulators.is_empty() {
                                         // Use the first accumulator (typically one now() goal per loop)
-                                        let (_, acc_var) = &state.now_goal_accumulators[0];
+                                        let (_, acc_var) = &state.wp.now_goal_accumulators[0];
                                         disjuncts.push(ident_var(acc_var));
                                     } else {
                                         // Fallback: evaluate Q at current state
@@ -3482,7 +3458,7 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 // After assuming !condition, assert false so the exit path is
                 // unreachable. This catches while-condition exits for AG loops.
                 // (Explicit break exits are caught by the break handler above.)
-                if !temporal_invs.is_empty() && state.temporal_context.has_always() {
+                if !temporal_invs.is_empty() && state.wp.temporal_context.has_always() {
                     let error = error_with_label(
                         &stm.span,
                         "AG temporal property requires the loop to never exit \
@@ -3503,14 +3479,14 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
                 let snapshot = Arc::new(StmtX::Snapshot(sid));
                 stmts.push(snapshot);
             }
-            state.in_loop_depth -= 1;
+            state.wp.in_loop_depth -= 1;
             // Restore AG obligations from before this loop (handles nesting correctly).
-            state.ag_state_obligations = saved_ag_obligations;
+            state.wp.ag_state_obligations = saved_ag_obligations;
             // Restore AU obligations from before this loop (handles nesting correctly).
-            state.au_path_obligations = saved_au_obligations;
+            state.wp.au_path_obligations = saved_au_obligations;
             // Restore now() goal accumulators from before this loop.
-            state.now_goal_accumulators = saved_now_accumulators;
-            state.now_acc_snapshot_counter = saved_now_acc_counter;
+            state.wp.now_goal_accumulators = saved_now_accumulators;
+            state.wp.now_acc_snapshot_counter = saved_now_acc_counter;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3866,15 +3842,7 @@ pub(crate) fn body_stm_to_air(
         },
         loop_infos: Vec::new(),
         static_prelude: mk_static_prelude(ctx, statics),
-        temporal_context,
-        temporal_discharged: false,
-        has_infinite_temporal_loop: false,
-        temporal_prefix_obligations,
-        in_loop_depth: 0,
-        ag_state_obligations: Vec::new(),
-        au_path_obligations: Vec::new(),
-        now_goal_accumulators: Vec::new(),
-        now_acc_snapshot_counter: 0,
+        wp: WpContext::new(temporal_context, temporal_prefix_obligations),
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
@@ -3888,8 +3856,8 @@ pub(crate) fn body_stm_to_air(
     // AG obligations require at least one loop in temporal context.
     // This fires once at function level, allowing utility loops
     // without temporal obligations to coexist with the main temporal loop.
-    if !state.temporal_context.propositions.is_empty() && !state.temporal_discharged {
-        let needs_invariance = state.temporal_context.has_always();
+    if !state.wp.temporal_context.propositions.is_empty() && !state.wp.temporal_discharged {
+        let needs_invariance = state.wp.temporal_context.has_always();
         if needs_invariance {
             return Err(error(
                 func_span,
@@ -3899,8 +3867,8 @@ pub(crate) fn body_stm_to_air(
     }
     // AG requires at least one infinite loop (no decreases).
     // A function with only terminating loops can't satisfy AG.
-    let has_ag = state.temporal_context.has_always();
-    if has_ag && !state.has_infinite_temporal_loop {
+    let has_ag = state.wp.temporal_context.has_always();
+    if has_ag && !state.wp.has_infinite_temporal_loop {
         return Err(error(
             func_span,
             "AG temporal property requires an infinite loop (a loop without decreases)",
