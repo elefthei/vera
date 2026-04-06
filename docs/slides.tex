@@ -271,11 +271,11 @@
     \begin{align*}
     &\wpx{\rwhile{c}{t}}{\AG{\varphi}} ~=~ \lambda~\sigma. \\
     & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & \quad \ventailsL{\rwhile{c}{t}}{\sigma}{\varphi} ~\land \\
+    & \quad \wpx{\rwhile{c}{t}}{\varphi}~\sigma ~\land \\
     & \quad \wpx{c}{\AU{\varphi}{\doneq{(\tm{true},\sigma)}{}}}~\sigma ~\land \\
     & \quad \wpx{t}{\varphi~\AU{}~\done{(\lambda~\sigma'.~ \R~\sigma')}}~\sigma
     \end{align*}
-    Coinductive: $\ventailsL{\rwhile{c}{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
+    Coinductive: $\wpx{\rwhile{c}{t}}{\varphi}~\sigma$ is the coinductive hypothesis.
 \end{frame}
 
 \begin{frame}{wp: Function Call -- $f$ ensures $\AF{\done{\R_f}}$}
