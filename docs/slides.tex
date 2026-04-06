@@ -227,39 +227,42 @@
 
 \begin{frame}{wp: Assignment}
     \begin{align*}
-    \wpx{\rmut{x}{e}}{\AU{\varphi}{\varphi'}} ~=~
-    &~ \wpx{e}{\AU{\varphi}{\done{\R}}} \\
+    \wpx{\rmut{x}{e}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
+    &~ \wpx{e}{\AU{\varphi}{\done{\R}}}~\sigma \\
     \land~& ~\forall~v, \sigma'.~ \R~v~\sigma' \to \varphi'(\sigma'[x \mapsto v])
     \end{align*}
     Evaluate $e$ (maintaining $\varphi$), then check $\varphi'$ after the store.
 \end{frame}
 
 \begin{frame}{wp: Let-binding (Sequential Composition)}
-    $$\wpx{\rlet{x}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \wpx{t}{\AU{\varphi}{\AX{\done{\R}}}}$$
-    $$\land~ \forall x, \sigma'.~ \R~x~\sigma' \to \wpx{u[x]}{\AU{\varphi}{\varphi'}}$$
+    \begin{align*}
+    \wpx{\rlet{x}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
+    &~ \wpx{t}{\AU{\varphi}{\AX{\done{\R}}}}~\sigma \\
+    \land~& ~\forall x, \sigma'.~ \R~x~\sigma' \to \wpx{u[x]}{\AU{\varphi}{\varphi'}}~\sigma'
+    \end{align*}
 \end{frame}
 
 \begin{frame}{wp: Conditional}
     \begin{align*}
-    \wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~
-    &~ \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\
+    \wpx{\rif{c}{t}{u}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~
+    &~ \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}}~\sigma \\
     \land~& \begin{cases}
-      \wpx{t}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{if } b \\
-      \wpx{u}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma], &\text{otherwise}
+      \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma', &\text{if } b \\
+      \wpx{u}{\AU{\varphi}{\varphi'}}~\sigma', &\text{otherwise}
     \end{cases}
     \end{align*}
 \end{frame}
 
 \begin{frame}{wp: While Loop (AU)}
     \begin{align*}
-    &\wpx{\rwhile{c}{t}}{\AU{\varphi}{\varphi'}} ~= \\
+    &\wpx{\rwhile{c}{t}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma. \\
     & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & \quad \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} ~\land \\
+    & \quad \wpx{c}{\AU{\varphi}{\doneq{(b,\sigma')}{}}}~\sigma ~\land \\
     & \quad \begin{cases}
-      \wpx{t}{\AU{\varphi}{\varphi'}}[\sigma'/\sigma] ~\lor \\
+      \wpx{t}{\AU{\varphi}{\varphi'}}~\sigma' ~\lor \\
       \quad \wpx{t}{\AU{\varphi}{\AF{\done{(\lambda~\sigma''.~
           \R~\sigma'' \land f~\sigma'' < f~\sigma)}}}}& \\
-      \quad\quad [\sigma'/\sigma], &\text{if } b \\
+      \quad\quad \sigma', &\text{if } b \\
       \varphi'(\sigma'), &\text{o.w.}
     \end{cases}
     \end{align*}
@@ -267,17 +270,17 @@
 
 \begin{frame}{wp: Loop (AG)}
     \begin{align*}
-    \wpx{\rloop{t}}{\AG{\varphi}} ~=~
-    & ~\R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
-    & ~\ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
-    & ~\wpx{t}{\varphi~\AU{}~\AF{\done{(\lambda~\sigma'.~ \R~\sigma')}}}
+    &\wpx{\rloop{t}}{\AG{\varphi}} ~=~ \lambda~\sigma. \\
+    & \quad \R~\sigma ~\land~ \forall~\sigma,~\R~\sigma \to \\
+    & \quad \ventailsL{\rloop{t}}{\sigma}{\varphi} ~\land \\
+    & \quad \wpx{t}{\varphi~\AU{}~\AF{\done{(\lambda~\sigma'.~ \R~\sigma')}}}~\sigma
     \end{align*}
     Coinductive: $\ventailsL{\rloop{t}}{\sigma}{\varphi}$ is the coinductive hypothesis.
 \end{frame}
 
 \begin{frame}{wp: Function Call -- $f$ ensures $\AF{\done{\R_f}}$}
   \begin{block}{$f$ has terminating postcondition}
-    $$\wpx{\rcall{f}{e_1, \ldots, e_i}}{\AU{\varphi}{\varphi'}} ~=~ \forall~x,\sigma'.~ \R_f~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi'}}$$
+    $$\wpx{\rcall{f}{e_1, \ldots, e_i}}{\AU{\varphi}{\varphi'}} ~=~ \lambda~\sigma.~ \forall~x,\sigma'.~ \R_f~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi'}}~\sigma'$$
     where $k$ is the continuation after the call.
   \end{block}
 
@@ -292,21 +295,21 @@
 \end{frame}
 
 \begin{frame}{wp: Async Bind}
-    $$\wpx{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\Phi} ~=~ \wpx{k~p}{\Phi}$$
+    $$\wpx{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\Phi} ~=~ \lambda~\sigma.~ \wpx{k~p}{\Phi}~\sigma$$
     No-op: lazy future creation does not change state.
 \end{frame}
 
 \begin{frame}{wp: Await (AU)}
     \begin{align*}
-    \wpx{\rlet{x}{\rawait{p}}{k~x}}{\AU{\varphi}{\varphi''}} ~=~
+    \wpx{\rlet{x}{\rawait{p}}{k~x}}{\AU{\varphi}{\varphi''}} ~=~ \lambda~\sigma.~
     & ~\varphi' \implies \varphi \\
-    \land~& ~\forall~x,\sigma'.~ \R~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi''}}
+    \land~& ~\forall~x,\sigma'.~ \R~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi''}}~\sigma'
     \end{align*}
     where $P[p]~\rust{ensures}~\AU{\varphi'}{\AX{\done{\R}}}$.
 \end{frame}
 
 \begin{frame}{wp: Await (AG)}
-    $$\wpx{\rawait{p}}{\AG{\varphi}} ~=~ \psi \implies \varphi$$
+    $$\wpx{\rawait{p}}{\AG{\varphi}} ~=~ \lambda~\sigma.~ \psi \implies \varphi$$
     where $P[p]~\rust{ensures}~\AG{\psi}$.
 
     \vspace{0.3cm}
