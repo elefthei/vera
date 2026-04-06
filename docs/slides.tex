@@ -26,8 +26,8 @@
 \newcommand{\PID}{\ensuremath{\mathtt{PID}}}
 
 %% Vera-specific entailment (single-process)
-\newcommand{\ventailsL}[3]{\ensuremath{[#1, \ #2 \Vdash_L ~#3 ]_{\mathtt{Rust}}}}
-\newcommand{\ventailsR}[3]{\ensuremath{[#1, \ #2 \Vdash_R ~#3 ]_{\mathtt{Rust}}}}
+\newcommand{\ventailsL}[3]{\ensuremath{[#1, \ #2 \Vdash_L ~#3 ]}}
+\newcommand{\ventailsR}[3]{\ensuremath{[#1, \ #2 \Vdash_R ~#3 ]}}
 
 %% wp notation (single-process)
 \newcommand{\wpx}[2]{\ensuremath{\mathtt{wp}(#1,~#2)}}
@@ -96,7 +96,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=Assign$_\text{Rust}$AU$_L$]
+    \inferrule*[Right=AssignAU$_L$]
     {\ventailsR{e}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~v, \sigma',~\R~v~\sigma' \to \ventailsL{\ISkip}{\sigma'[x \mapsto v]}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rmut{x}{e}}{\sigma}{\AU{\varphi}{\varphi'}}}
@@ -110,7 +110,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=Let$_\text{Rust}$AU$_L$]
+    \inferrule*[Right=LetAU$_L$]
     {\ventailsR{t}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{u[x]}{\sigma'}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rlet{x}{t}{u}}{\sigma}{\AU{\varphi}{\varphi'}}}
@@ -124,7 +124,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=If$_\text{Rust}$AU$_L$]
+    \inferrule*[Right=IfAU$_L$]
     {\ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\\\
      {
        \begin{cases}
@@ -144,7 +144,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=While$_\text{Rust}$AU$_L$]
+    \inferrule*[Right=WhileAU$_L$]
     {\R~\sigma \\\\
      {\begin{aligned}
       \forall~\sigma,~&\R~\sigma \to \ventailsR{c}{\sigma}{\AU{\varphi}{\doneq{(b,\sigma')}{}}} \\
@@ -165,7 +165,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=While$_\text{Rust}$AG]
+    \inferrule*[Right=WhileAG]
     {\R~\sigma \\\\
      {\begin{aligned}
       \forall~\sigma,~&\R~\sigma \to \\
@@ -184,7 +184,7 @@
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=Call$_\text{Rust}$AU$_L$]
+    \inferrule*[Right=CallAU$_L$]
     {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\done{\R}}} \\\\
      \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
     {\ventailsL{\rlet{x}{\rcall{f}{\vec{e}}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
@@ -375,8 +375,8 @@
     $\rmut{x}{e}$ & State update & $\mathtt{wp}$ \\
     $\rlet{x}{t}{u}$ & BindAU$_L$ & $\mathtt{wp}$ \\
     $\rif{c}{t}{u}$ & Case split (effectful $c$) & $\mathtt{wp}$ \\
-    $\rwhile{c}{t}$ + \texttt{dec.} & While$_\text{Rust}$AU$_L$ & $\mathtt{wp}$ \\
-    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG & $\mathtt{wp}$ \\
+    $\rwhile{c}{t}$ + \texttt{dec.} & WhileAU$_L$ & $\mathtt{wp}$ \\
+    $\rwhile{c}{t}$ (no exit) & WhileAG & $\mathtt{wp}$ \\
     $\rcall{f}{\vec{e}}$ & Contract-dependent & $\mathtt{wp}$ \\
     \hline
     Sequential step & Delegate to $\mathtt{wp}$ & $\mathtt{WP}$ \\
