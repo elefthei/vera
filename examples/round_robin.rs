@@ -106,7 +106,6 @@ impl Queue {
 fn round_robin(queue: &mut Queue, Ghost(x): Ghost<u64>)
     requires
         old(queue).view().len() > 1,
-        old(queue).view().contains(x),
     ensures
         ag(queue.view().len() > 0),
         ag(af(now(queue.peek_spec() == x))),
