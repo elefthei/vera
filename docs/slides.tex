@@ -23,14 +23,18 @@
 \newcommand{\rif}[3]{\ensuremath{\rust{if}~#1~\{#2\}~\rust{else}~\{#3\}}}
 \newcommand{\rfn}[2]{\ensuremath{\rust{fn}~#1()~\{#2\}}}
 \newcommand{\rcall}[2]{\ensuremath{#1(#2)}}
+\newcommand{\PID}{\ensuremath{\mathtt{PID}}}
 
-%% Vera-specific entailment
+%% Vera-specific entailment (single-process)
 \newcommand{\ventailsL}[3]{\ensuremath{[#1, \ #2 \Vdash_L ~#3 ]_{\mathtt{Rust}}}}
 \newcommand{\ventailsR}[3]{\ensuremath{[#1, \ #2 \Vdash_R ~#3 ]_{\mathtt{Rust}}}}
-\newcommand{\ventailsRR}[2]{\ensuremath{[#1, \ #2 \Vdash_R ~ }}
 
-%% wp notation
+%% wp notation (single-process)
 \newcommand{\wpx}[2]{\ensuremath{\mathtt{wp}(#1,~#2)}}
+
+%% WP notation (multi-process)
+\newcommand{\Config}[3]{\ensuremath{(#1,~#2,~#3)}}
+\newcommand{\WPx}[2]{\ensuremath{\mathtt{WP}(#1,~#2)}}
 
 \title{Vera: Weakest Preconditions for TICL over Rust}
 \subtitle{From Imp Structural Lemmas to Rust VCGen Rules}
@@ -84,7 +88,7 @@
 \end{frame}
 
 % ============================================================================
-\section{Inference Rules}
+\section{Inference Rules (Single-Process)}
 % ============================================================================
 
 \begin{frame}{Assignment}
@@ -98,8 +102,7 @@
     {\ventailsL{\rmut{x}{e}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
-  Evaluating $e$ may take steps (function calls, etc.); $\varphi$ must hold along the path.
-  After $e$ produces $v$, the store $\sigma'[x \mapsto v]$ must satisfy $\varphi'$.
+  Evaluating $e$ may take steps; $\varphi$ must hold along the path.
 \end{frame}
 
 \begin{frame}{Sequential Composition (let-binding)}
@@ -176,53 +179,22 @@
   Coinductive hypothesis $\ventailsL{\rwhile{c}{t}}{\sigma}{\varphi}$; condition must always be true.
 \end{frame}
 
-\begin{frame}{Async Bind (Lazy Future Creation)}
-  \begin{block}{Rust: \quad $\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}$}
+\begin{frame}{Function Call (Bind Rule)}
+  \begin{block}{Rust: \quad $\rlet{x}{\rcall{f}{\vec{e}}}{k~x}$}
   \end{block}
   {\footnotesize
   \begin{mathpar}
-    \inferrule*[Right=AsyncBind$_\text{Rust}$]
-    {\text{No state change (lazy future)} \\\\
-     \ventailsL{k~p}{\sigma}{\Phi}}
-    {\ventailsL{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\sigma}{\Phi}}
+    \inferrule*[Right=Call$_\text{Rust}$AU$_L$]
+    {\ventailsR{\rcall{f}{\vec{e}}}{\sigma}{\AU{\varphi}{\AX{\done{\R}}}} \\\\
+     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi'}}}
+    {\ventailsL{\rlet{x}{\rcall{f}{\vec{e}}}{k~x}}{\sigma}{\AU{\varphi}{\varphi'}}}
   \end{mathpar}
   }
-  Rust futures are lazy: \texttt{async fn()} returns a handle, body runs at \texttt{.await}.
-\end{frame}
-
-\begin{frame}{Await (AU/AF -- terminating callee)}
-  \begin{block}{Rust: \quad $\rlet{x}{\rawait{p}}{k~x}$}
-  \end{block}
-  {\footnotesize
-  \begin{mathpar}
-    \inferrule*[Right=Await$_\text{Rust}$AU$_L$]
-    {\ventailsR{P[p]}{\sigma}{\AU{\varphi'}{\AX{\done{\R}}}} \\\\
-     \varphi' \implies \varphi \quad\text{(transparent)} \\\\
-     \forall~x,\sigma',~\R~x~\sigma' \to \ventailsL{k~x}{\sigma'}{\AU{\varphi}{\varphi''}}}
-    {\ventailsL{\rlet{x}{\rawait{p}}{k~x}}{\sigma}{\AU{\varphi}{\varphi''}}}
-  \end{mathpar}
-  }
-  $P[p]$: async process behind future $p$.
-  Callee's path $\varphi'$ must imply caller's $\varphi$ (transparent await).
-\end{frame}
-
-\begin{frame}{Await (AG -- diverging callee)}
-  \begin{block}{Rust: \quad $\rawait{p}$ \quad where $P[p]$ satisfies $\AG{\psi}$}
-  \end{block}
-  {\footnotesize
-  \begin{mathpar}
-    \inferrule*[Right=Await$_\text{Rust}$AG]
-    {\ventailsL{P[p]}{\sigma}{\AG{\psi}} \\\\
-     \psi \implies \varphi}
-    {\ventailsL{\rawait{p}}{\sigma}{\AG{\varphi}}}
-  \end{mathpar}
-  }
-  Callee runs forever $\to$ await is a \emph{divergence point}.
-  Caller's $\AG{\varphi}$ discharged if $\psi \implies \varphi$.
+  Instance of Let rule. Call is a sub-expression that produces a value.
 \end{frame}
 
 % ============================================================================
-\section{Weakest Preconditions}
+\section{Single-Process Weakest Preconditions}
 % ============================================================================
 
 \begin{frame}{wp: Assignment}
@@ -231,7 +203,6 @@
     &~ \wpx{e}{\AU{\varphi}{\done{\R}}}~\sigma \\
     \land~& ~\forall~v, \sigma'.~ \R~v~\sigma' \to \varphi'(\sigma'[x \mapsto v])
     \end{align*}
-    Evaluate $e$ (maintaining $\varphi$), then check $\varphi'$ after the store.
 \end{frame}
 
 \begin{frame}{wp: Let-binding (Sequential Composition)}
@@ -294,26 +265,89 @@
   \end{block}
 \end{frame}
 
-\begin{frame}{wp: Async Bind}
-    $$\wpx{\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}}{\Phi} ~=~ \lambda~\sigma.~ \wpx{k~p}{\Phi}~\sigma$$
-    No-op: lazy future creation does not change state.
+% ============================================================================
+\section{Multi-Process Configuration}
+% ============================================================================
+
+\begin{frame}{Configuration}
+  A \textbf{configuration} $C = \Config{P}{\sigma}{i}$ consists of:
+
+  \begin{align*}
+    P &: \PID \to \text{Term} && \text{process dictionary} \\
+    \sigma &\in \text{State} && \text{shared mutable state (heap, \&mut refs)} \\
+    i &\in \PID && \text{currently active (scheduled) process}
+  \end{align*}
+
+  \begin{block}{Cooperative scheduling}
+    \begin{itemize}
+      \item Each process runs until it hits \texttt{.await}, then yields
+      \item The scheduler picks the next process from the ready set
+      \item Temporal formulas $\varphi$ are over shared state $\sigma$
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{Multi-process wp}
+    $\WPx{C}{\varphi}$ -- weakest precondition on configuration $C$.
+    Defined by cases on the shape of $P(i)$.
+  \end{block}
 \end{frame}
 
-\begin{frame}{wp: Await (AU)}
-    \begin{align*}
-    \wpx{\rlet{x}{\rawait{p}}{k~x}}{\AU{\varphi}{\varphi''}} ~=~ \lambda~\sigma.~
-    & ~\varphi' \implies \varphi \\
-    \land~& ~\forall~x,\sigma'.~ \R~x~\sigma' \to \wpx{k~x}{\AU{\varphi}{\varphi''}}~\sigma'
-    \end{align*}
-    where $P[p]~\rust{ensures}~\AU{\varphi'}{\AX{\done{\R}}}$.
+% ============================================================================
+\section{Multi-Process Weakest Preconditions}
+% ============================================================================
+
+\begin{frame}{WP: Sequential Step}
+  When $P(i)$ is a non-async construct (assignment, let, if, while, sync call):
+
+  $$\WPx{\Config{P}{\sigma}{i}}{\varphi} ~=~ \wpx{P(i)}{\varphi}~\sigma$$
+
+  Delegate to single-process $\wpx{}{}$. Process dictionary $P$ is unchanged.
+
+  \vspace{0.5cm}
+  Programs without \texttt{async}/\texttt{await} reduce entirely to single-process wp:
+  $$\WPx{\Config{\{0 \mapsto t\}}{\sigma}{0}}{\varphi} ~=~ \wpx{t}{\varphi}~\sigma$$
 \end{frame}
 
-\begin{frame}{wp: Await (AG)}
-    $$\wpx{\rawait{p}}{\AG{\varphi}} ~=~ \lambda~\sigma.~ \psi \implies \varphi$$
-    where $P[p]~\rust{ensures}~\AG{\psi}$.
+\begin{frame}{WP: Async Bind (Lazy Future Creation)}
+  \begin{block}{Rust: \quad $P(i) = \rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k~p}$}
+  \end{block}
 
-    \vspace{0.3cm}
-    Callee diverges $\to$ continuation is dead code $\to$ no further wp.
+  $$\WPx{\Config{P}{\sigma}{i}}{\Phi} ~=~ \WPx{\Config{P[i \mapsto k,~p \mapsto f_{\mathit{body}}]}{\sigma}{i}}{\Phi}$$
+
+  \begin{itemize}
+    \item Creates new process $p$ with body $f_{\mathit{body}}$ (suspended)
+    \item Replaces active process $i$'s term with continuation $k$
+    \item No state change, no scheduling -- futures are lazy
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{WP: Await (AU -- terminating callee)}
+  \begin{block}{Rust: \quad $P(i) = \rlet{x}{\rawait{p}}{k~x}$}
+  \end{block}
+
+  \begin{align*}
+  &\WPx{\Config{P}{\sigma}{i}}{\AU{\varphi}{\varphi'}} ~= \\
+  & \quad \WPx{\Config{P}{\sigma}{p}}{\AU{\varphi}{\done{\R}}} \\
+  & \quad \land~ \forall~x, \sigma'.~ \R~x~\sigma' \to \WPx{\Config{P[i \mapsto k[x]]}{\sigma'}{i}}{\AU{\varphi}{\varphi'}}
+  \end{align*}
+
+  \begin{itemize}
+    \item Switch active process to $p$; run it maintaining $\varphi$
+    \item After $p$ terminates with result $x$ and state $\sigma'$, resume $i$
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{WP: Await (AG -- diverging callee)}
+  \begin{block}{Rust: \quad $P(i) = \rawait{p}$ \quad where $P(p)$ satisfies $\AG{\psi}$}
+  \end{block}
+
+  $$\WPx{\Config{P}{\sigma}{i}}{\AG{\varphi}} ~=~ \WPx{\Config{P}{\sigma}{p}}{\AG{\psi}} ~\land~ (\psi \implies \varphi)$$
+
+  \begin{itemize}
+    \item Process $p$ runs forever (AG); await diverges
+    \item Caller's $\AG{\varphi}$ discharged if $\psi \implies \varphi$
+    \item Continuation after await is unreachable
+  \end{itemize}
 \end{frame}
 
 % ============================================================================
@@ -324,25 +358,25 @@
   \begin{center}
   \small
   \begin{tabular}{l l l}
-    \textbf{Rust Construct} & \textbf{Rule} & \textbf{Section} \\
+    \textbf{Construct} & \textbf{Rule} & \textbf{Layer} \\
     \hline
-    $\rmut{x}{e}$ & State update, check $\varphi$ & Inference \\
-    $\rlet{x}{t}{u}$ & BindAU$_L$ & Inference \\
-    $\rif{c}{t}{u}$ & Case split (effectful $c$) & Inference \\
-    $\rwhile{c}{t}$ + \texttt{decreases} & IterAU$_L$ & Inference \\
-    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG (coinductive) & Inference \\
-    $\rlet{p}{\rasync{\rcall{f}{\vec{e}}}}{k}$ & No-op (lazy) & Inference \\
-    $\rawait{p}$ (AU callee) & Bind + transparent & Inference \\
-    $\rawait{p}$ (AG callee) & Divergence & Inference \\
+    $\rmut{x}{e}$ & State update & $\wpx{}{}$ \\
+    $\rlet{x}{t}{u}$ & BindAU$_L$ & $\wpx{}{}$ \\
+    $\rif{c}{t}{u}$ & Case split (effectful $c$) & $\wpx{}{}$ \\
+    $\rwhile{c}{t}$ + \texttt{dec.} & While$_\text{Rust}$AU$_L$ & $\wpx{}{}$ \\
+    $\rwhile{c}{t}$ (no exit) & While$_\text{Rust}$AG & $\wpx{}{}$ \\
+    $\rcall{f}{\vec{e}}$ & Contract-dependent & $\wpx{}{}$ \\
     \hline
-    $\rcall{f}{\vec{e}}$ (AF ensures) & Bind + assume $\R_f$ & WP only \\
-    $\rcall{f}{\vec{e}}$ (AG ensures) & Transparent $\Psi \implies \Phi$ & WP only \\
-    $\rcall{f}{\vec{e}}$ (AG + AF goal) & \textbf{Unprovable} & WP only \\
+    Sequential step & Delegate to $\wpx{}{}$ & $\WPx{}{}$ \\
+    $\rust{async}~\rcall{f}{\vec{e}}$ & Extend $P$, no-op & $\WPx{}{}$ \\
+    $\rawait{p}$ (AU callee) & Switch active to $p$ & $\WPx{}{}$ \\
+    $\rawait{p}$ (AG callee) & Divergence & $\WPx{}{}$ \\
   \end{tabular}
   \end{center}
 
   \vspace{0.3cm}
-  Function calls are contract-dependent $\to$ only in wp, not inference rules.
+  Two layers: $\wpx{t}{\varphi}$ for sequential Rust,
+  $\WPx{\Config{P}{\sigma}{i}}{\varphi}$ for async concurrency.
 \end{frame}
 
 \end{document}
