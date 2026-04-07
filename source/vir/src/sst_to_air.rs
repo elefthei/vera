@@ -3761,6 +3761,7 @@ pub(crate) fn body_stm_to_air(
         local_decls_decreases_init,
         statics,
         unwind,
+        spawned_funs,
     } = func_check_sst;
 
     if is_bit_vector_mode {
@@ -3936,6 +3937,19 @@ pub(crate) fn body_stm_to_air(
     };
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
+
+    // Multi-process: populate process map from spawned async functions.
+    // Each spawned function's requires = rely, temporal ensures = guarantee.
+    for spawned_fun in spawned_funs.iter() {
+        if let Some(callee_sst) = ctx.func_sst_map.get(spawned_fun) {
+            if let (Some(rely), Some(guarantee)) = (
+                callee_sst.x.decl.reqs.first().cloned(),
+                callee_sst.x.decl.enss.0.first().cloned(),
+            ) {
+                state.wp.process_map.push((rely, guarantee));
+            }
+        }
+    }
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;
 

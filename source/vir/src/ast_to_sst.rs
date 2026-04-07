@@ -111,11 +111,16 @@ pub(crate) struct State<'a> {
     loop_id_counter: u64,
 
     pub mask: Option<MaskSet>,
+    /// Functions spawned via Executor::spawn during this function's body.
+    /// Each entry is the Fun (path) of the async function passed to spawn.
+    /// Used by the VCGen to extract rely/guarantee for the process map.
+    pub spawned_funs: Vec<Fun>,
 }
 
 pub(crate) struct FinalState {
     pub local_decls: Vec<LocalDecl>,
     pub statics: IndexSet<Fun>,
+    pub spawned_funs: Vec<Fun>,
 }
 
 /// Used to represent the result of a computation that might not terminate
@@ -235,6 +240,7 @@ impl<'a> State<'a> {
             loop_id_counter: 0,
 
             mask: None,
+            spawned_funs: Vec::new(),
         }
     }
 
@@ -444,7 +450,7 @@ impl<'a> State<'a> {
             let mutbl = self.mutated_var_idents.get(&pre_local_decl.ident);
             local_decls.push(pre_local_decl.into_local_decl(mutbl)?);
         }
-        Ok(FinalState { local_decls, statics: self.statics })
+        Ok(FinalState { local_decls, statics: self.statics, spawned_funs: self.spawned_funs })
     }
 
     fn checking_spec_preconditions(&self, ctx: &Ctx) -> bool {
@@ -846,6 +852,25 @@ fn expr_get_call(
                     return Err(internal_error(&expr.span, "autospec not discharged"));
                 }
                 let function = get_function(ctx, &expr.span, x)?;
+
+                // Multi-process: detect Executor::spawn(async_fn(args))
+                // Record the spawned async function's name for rely-guarantee checking.
+                {
+                    let fn_name = crate::def::fun_to_string(x);
+                    if fn_name.contains("spawn") && fn_name.contains("Executor") {
+                        for arg in args.iter() {
+                            if let ExprX::Call(
+                                CallTarget::Fun(_, callee_fun, _, _, _, _),
+                                _,
+                                _,
+                            ) = &arg.x
+                            {
+                                state.spawned_funs.push(callee_fun.clone());
+                            }
+                        }
+                    }
+                }
+
                 let has_ret = function.x.ens_has_return;
                 if disallow_poly_ret.is_some()
                     && has_ret
@@ -1124,7 +1149,7 @@ pub(crate) fn expr_to_decls_exp_skip_checks(
     state.declare_params(params);
     let exp = expr_to_pure_exp_skip_checks(ctx, &mut state, expr)?;
     let exp = state.finalize_exp(ctx, &exp)?;
-    let FinalState { local_decls, statics: _ } = state.finalize()?;
+    let FinalState { local_decls, statics: _, spawned_funs: _ } = state.finalize()?;
     Ok((local_decls, exp))
 }
 

@@ -213,6 +213,7 @@ impl<'a, 'b, 'c, D: Diagnostics> Visitor<Rewrite, VirErr, NoScoper>
             local_decls: Arc::new(local_decls),
             local_decls_decreases_init: Arc::new(local_decls_decreases_init),
             statics: def.statics.clone(),
+            spawned_funs: vec![],
         };
 
         rewrite_locals(&is_native, &mut def);

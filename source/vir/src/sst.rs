@@ -342,6 +342,9 @@ pub struct FuncCheckSst {
     /// LocalDeclKind::Decreases have an assignment that must be carried into loop_isolation(false):
     pub local_decls_decreases_init: Stms,
     pub statics: Arc<Vec<Fun>>,
+    /// Functions spawned via Executor::spawn in this function's body.
+    /// Used by the VCGen to populate the rely-guarantee process map.
+    pub spawned_funs: Vec<Fun>,
 }
 
 #[derive(Debug, Clone, ToDebugSNode)]
