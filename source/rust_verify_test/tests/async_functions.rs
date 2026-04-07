@@ -272,3 +272,76 @@ test_verify_one_file! {
         }
     } => Err(_e) => ()
 }
+
+// ============================================================================
+// Multi-process Rely-Guarantee Tests
+// ============================================================================
+
+// Multi-process: two async tasks with compatible rely-guarantee.
+// Note: async fns have no requires (rely = true) so the second spawn's
+// precondition is trivially met after the first spawn hasvocs x.
+// The R-G check (guarantee_i → rely_j) should pass since rely is true.
+test_verify_one_file! {
+    #[test] test_multiprocess_rg_compatible verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_a(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 100),
+        {
+            *x = 0;
+            loop invariant *x <= 100, {
+                if *x < 100 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_b(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 100),
+        {
+            *x = 0;
+            loop invariant *x <= 100, {
+                if *x > 0 { *x = *x - 1; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64) {
+            exec.spawn(task_a(x));
+            exec.spawn(task_b(x));
+        }
+    } => Ok(())
+}
+
+// Multi-process: incompatible rely-guarantee — should FAIL
+test_verify_one_file! {
+    #[test] test_multiprocess_rg_incompatible verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_wide(x: &mut u64) -> (ret: ())
+            requires *x <= 200,
+            ensures ag(*x <= 200),
+        {
+            loop invariant *x <= 200, {
+                if *x < 200 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_narrow(x: &mut u64) -> (ret: ())
+            requires *x <= 50,
+            ensures ag(*x <= 50),
+        {
+            loop invariant *x <= 50, {
+                if *x > 0 { *x = *x - 1; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 0,
+        {
+            exec.spawn(task_wide(x));
+            exec.spawn(task_narrow(x));
+        }
+    } => Err(_err) => ()
+}
