@@ -7,46 +7,43 @@ verus! {
 /// Process identifier for spawned async tasks.
 pub type PID = u64;
 
-/// A spawned process's rely-guarantee contract.
-///
-/// - `rely`: state predicate that other processes must maintain.
-///   "If the shared state satisfies my rely when I'm scheduled, I guarantee my temporal property."
-/// - `guarantee`: state predicate that this process maintains (the inner property of AG/AF/AU).
-///
-/// The verifier checks pairwise compatibility: each process's guarantee
-/// implies every other process's rely.
-pub ghost struct ProcessContract {
-    /// Rely condition: what this process assumes about shared state.
-    pub rely: spec_fn(int) -> bool,
-    /// Guarantee condition: what this process maintains on shared state.
-    pub guarantee: spec_fn(int) -> bool,
-}
-
 /// Trait for async executors (schedulers) that can spawn verified processes.
 ///
 /// Types implementing `Executor` carry a ghost process map that tracks
-/// all spawned processes and their rely-guarantee contracts.
+/// all spawned processes. Each process's rely-guarantee contract is
+/// simply its `requires` (rely) and temporal `ensures` (guarantee).
 ///
 /// # Cooperative Scheduling
 ///
 /// Each process runs until it hits `.await`, then yields.
 /// The scheduler picks the next ready process. No preemption.
 /// Temporal formulas are over shared state.
+///
+/// # Rely-Guarantee
+///
+/// At spawn, the async function's `requires` = rely and `ensures` = guarantee
+/// are recorded. The verifier checks pairwise compatibility:
+///   ∀i,j. i≠j → guarantee_i(σ) → rely_j(σ)
+/// "Each process's temporal ensures implies every other can be (re)started."
 pub trait Executor {
-    /// Ghost view: map of spawned processes and their contracts.
-    #[verifier::prophetic]
-    spec fn view(&self) -> Map<PID, ProcessContract>;
-
     /// Number of spawned processes.
     spec fn num_processes(&self) -> nat;
 
-    /// Spawn a future with temporal contract.
-    /// Returns the PID of the spawned process.
+    /// Spawn a future onto the executor.
+    /// The future's requires/ensures are used as rely/guarantee.
     fn spawn<F: Future>(&mut self, future: F) -> (pid: PID)
         ensures
-            self@.contains_key(pid),
             self.num_processes() == old(self).num_processes() + 1,
     ;
+
+    /// Block on a future's completion — runs the scheduler.
+    /// Requires rely-guarantee compatibility of all spawned processes.
+    #[verifier::external_body]
+    fn block_on<F: Future>(&mut self, future: F) -> (ret: F::Output)
+        opens_invariants any
+    {
+        unimplemented!()
+    }
 }
 
 } // verus!

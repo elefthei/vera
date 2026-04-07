@@ -121,8 +121,10 @@ pub struct WpContext {
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
     /// Process map for multi-process rely-guarantee verification.
-    /// Each entry records (rely_exp, guarantee_exp) for a spawned process.
-    /// At function exit, pairwise compatibility is checked.
+    /// Each entry records (requires_exp, temporal_ensures_exp) for a spawned process.
+    /// The requires IS the rely, the temporal ensures IS the guarantee.
+    /// At function exit, pairwise compatibility is checked:
+    ///   ∀i,j. i≠j → guarantee_i(σ) → rely_j(σ)
     pub process_map: Vec<(Exp, Exp)>,
 }
 
