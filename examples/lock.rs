@@ -42,6 +42,7 @@ async fn task2(lock: &mut u64) -> (ret: ())
 
 fn system(exec: &mut impl Executor, lock: &mut u64)
     requires *lock == 0,
+    ensures ag(*lock <= 2),
 {
     exec.spawn(task1(lock));
     exec.spawn(task2(lock));

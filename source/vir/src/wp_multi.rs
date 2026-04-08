@@ -1,5 +1,10 @@
 //! Multi-process weakest precondition for async Rust.
 //!
+//! **Status: Future work.** These types define the formal multi-process WP
+//! layer from the slides but are not yet wired into the VCGen. The current
+//! implementation uses `WpContext.process_map` with rely-guarantee checking
+//! at the AST level instead.
+//!
 //! This module defines the multi-process configuration `C = (P, σ, i)` and
 //! the `MultiProcessWp` trait that extends `SingleProcessWp` with async/await.
 //!

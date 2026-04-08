@@ -2230,12 +2230,6 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
     state.wp_stm(ctx, stm)
 }
 
-/// Check if a function call is to Executor::spawn.
-fn is_executor_spawn(fun: &Fun) -> bool {
-    let s = fun_to_string(fun);
-    s.contains("spawn") && s.contains("Executor")
-}
-
 fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -2516,24 +2510,6 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // ensures imply the caller's obligations. This makes calls transparent
             // for temporal properties (contract-based checking).
             result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func)?);
-            // Multi-process: detect Executor::spawn, extract rely/guarantee
-            if is_executor_spawn(fun) {
-                // The spawned future's creating function is in args.
-                // Walk args to find a Call expression → look up that function's specs.
-                for arg in args.iter() {
-                    if let ExpX::Call(CallFun::Fun(callee_fun, _), _, _) = &arg.x {
-                        if let Some(callee_sst) = ctx.func_sst_map.get(callee_fun) {
-                            // requires = rely, temporal ensures = guarantee
-                            if let (Some(rely), Some(guarantee)) = (
-                                callee_sst.x.decl.reqs.first().cloned(),
-                                callee_sst.x.decl.enss.0.first().cloned(),
-                            ) {
-                                state.wp.process_map.push((rely, guarantee));
-                            }
-                        }
-                    }
-                }
-            }
             // TICL bind rule (aul_bind_r / ag_bind_r):
             //   {x <- a ;; k x}, w |= φ AU ψ
             //   ⟸  a, w |= φ AU AX done(R)   — callee ensures R (assumed above)
