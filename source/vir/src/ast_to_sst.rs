@@ -855,9 +855,12 @@ fn expr_get_call(
 
                 // Multi-process: detect Executor::spawn(async_fn(args))
                 // Record the spawned async function's name for rely-guarantee checking.
+                // Use path segment matching (not substring) to avoid false positives.
                 {
-                    let fn_name = crate::def::fun_to_string(x);
-                    if fn_name.contains("spawn") && fn_name.contains("Executor") {
+                    let is_spawn = x.path.segments.iter().any(|s| s.as_str() == "spawn")
+                        && (x.path.krate.as_ref().map_or(false, |k| k.as_str() == "vstd")
+                            || crate::def::fun_to_string(x).contains("Executor"));
+                    if is_spawn {
                         for arg in args.iter() {
                             if let ExprX::Call(
                                 CallTarget::Fun(_, callee_fun, _, _, _, _),

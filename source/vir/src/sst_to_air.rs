@@ -2227,8 +2227,8 @@ fn emit_temporal_implication_check(
                     }
                 }
             } else {
-                // func_sst_map doesn't have the callee — discharge without assertion
-                ag_discharged = true;
+                // func_sst_map doesn't have the callee — cannot verify implication.
+                // Do NOT discharge: the callee's temporal contract is unverifiable.
             }
         }
     }
@@ -3998,14 +3998,32 @@ pub(crate) fn body_stm_to_air(
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
 
     // Multi-process: populate process map from spawned async functions.
-    // Each spawned function's requires = rely, temporal ensures = guarantee.
+    // Each spawned function's requires = rely (conjoined), temporal ensures = guarantee.
     for spawned_fun in spawned_funs.iter() {
         if let Some(callee_sst) = ctx.func_sst_map.get(spawned_fun) {
-            if let (Some(rely), Some(guarantee)) = (
-                callee_sst.x.decl.reqs.first().cloned(),
-                callee_sst.x.decl.enss.0.first().cloned(),
-            ) {
-                state.wp.process_map.push((rely, guarantee));
+            // Conjoin ALL requires as the rely
+            let reqs = &callee_sst.x.decl.reqs;
+            let rely = if reqs.len() == 1 {
+                reqs[0].clone()
+            } else if reqs.len() > 1 {
+                // Build conjunction: req_1 && req_2 && ... && req_n
+                let bool_typ = Arc::new(TypX::Bool);
+                let mut conj = reqs[0].clone();
+                for req in reqs.iter().skip(1) {
+                    conj = SpannedTyped::new(
+                        &conj.span.clone(),
+                        &bool_typ,
+                        ExpX::Binary(BinaryOp::And, conj.clone(), req.clone()),
+                    );
+                }
+                conj
+            } else {
+                continue; // no requires → skip
+            };
+            // Use ALL temporal ensures as guarantees
+            let enss = &callee_sst.x.decl.enss.0;
+            for guarantee in enss.iter() {
+                state.wp.process_map.push((rely.clone(), guarantee.clone()));
             }
         }
     }
