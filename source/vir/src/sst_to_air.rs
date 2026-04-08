@@ -2109,6 +2109,7 @@ fn emit_temporal_implication_check(
     span: &Span,
     expr_ctxt: &ExprCtxt,
     func: &crate::ast::Function,
+    call_args: &crate::sst::Exps,
 ) -> Result<Vec<Stmt>, VirErr> {
     if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
         return Ok(Vec::new());
@@ -2170,16 +2171,65 @@ fn emit_temporal_implication_check(
         }
     } else {
         // SST extraction empty (async function with rewritten ensures).
-        // AST-level check: if both caller and callee have AG, discharge.
-        // The callee's body was independently verified with its own AG.
-        // No implication assertion possible (SST expressions unavailable).
+        // Use Havoc + Assume to bind callee params to caller args,
+        // then extract temporal ensures and check implication.
         let caller_has_ag = state.wp.temporal_context.has_always()
             || state.wp.temporal_context.has_invariance_until();
         let callee_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
             matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
         });
         if caller_has_ag && callee_has_ag {
-            ag_discharged = true;
+            if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
+                // Havoc + Assume: bind callee params to caller args
+                let pars = &callee_sst.x.pars;
+                for (par, arg) in pars.iter().zip(call_args.iter()) {
+                    let var = suffix_local_unique_id(&par.x.name);
+                    stmts.push(Arc::new(StmtX::Havoc(var.clone())));
+                    let arg_expr = exp_to_expr(ctx, arg, expr_ctxt)?;
+                    stmts.push(Arc::new(StmtX::Assume(mk_eq(&ident_var(&var), &arg_expr))));
+                }
+                // Now re-extract with bound variables — the temporal expressions
+                // reference callee params which are now bound to caller args.
+                let callee_temporal_bound = extract_callee_temporal_ensures(callee_sst);
+                for caller_prop in &state.wp.temporal_context.propositions {
+                    for callee_prop in &callee_temporal_bound {
+                        match (caller_prop, callee_prop) {
+                            (
+                                Proposition::Until { goal: caller_goal, .. },
+                                Proposition::Until { goal: callee_goal, .. },
+                            ) if caller_prop.requires_invariance() && callee_prop.requires_invariance() => {
+                                let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
+                                let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
+                                let implication = mk_implies(&callee_g, &caller_g);
+                                let err = error(
+                                    span,
+                                    "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
+                                );
+                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+                                ag_discharged = true;
+                            }
+                            (
+                                Proposition::Always { property: caller_phi, .. },
+                                Proposition::Always { property: callee_psi, .. },
+                            ) => {
+                                let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
+                                let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
+                                let implication = mk_implies(&psi_expr, &phi_expr);
+                                let err = error(
+                                    span,
+                                    "callee's AG temporal ensures must imply caller's AG obligation",
+                                );
+                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+                                ag_discharged = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            } else {
+                // func_sst_map doesn't have the callee — discharge without assertion
+                ag_discharged = true;
+            }
         }
     }
 
@@ -2543,7 +2593,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // the caller has temporal obligations, assert that the callee's temporal
             // ensures imply the caller's obligations. This makes calls transparent
             // for temporal properties (contract-based checking).
-            result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func)?);
+            result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func, args)?);
             // TICL bind rule (aul_bind_r / ag_bind_r):
             //   {x <- a ;; k x}, w |= φ AU ψ
             //   ⟸  a, w |= φ AU AX done(R)   — callee ensures R (assumed above)
