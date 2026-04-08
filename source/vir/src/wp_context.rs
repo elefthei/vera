@@ -207,12 +207,28 @@ pub fn extract_goal_kind(raw_goal: Exp) -> (Exp, GoalKind) {
 /// Extract temporal ensures from a callee's SST function declaration.
 /// Walks the callee's ensures expressions to find ExpX::Temporal nodes
 /// and decomposes them into Proposition objects.
+/// For async functions, temporal expressions may be nested inside
+/// Binary(Implies, awaited(), ...) wrappers — we walk through these.
 pub fn extract_callee_temporal_ensures(func: &FunctionSst) -> Vec<Proposition> {
+    fn find_temporal(exp: &Exp, obligations: &mut Vec<Proposition>) {
+        match &exp.x {
+            ExpX::Temporal(op, prop, path_prop) => {
+                decompose_temporal(op, prop, path_prop, false, obligations);
+            }
+            // Walk through Binary(Implies, ...) wrappers (from async ensures rewriting)
+            ExpX::Binary(crate::ast::BinaryOp::Implies, _, rhs) => {
+                find_temporal(rhs, obligations);
+            }
+            // Walk through Bind/Let wrappers
+            ExpX::Bind(_, body) => {
+                find_temporal(body, obligations);
+            }
+            _ => {}
+        }
+    }
     let mut obligations = Vec::new();
     for ens in func.x.decl.enss.0.iter().chain(func.x.decl.enss.1.iter()) {
-        if let ExpX::Temporal(op, prop, path_prop) = &ens.x {
-            decompose_temporal(op, prop, path_prop, false, &mut obligations);
-        }
+        find_temporal(ens, &mut obligations);
     }
     obligations
 }
