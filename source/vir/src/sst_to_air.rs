@@ -2106,8 +2106,8 @@ fn emit_temporal_state_assertions(
 fn emit_temporal_implication_check(
     ctx: &Ctx,
     state: &mut State,
-    span: &Span,
-    expr_ctxt: &ExprCtxt,
+    _span: &Span,
+    _expr_ctxt: &ExprCtxt,
     func: &crate::ast::Function,
 ) -> Result<Vec<Stmt>, VirErr> {
     if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
@@ -2122,7 +2122,7 @@ fn emit_temporal_implication_check(
         Vec::new()
     };
 
-    let mut stmts = Vec::new();
+    let stmts = Vec::new();
     let mut ag_discharged = false;
 
     if !callee_temporal.is_empty() {
