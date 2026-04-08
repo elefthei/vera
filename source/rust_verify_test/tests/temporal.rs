@@ -2498,3 +2498,27 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// AG callee with weaker property than caller — implication should FAIL
+test_verify_one_file! {
+    #[test] test_ag_callee_weaker_property_fail verus_code! {
+        fn inner(x: &mut u64)
+            requires *x <= 200,
+            ensures ag(*x <= 200),
+        {
+            loop
+                invariant *x <= 200,
+            {
+                if *x < 200 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        fn outer(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            inner(x)
+        }
+    } => Err(_err) => ()
+}

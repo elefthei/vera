@@ -2106,23 +2106,22 @@ fn emit_temporal_state_assertions(
 fn emit_temporal_implication_check(
     ctx: &Ctx,
     state: &mut State,
-    _span: &Span,
-    _expr_ctxt: &ExprCtxt,
+    span: &Span,
+    expr_ctxt: &ExprCtxt,
     func: &crate::ast::Function,
 ) -> Result<Vec<Stmt>, VirErr> {
     if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
         return Ok(Vec::new());
     }
 
-    // Try SST-level extraction first (works for sync functions).
-    // For async functions, SST ensures are wrapped — fall back to AST-level check.
+    // Try SST-level extraction (works for sync functions and async with wrapper walking).
     let callee_temporal = if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
         extract_callee_temporal_ensures(callee_sst)
     } else {
         Vec::new()
     };
 
-    let stmts = Vec::new();
+    let mut stmts = Vec::new();
     let mut ag_discharged = false;
 
     if !callee_temporal.is_empty() {
@@ -2130,18 +2129,38 @@ fn emit_temporal_implication_check(
             for callee_prop in &callee_temporal {
                 match (caller_prop, callee_prop) {
                     (
-                        Proposition::Always { .. },
-                        Proposition::Always { .. },
+                        Proposition::Always { property: caller_phi, .. },
+                        Proposition::Always { property: callee_psi, .. },
                     ) => {
+                        // Assert: callee's AG property implies caller's AG property
+                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
+                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
+                        let implication = mk_implies(&psi_expr, &phi_expr);
+                        let err = error(
+                            span,
+                            "callee's AG temporal ensures must imply caller's AG obligation",
+                        );
+                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
                         ag_discharged = true;
                     }
                     // AG(AF/AU): both decompose into Until with requires_invariance=true.
-                    // Only discharge if the callee's AST ensures actually contain AG.
-                    (caller, callee) if caller.requires_invariance() && callee.requires_invariance() => {
+                    (
+                        Proposition::Until { goal: caller_goal, .. },
+                        Proposition::Until { goal: callee_goal, .. },
+                    ) if caller_prop.requires_invariance() && callee_prop.requires_invariance() => {
                         let callee_ast_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
                             matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
                         });
                         if callee_ast_has_ag {
+                            // Assert: callee's goal implies caller's goal
+                            let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
+                            let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
+                            let implication = mk_implies(&callee_g, &caller_g);
+                            let err = error(
+                                span,
+                                "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
+                            );
+                            stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
                             ag_discharged = true;
                         }
                     }
@@ -2150,12 +2169,12 @@ fn emit_temporal_implication_check(
             }
         }
     } else {
-        // SST extraction empty (likely async function with rewritten ensures).
-        // The AST-level check confirmed temporal ensures exist.
-        // Check if the caller has AG obligations — if so, the callee's
-        // verified AG body discharges them (the callee was already verified
-        // to satisfy its AG ensures in its own VCGen pass).
-        let caller_has_ag = state.wp.temporal_context.has_always();
+        // SST extraction empty (async function with rewritten ensures).
+        // AST-level check: if both caller and callee have AG, discharge.
+        // The callee's body was independently verified with its own AG.
+        // No implication assertion possible (SST expressions unavailable).
+        let caller_has_ag = state.wp.temporal_context.has_always()
+            || state.wp.temporal_context.has_invariance_until();
         let callee_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
             matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
         });
@@ -2164,8 +2183,6 @@ fn emit_temporal_implication_check(
         }
     }
 
-    // AG-via-call: when a callee's AG ensures discharge the caller's AG obligation,
-    // the callee's infinite divergence satisfies the caller's temporal loop requirement.
     if ag_discharged {
         state.wp.temporal_discharged = true;
         state.wp.has_infinite_temporal_loop = true;
