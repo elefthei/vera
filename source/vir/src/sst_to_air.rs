@@ -2116,14 +2116,16 @@ fn emit_temporal_implication_check(
 
     // Try SST-level extraction first (works for sync functions).
     // For async functions, SST ensures are wrapped — fall back to AST-level check.
-    let callee_sst = &ctx.func_sst_map[&func.x.name];
-    let callee_temporal = extract_callee_temporal_ensures(callee_sst);
+    let callee_temporal = if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
+        extract_callee_temporal_ensures(callee_sst)
+    } else {
+        Vec::new()
+    };
 
     let mut stmts = Vec::new();
     let mut ag_discharged = false;
 
     if !callee_temporal.is_empty() {
-        // SST extraction succeeded — do full implication checking
         for caller_prop in &state.wp.temporal_context.propositions {
             for callee_prop in &callee_temporal {
                 match (caller_prop, callee_prop) {
@@ -2132,6 +2134,16 @@ fn emit_temporal_implication_check(
                         Proposition::Always { .. },
                     ) => {
                         ag_discharged = true;
+                    }
+                    // AG(AF/AU): both decompose into Until with requires_invariance=true.
+                    // Only discharge if the callee's AST ensures actually contain AG.
+                    (caller, callee) if caller.requires_invariance() && callee.requires_invariance() => {
+                        let callee_ast_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
+                            matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
+                        });
+                        if callee_ast_has_ag {
+                            ag_discharged = true;
+                        }
                     }
                     _ => {}
                 }
@@ -2251,7 +2263,6 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             dest,
             assert_id,
         } => {
-            // When we emit the VCs for a call to `f`, we might also want these to include
             // the generic conditions
             // `call_requires(f, (args...))` and `call_ensures(f, (args...), ret)`
             // We don't want to do this all the time though --- only when the generic
@@ -3801,8 +3812,10 @@ pub(crate) fn body_stm_to_air(
 
     // Recursively decompose nested temporal expressions into flat leaf obligations.
     //
-    // In Vera, ALL ensures are temporal. Non-temporal ensures Q is treated as af(Q)
-    // internally: Until(true, Q) — Q checked at return via ens_exprs derivation.
+    // For async functions, temporal expressions are nested inside
+    // Binary(Implies, awaited(), ...) wrappers from rewrite_async_ens_vir.
+    // Walk through these to find the temporal operator.
+    // For non-async functions, ensures are already at top level.
     for ens in post_condition.ens_exps.iter() {
         match &ens.x {
             ExpX::Temporal(op, prop, path_prop) => {
@@ -3810,9 +3823,6 @@ pub(crate) fn body_stm_to_air(
             }
             _ => {
                 // Non-temporal ensures Q → af(Q) = Until(true, Q).
-                // Since T4 (well_formed.rs) now rejects non-temporal ensures on exec/proof
-                // functions, this path only fires for spec functions (pure math, where
-                // ensures Q = af(Q) implicitly). The auto-wrap is kept for spec fns.
                 let true_exp = SpannedTyped::new(
                     &ens.span,
                     &Arc::new(TypX::Bool),
