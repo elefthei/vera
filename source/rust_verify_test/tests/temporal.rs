@@ -2522,3 +2522,43 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// ============================================================================
+// Soundness regression tests (from fleet audit)
+// ============================================================================
+
+// AG loop with return — must be rejected (return exits infinite loop)
+test_verify_one_file! {
+    #[test] test_soundness_ag_return_rejected verus_code! {
+        fn ag_terminates(x: &mut u64)
+            requires *x == 1 && *x < 100,
+            ensures ag(*x > 0),
+        {
+            loop
+                invariant *x > 0 && *x <= 100,
+            {
+                if *x < 100 { *x = *x + 1; }
+                if *x >= 50 { return; }
+            }
+        }
+    } => Err(_err) => ()
+}
+
+// Bare done() in ensures — must be rejected (not inside temporal operator)
+test_verify_one_file! {
+    #[test] test_soundness_bare_done_rejected verus_code! {
+        fn bare_done()
+            ensures done(true),
+        { }
+    } => Err(_err) => ()
+}
+
+// done() in requires — must be rejected with well-formedness error (not ICE)
+test_verify_one_file! {
+    #[test] test_soundness_done_in_requires_rejected verus_code! {
+        fn done_in_req(x: &mut u64)
+            requires done(*x > 0),
+            ensures af(done(true)),
+        { }
+    } => Err(_err) => ()
+}

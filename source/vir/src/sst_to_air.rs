@@ -2724,6 +2724,20 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
 
                 stmts
             };
+            // TICL: AG loops must never exit. A return inside a temporal loop
+            // with AG obligations is unsound — assert false to require the
+            // return path is unreachable (same as the break check).
+            if state.wp.in_loop_depth > 0 && state.wp.temporal_context.has_always() {
+                let error = error_with_label(
+                    &stm.span,
+                    "AG temporal property requires the loop to never exit \
+                     (return inside an AG loop is not allowed)",
+                    "return must not exit temporal loop here",
+                );
+                stmts.push(Arc::new(StmtX::Assert(
+                    None, error, None, air::ast_util::mk_false(),
+                )));
+            }
             if *inside_body {
                 stmts.push(Arc::new(StmtX::Assume(air::ast_util::mk_false())));
             }

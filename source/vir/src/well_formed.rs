@@ -33,7 +33,9 @@ struct Ctxt<'a> {
 fn is_temporal_ensures(expr: &Expr) -> bool {
     match &expr.x {
         ExprX::Temporal(..) => true,
-        ExprX::Now(..) | ExprX::Done(..) => true,
+        // Bare now()/done() outside a temporal operator is NOT valid temporal ensures.
+        // They must appear inside ag(), af(), au(), etc.
+        ExprX::Now(..) | ExprX::Done(..) => false,
         ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
         ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
         // Peel through blocks (let bindings) — the temporal operator may be the final expression
@@ -839,7 +841,19 @@ fn check_one_expr<Emit: EmitError>(
             }
         }
         ExprX::Now(_) | ExprX::Done(_) => {
-            // now/done are temporal instant markers — allowed inside temporal ensures
+            // now/done are temporal instant markers — only valid inside ensures
+            match area {
+                Area::PostState => {
+                    // OK — inside ensures (will be validated inside a Temporal operator)
+                }
+                _ => {
+                    let name = if matches!(&expr.x, ExprX::Now(_)) { "now" } else { "done" };
+                    return Err(error(
+                        &expr.span,
+                        &format!("`{name}()` can only appear inside a temporal ensures clause (e.g., `ensures af(done(Q))`)"),
+                    ));
+                }
+            }
         }
         _ => {}
     }
