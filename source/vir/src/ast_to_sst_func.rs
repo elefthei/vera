@@ -228,7 +228,7 @@ fn func_body_to_sst(
     }
     let proof_body_stm = stms_to_one_stm(&body.span, proof_body_stms);
     let proof_body_stm = check_state.finalize_stm(ctx, &proof_body_stm)?;
-    let FinalState { local_decls, statics: _, spawned_funs: _ } = check_state.finalize()?;
+    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } = check_state.finalize()?;
 
     let is_recursive = crate::recursion::fun_is_recursive(ctx, function);
     let termination_check = if is_recursive && verifying_owning_bucket {
@@ -259,6 +259,7 @@ fn func_body_to_sst(
             local_decls_decreases_init: termination_inits,
             statics: Arc::new(vec![]),
             spawned_funs: vec![],
+            spawned_closures: vec![],
             reqs: Arc::new(vec![]),
             unwind: UnwindSst::NoUnwind,
         };
@@ -1090,7 +1091,7 @@ pub fn func_def_to_sst(
             )?
         };
 
-    let FinalState { mut local_decls, statics, spawned_funs } = state.finalize()?;
+    let FinalState { mut local_decls, statics, spawned_funs, spawned_closures } = state.finalize()?;
 
     // SST --> AIR
     for decl in decls {
@@ -1115,6 +1116,7 @@ pub fn func_def_to_sst(
         local_decls_decreases_init,
         statics: Arc::new(statics.into_iter().collect()),
         spawned_funs,
+        spawned_closures,
     })
 }
 

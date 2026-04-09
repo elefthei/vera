@@ -345,6 +345,8 @@ pub struct FuncCheckSst {
     /// Functions spawned via Executor::spawn in this function's body.
     /// Used by the VCGen to populate the rely-guarantee process map.
     pub spawned_funs: Vec<Fun>,
+    /// Inline async block specs from spawn(async requires R ensures G { body }).
+    pub spawned_closures: Vec<crate::wp_context::SpawnedClosureSpec>,
 }
 
 #[derive(Debug, Clone, ToDebugSNode)]

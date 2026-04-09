@@ -3958,6 +3958,7 @@ pub(crate) fn body_stm_to_air(
         statics,
         unwind,
         spawned_funs,
+        spawned_closures,
     } = func_check_sst;
 
     if is_bit_vector_mode {

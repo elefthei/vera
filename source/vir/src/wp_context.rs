@@ -135,6 +135,20 @@ pub struct SpawnedProcess {
     pub propositions: Vec<Proposition>,
 }
 
+/// Specs from an inline async block passed to spawn.
+/// Carries the SST-level requires/ensures for R-G checking.
+#[derive(Clone, Debug)]
+pub struct SpawnedClosureSpec {
+    pub requires: Vec<Exp>,
+    pub ensures: Vec<Exp>,
+}
+
+impl crate::printer::ToDebugSNode for SpawnedClosureSpec {
+    fn to_node(&self, _opts: &crate::printer::ToDebugSNodeOpts) -> sise::Node {
+        sise::Node::Atom(format!("SpawnedClosureSpec(reqs={}, ens={})", self.requires.len(), self.ensures.len()))
+    }
+}
+
 impl WpContext {
     pub fn new(
         temporal_context: PropositionContext,

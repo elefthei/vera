@@ -1125,6 +1125,7 @@ fn visit_func_check_sst(
         local_decls_decreases_init,
         statics,
         spawned_funs,
+        spawned_closures,
     } = function;
 
     state.temp_types.clear();
@@ -1215,6 +1216,7 @@ fn visit_func_check_sst(
         local_decls_decreases_init,
         statics: statics.clone(),
         spawned_funs: spawned_funs.clone(),
+        spawned_closures: spawned_closures.clone(),
     }
 }
 

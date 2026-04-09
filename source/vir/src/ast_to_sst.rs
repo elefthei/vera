@@ -115,12 +115,16 @@ pub(crate) struct State<'a> {
     /// Each entry is the Fun (path) of the async function passed to spawn.
     /// Used by the VCGen to extract rely/guarantee for the process map.
     pub spawned_funs: Vec<Fun>,
+    /// Inline async block specs from spawn(async requires R ensures G { body }).
+    /// Each entry carries the SST-level (rely, guarantee) for R-G checking.
+    pub spawned_closures: Vec<crate::wp_context::SpawnedClosureSpec>,
 }
 
 pub(crate) struct FinalState {
     pub local_decls: Vec<LocalDecl>,
     pub statics: IndexSet<Fun>,
     pub spawned_funs: Vec<Fun>,
+    pub spawned_closures: Vec<crate::wp_context::SpawnedClosureSpec>,
 }
 
 /// Used to represent the result of a computation that might not terminate
@@ -241,6 +245,7 @@ impl<'a> State<'a> {
 
             mask: None,
             spawned_funs: Vec::new(),
+            spawned_closures: Vec::new(),
         }
     }
 
@@ -450,7 +455,7 @@ impl<'a> State<'a> {
             let mutbl = self.mutated_var_idents.get(&pre_local_decl.ident);
             local_decls.push(pre_local_decl.into_local_decl(mutbl)?);
         }
-        Ok(FinalState { local_decls, statics: self.statics, spawned_funs: self.spawned_funs })
+        Ok(FinalState { local_decls, statics: self.statics, spawned_funs: self.spawned_funs, spawned_closures: self.spawned_closures })
     }
 
     fn checking_spec_preconditions(&self, ctx: &Ctx) -> bool {
@@ -862,13 +867,34 @@ fn expr_get_call(
                             || crate::def::fun_to_string(x).contains("Executor"));
                     if is_spawn {
                         for arg in args.iter() {
-                            if let ExprX::Call(
-                                CallTarget::Fun(_, callee_fun, _, _, _, _),
-                                _,
-                                _,
-                            ) = &arg.x
-                            {
-                                state.spawned_funs.push(callee_fun.clone());
+                            match &arg.x {
+                                ExprX::Call(
+                                    CallTarget::Fun(_, callee_fun, _, _, _, _),
+                                    _,
+                                    _,
+                                ) => {
+                                    state.spawned_funs.push(callee_fun.clone());
+                                }
+                                ExprX::AsyncBlock { requires, ensures, .. } => {
+                                    // Convert AST requires/ensures to SST Exps
+                                    let mut req_exps = Vec::new();
+                                    for r in requires.iter() {
+                                        let (_, exp) = expr_to_pure_exp_check(ctx, state, r)?;
+                                        req_exps.push(exp);
+                                    }
+                                    let mut ens_exps = Vec::new();
+                                    for e in ensures.iter() {
+                                        let (_, exp) = expr_to_pure_exp_check(ctx, state, e)?;
+                                        ens_exps.push(exp);
+                                    }
+                                    state.spawned_closures.push(
+                                        crate::wp_context::SpawnedClosureSpec {
+                                            requires: req_exps,
+                                            ensures: ens_exps,
+                                        },
+                                    );
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -1152,7 +1178,7 @@ pub(crate) fn expr_to_decls_exp_skip_checks(
     state.declare_params(params);
     let exp = expr_to_pure_exp_skip_checks(ctx, &mut state, expr)?;
     let exp = state.finalize_exp(ctx, &exp)?;
-    let FinalState { local_decls, statics: _, spawned_funs: _ } = state.finalize()?;
+    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } = state.finalize()?;
     Ok((local_decls, exp))
 }
 
