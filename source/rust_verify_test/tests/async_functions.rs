@@ -419,3 +419,128 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// ============================================================================
+// Rely-guarantee negative tests (expected failures)
+// ============================================================================
+
+// Pairwise R-G fail: task_wide guarantees x<=200, task_strict relies on x<=50
+test_verify_one_file! {
+    #[test] test_multiprocess_rg_pairwise_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_wide(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 200),
+        {
+            *x = 0;
+            loop invariant *x <= 200, {
+                if *x < 200 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_strict(x: &mut u64) -> (ret: ())
+            requires *x <= 50,
+            ensures ag(*x <= 50),
+        {
+            *x = 0;
+            loop invariant *x <= 50, {
+                if *x < 50 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 200),
+        {
+            exec.spawn(task_wide(x));
+            exec.spawn(task_strict(x));
+            // G_wide (x<=200) does NOT imply R_strict (x<=50) → FAIL
+        }
+    } => Err(_err) => ()
+}
+
+// Conjunction fail: guarantees too weak for global property
+test_verify_one_file! {
+    #[test] test_multiprocess_conjunction_too_weak verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_a(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 1000),
+        {
+            *x = 0;
+            loop invariant *x <= 1000, {
+                if *x < 1000 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_b(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 1000),
+        {
+            *x = 0;
+            loop invariant *x <= 1000, {
+                if *x > 0 { *x = *x - 1; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 5),
+        {
+            exec.spawn(task_a(x));
+            exec.spawn(task_b(x));
+            // (x<=1000) ∧ (x<=1000) does NOT imply (x<=5) → FAIL
+        }
+    } => Err(_err) => ()
+}
+
+// Single spawn: guarantee doesn't imply global
+test_verify_one_file! {
+    #[test] test_multiprocess_single_spawn_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 100),
+        {
+            *x = 0;
+            loop invariant *x <= 100, {
+                if *x < 100 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 5),
+        {
+            exec.spawn(task(x));
+            // G = (x<=100) does NOT imply (x<=5) → FAIL
+        }
+    } => Err(_err) => ()
+}
+
+// No temporal ensures on tasks → system AG not discharged
+test_verify_one_file! {
+    #[test] test_multiprocess_no_temporal_guarantees_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_plain(x: &mut u64) -> (ret: ())
+            ensures af(done(true)),
+        {
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(task_plain(x));
+            // task_plain has AF (not AG) → can't discharge system's AG
+        }
+    } => Err(_err) => ()
+}
