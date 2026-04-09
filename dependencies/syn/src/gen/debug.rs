@@ -809,6 +809,8 @@ impl crate::ExprAsync {
         formatter.field("attrs", &self.attrs);
         formatter.field("async_token", &self.async_token);
         formatter.field("capture", &self.capture);
+        formatter.field("requires", &self.requires);
+        formatter.field("ensures", &self.ensures);
         formatter.field("block", &self.block);
         formatter.finish()
     }

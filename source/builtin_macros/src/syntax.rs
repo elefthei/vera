@@ -3393,6 +3393,55 @@ impl Visitor {
         true
     }
 
+    fn handle_async_blocks(&mut self, expr: &mut Expr) -> bool {
+        let Expr::Async(async_expr) = expr else {
+            return false;
+        };
+        if async_expr.requires.is_none() && async_expr.ensures.is_none() {
+            return false;
+        }
+
+        self.visit_expr_with_arith(expr, InsideArith::None);
+
+        let Expr::Async(mut async_expr) = take_expr(expr) else {
+            unreachable!();
+        };
+
+        let requires = self.take_ghost(&mut async_expr.requires);
+        let ensures = self.take_ghost(&mut async_expr.ensures);
+
+        let mut stmts: Vec<Stmt> = Vec::new();
+        self.inside_ghost += 1;
+        if let Some(Requires { token, mut exprs }) = requires {
+            for expr in exprs.exprs.iter_mut() {
+                self.visit_expr_mut(expr);
+            }
+            stmts.push(stmt_with_semi!(
+                verus_builtin, token.span => #verus_builtin::requires([#exprs])));
+        }
+        if let Some(Ensures { token, mut exprs, attrs }) = ensures {
+            if attrs.len() > 0 {
+                let err = "outer attributes only allowed on function's ensures";
+                let expr = Expr::Verbatim(quote_spanned!(token.span => compile_error!(#err)));
+                stmts.push(Stmt::Expr(expr, Some(Semi { spans: [token.span] })));
+            } else {
+                for expr in exprs.exprs.iter_mut() {
+                    self.visit_expr_mut(expr);
+                }
+                stmts.push(stmt_with_semi!(
+                    verus_builtin, token.span => #verus_builtin::ensures([#exprs])));
+            }
+        }
+        self.inside_ghost -= 1;
+
+        if stmts.len() > 0 {
+            async_expr.block.stmts.splice(0..0, stmts);
+        }
+
+        *expr = Expr::Async(async_expr);
+        true
+    }
+
     fn add_loop_specs(
         &mut self,
         stmts: &mut Vec<Stmt>,
@@ -3867,6 +3916,7 @@ impl VisitMut for Visitor {
             || self.handle_cast(expr)
             || self.handle_lit_int(expr)
             || self.handle_lit_float(expr)
+            || self.handle_async_blocks(expr)
             || self.handle_closures(expr)
             || self.handle_unary_ops(expr)
             || self.handle_big_and_big_or(expr)

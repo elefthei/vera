@@ -1954,6 +1954,12 @@ where
     }
     skip!(node.async_token);
     skip!(node.capture);
+    if let Some(it) = &node.requires {
+        v.visit_requires(it);
+    }
+    if let Some(it) = &node.ensures {
+        v.visit_ensures(it);
+    }
     v.visit_block(&node.block);
 }
 #[cfg(feature = "full")]

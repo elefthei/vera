@@ -544,3 +544,18 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// === Async Block Syntax Tests ===
+
+test_verify_one_file! {
+    #[test] test_async_block_requires_ensures_parse verus_code! {
+        use vstd::prelude::*;
+        fn test() {
+            let _f = async
+                requires true,
+                ensures true,
+            {
+            };
+        }
+    } => Ok(())
+}

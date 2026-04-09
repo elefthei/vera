@@ -315,6 +315,8 @@ ast_struct! {
         pub attrs: Vec<Attribute>,
         pub async_token: Token![async],
         pub capture: Option<Token![move]>,
+        pub requires: Option<Requires>,
+        pub ensures: Option<Ensures>,
         pub block: Block,
     }
 }
@@ -1976,7 +1978,10 @@ pub(crate) mod parsing {
         } else if input.peek(Lit) {
             input.parse().map(Expr::Lit)
         } else if input.peek(Token![async])
-            && (input.peek2(token::Brace) || input.peek2(Token![move]) && input.peek3(token::Brace))
+            && (input.peek2(token::Brace)
+                || input.peek2(Token![requires])
+                || input.peek2(Token![ensures])
+                || input.peek2(Token![move]) && (input.peek3(token::Brace) || input.peek3(Token![requires]) || input.peek3(Token![ensures])))
         {
             input.parse().map(Expr::Async)
         } else if input.peek(Token![try]) && input.peek2(token::Brace) {
@@ -2876,6 +2881,8 @@ pub(crate) mod parsing {
                 attrs: Vec::new(),
                 async_token: input.parse()?,
                 capture: input.parse()?,
+                requires: Requires::parse_optional_in(Context::Expr, input)?,
+                ensures: Ensures::parse_optional_in(Context::Expr, input)?,
                 block: input.parse()?,
             })
         }
@@ -3658,6 +3665,8 @@ pub(crate) mod printing {
             outer_attrs_to_tokens(&self.attrs, tokens);
             self.async_token.to_tokens(tokens);
             self.capture.to_tokens(tokens);
+            self.requires.to_tokens(tokens);
+            self.ensures.to_tokens(tokens);
             self.block.to_tokens(tokens);
         }
     }

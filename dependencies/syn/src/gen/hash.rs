@@ -832,6 +832,8 @@ impl Hash for crate::ExprAsync {
     {
         self.attrs.hash(state);
         self.capture.hash(state);
+        self.requires.hash(state);
+        self.ensures.hash(state);
         self.block.hash(state);
     }
 }

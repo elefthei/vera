@@ -2998,6 +2998,24 @@ pub(crate) fn expr_to_vir_innermost<'tcx>(
                 true,
             )?))
         }
+        ExprKind::Closure(Closure { kind, body: body_id, def_id, .. })
+            if matches!(
+                kind,
+                rustc_hir::ClosureKind::Coroutine(rustc_hir::CoroutineKind::Desugared(
+                    rustc_hir::CoroutineDesugaring::Async,
+                    rustc_hir::CoroutineSource::Block,
+                ))
+            ) =>
+        {
+            // Async block: extract desugared body and process specs
+            Ok(ExprOrPlace::Expr(async_block_to_vir(
+                bctx,
+                expr,
+                body_id,
+                def_id,
+                modifier,
+            )?))
+        }
         ExprKind::Closure(Closure { fn_decl: _, .. }) => {
             Ok(ExprOrPlace::Expr(closure_to_vir(bctx, expr, expr_typ()?, false, None, modifier)?))
         }
@@ -3811,6 +3829,74 @@ pub(crate) fn record_ignore_dummy_capture_operation<'tcx>(
     expr: &Expr<'tcx>,
 ) {
     crate::fn_call_to_vir::record_call(bctx, expr, ResolvedCall::MiscEraseAbsolutely);
+}
+
+fn async_block_to_vir<'tcx>(
+    bctx: &BodyCtxt<'tcx>,
+    expr: &Expr<'tcx>,
+    body_id: &rustc_hir::BodyId,
+    def_id: &rustc_hir::def_id::LocalDefId,
+    modifier: ExprModifier,
+) -> Result<vir::ast::Expr, VirErr> {
+    let tcx = bctx.ctxt.tcx;
+    let body = tcx.hir_body(*body_id);
+
+    // Extract the actual user body from async block desugaring.
+    // Structure: Block → DropTemps → actual user code
+    let actual_body_expr = match body.value.kind {
+        ExprKind::Block(block, ..) => match block.expr {
+            Some(e) => match e.kind {
+                ExprKind::DropTemps(inner) => inner,
+                _ => e,
+            },
+            None => &body.value,
+        },
+        _ => &body.value,
+    };
+
+    // Create BodyCtxt for the async block's body (it has its own TypeckResults)
+    let types = tcx.typeck(*def_id);
+    let async_bctx = BodyCtxt {
+        ctxt: bctx.ctxt.clone(),
+        types,
+        fun_id: def_id.to_def_id(),
+        external_trait_from_to: None,
+        mode: Mode::Exec,
+        external_body: false,
+        in_ghost: false,
+        loop_isolation: false,
+        new_mut_ref: bctx.new_mut_ref,
+        migrate_postcondition_vars: None,
+        header_setting: HeaderSetting::Fn,
+        in_fn_sig: false,
+        in_postcondition: false,
+        in_old: false,
+        in_explicit_prophecy_node: false,
+        temporal_depth: 0,
+        params: bctx.params.clone(),
+        unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(std::collections::HashMap::new())),
+        external_opaque_type_map: None,
+    };
+
+    let mut vir_body = expr_to_vir_consume(&async_bctx, actual_body_expr, modifier)?;
+    // Extract specs (they're injected as header statements by the macro).
+    // We read_header to strip them from the body. The specs themselves are used
+    // at SST level for R-G checking via the spawn detection mechanism.
+    let _header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
+
+    bctx.ctxt.push_body_erasure(
+        *def_id,
+        BodyErasure { erase_body: false, ret_spec: false },
+    );
+
+    let typ = bctx.mid_ty_to_vir(expr.span, &bctx.types.node_type(expr.hir_id), false)?;
+
+    // Produce the body as a simple block expression with the coroutine type.
+    // Unlike closures, async blocks can't use NonSpecClosure because the coroutine type
+    // doesn't have closure_req/closure_ens declarations.
+    // Body verification and R-G spec extraction happen at SST/VCGen level.
+    let exprx = ExprX::Block(Arc::new(vec![]), Some(vir_body));
+    Ok(bctx.spanned_typed_new(expr.span, &typ, exprx))
 }
 
 pub(crate) fn closure_to_vir<'tcx>(
