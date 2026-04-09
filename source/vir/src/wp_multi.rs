@@ -14,7 +14,7 @@ use crate::ast::{Fun, VirErr};
 use crate::context::Ctx;
 use crate::messages::Span;
 use crate::sst::{Exp, Pars, Stm};
-use crate::wp_context::{Proposition, SpawnedProcess, extract_callee_temporal_ensures};
+use crate::wp_context::{Proposition, SpawnedClosureSpec, SpawnedProcess, extract_callee_temporal_ensures, decompose_temporal};
 use air::ast::Stmt;
 use std::sync::Arc;
 
@@ -91,6 +91,44 @@ pub trait MultiProcessWp {
             Arc::new(vec![]),
             vec![],
         )
+    }
+
+    /// WP for `exec.spawn(async requires R ensures G { body })`.
+    /// Extract temporal propositions from the inline ensures and add to config.
+    fn wp_spawn_closure(&mut self, spec: &SpawnedClosureSpec) -> PID {
+        let mut props = Vec::new();
+        for ens in spec.ensures.iter() {
+            extract_temporal_from_exp(ens, &mut props);
+        }
+        // Synthetic function name for the anonymous async block
+        let synthetic_fun = Arc::new(crate::ast::FunX {
+            path: Arc::new(crate::ast::PathX {
+                krate: None,
+                segments: Arc::new(vec![Arc::new("__async_block".to_string())]),
+            }),
+        });
+        self.configuration_mut().spawn(
+            synthetic_fun,
+            Arc::new(vec![]),  // no params for async blocks (captures bound in scope)
+            props,
+        )
+    }
+}
+
+/// Extract temporal propositions from a raw SST ensures expression.
+fn extract_temporal_from_exp(exp: &Exp, obligations: &mut Vec<Proposition>) {
+    use crate::sst::ExpX;
+    match &exp.x {
+        ExpX::Temporal(op, prop, path_prop) => {
+            decompose_temporal(op, prop, path_prop, false, obligations);
+        }
+        ExpX::Binary(crate::ast::BinaryOp::Implies, _, rhs) => {
+            extract_temporal_from_exp(rhs, obligations);
+        }
+        ExpX::Bind(_, body) => {
+            extract_temporal_from_exp(body, obligations);
+        }
+        _ => {}
     }
 }
 

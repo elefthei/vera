@@ -559,3 +559,87 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+test_verify_one_file! {
+    #[test] test_async_block_spawn_rg_pass verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] test_async_block_rg_mismatch_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 50,
+                ensures ag(*x <= 50),
+            {
+                loop
+                    invariant *x <= 50,
+                {
+                }
+            });
+        }
+    } => Err(_err) => ()
+}
+
+test_verify_one_file! {
+    #[test] test_async_block_mixed_spawn verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn named_task(x: &mut u64) -> (ret: ())
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            loop
+                invariant *x <= 100,
+            {
+            }
+        }
+
+        // Test that named fn spawn + async block spawn can coexist
+        fn system_named(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(named_task(x));
+        }
+
+        fn system_inline(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}

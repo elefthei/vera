@@ -4139,6 +4139,9 @@ pub(crate) fn body_stm_to_air(
     for spawned_fun in spawned_funs.iter() {
         state.wp_spawn(ctx, spawned_fun);
     }
+    for spawned_closure in spawned_closures.iter() {
+        state.wp_spawn_closure(spawned_closure);
+    }
 
     // When spawned processes provide temporal guarantees, they can discharge
     // the caller's AG obligations (the conjunction check at function exit
