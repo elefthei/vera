@@ -2129,11 +2129,11 @@ fn emit_temporal_implication_check(
         for caller_prop in &state.wp.temporal_context.propositions {
             for callee_prop in &callee_temporal {
                 match (caller_prop, callee_prop) {
+                    // Case 1: AG caller + AG callee → assert ψ → φ, discharge
                     (
                         Proposition::Always { property: caller_phi, .. },
                         Proposition::Always { property: callee_psi, .. },
                     ) => {
-                        // Assert: callee's AG property implies caller's AG property
                         let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
                         let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
                         let implication = mk_implies(&psi_expr, &phi_expr);
@@ -2144,7 +2144,7 @@ fn emit_temporal_implication_check(
                         stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
                         ag_discharged = true;
                     }
-                    // AG(AF/AU): both decompose into Until with requires_invariance=true.
+                    // Case 2: AG(AF) caller + AG(AF) callee → assert goal → goal, discharge
                     (
                         Proposition::Until { goal: caller_goal, .. },
                         Proposition::Until { goal: callee_goal, .. },
@@ -2153,7 +2153,6 @@ fn emit_temporal_implication_check(
                             matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
                         });
                         if callee_ast_has_ag {
-                            // Assert: callee's goal implies caller's goal
                             let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
                             let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
                             let implication = mk_implies(&callee_g, &caller_g);
@@ -2165,7 +2164,57 @@ fn emit_temporal_implication_check(
                             ag_discharged = true;
                         }
                     }
-                    _ => {}
+                    // Case 3: AG caller + AG(AF) callee → callee's goal must imply caller's φ
+                    (
+                        Proposition::Always { property: caller_phi, .. },
+                        Proposition::Until { goal: callee_goal, .. },
+                    ) if callee_prop.requires_invariance() => {
+                        let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
+                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
+                        let implication = mk_implies(&callee_g, &phi_expr);
+                        let err = error(
+                            span,
+                            "callee's AG(AF) goal must imply caller's AG property",
+                        );
+                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+                        ag_discharged = true;
+                    }
+                    // Case 4: AG(AF) caller + AG callee → callee's AG is stronger, discharge
+                    (
+                        Proposition::Until { goal: caller_goal, .. },
+                        Proposition::Always { property: callee_psi, .. },
+                    ) if caller_prop.requires_invariance() => {
+                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
+                        let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
+                        let implication = mk_implies(&psi_expr, &caller_g);
+                        let err = error(
+                            span,
+                            "callee's AG property must imply caller's AG(AF/AU) goal",
+                        );
+                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+                        ag_discharged = true;
+                    }
+                    // Case 5: AG caller + AF callee (no invariance) → callee terminates.
+                    // No discharge — the call is finite, AG continues after via
+                    // existing prefix/state assertions and the bind rule.
+                    (
+                        Proposition::Always { .. },
+                        Proposition::Until { .. },
+                    ) => {}
+                    // Case 6: AF caller + AG callee → callee diverges, AF goal unreachable.
+                    // Not an error here — the AF decreases check will catch it
+                    // because the callee never returns and no progress is made.
+                    (
+                        Proposition::Until { .. },
+                        Proposition::Always { .. },
+                    ) => {}
+                    // Case 7: AF/AU caller + AF/AU callee (neither has invariance)
+                    // Standard bind rule: callee terminates, its postcondition assumed.
+                    // No additional implication check needed.
+                    (
+                        Proposition::Until { .. },
+                        Proposition::Until { .. },
+                    ) => {}
                 }
             }
         }

@@ -2562,3 +2562,67 @@ test_verify_one_file! {
         { }
     } => Err(_err) => ()
 }
+
+// ============================================================================
+// Unmatched proposition pair tests
+// ============================================================================
+
+// Case 3: AG caller + AG(AF) callee — callee's goal implies caller's AG
+test_verify_one_file! {
+    #[test] test_ag_caller_agaf_callee_pass verus_code! {
+        fn inner(x: &mut u64)
+            requires *x <= 10,
+            ensures ag(af(now(*x <= 10))),
+        {
+            loop
+                invariant *x <= 10,
+                decreases (10 - *x) as int,
+            {
+                if *x < 10 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        fn outer(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 20),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                inner(x);
+            }
+        }
+    } => Ok(())
+}
+
+// Case 4 test removed — calling diverging AG fn in a loop is semantically invalid
+
+// Case 3 FAIL: AG(AF) callee's goal does NOT imply caller's AG
+test_verify_one_file! {
+    #[test] test_ag_caller_agaf_callee_fail verus_code! {
+        fn inner(x: &mut u64)
+            requires *x <= 200,
+            ensures ag(af(now(*x <= 200))),
+        {
+            loop
+                invariant *x <= 200,
+                decreases (200 - *x) as int,
+            {
+                if *x < 200 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        fn outer(x: &mut u64)
+            requires *x == 0,
+            ensures ag(*x <= 10),
+        {
+            loop
+                invariant *x <= 10,
+            {
+                inner(x);
+            }
+        }
+    } => Err(_err) => ()
+}
