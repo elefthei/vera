@@ -3879,10 +3879,9 @@ fn async_block_to_vir<'tcx>(
     };
 
     let mut vir_body = expr_to_vir_consume(&async_bctx, actual_body_expr, modifier)?;
-    // Extract specs (they're injected as header statements by the macro).
-    // We read_header to strip them from the body. The specs themselves are used
-    // at SST level for R-G checking via the spawn detection mechanism.
-    let _header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
+    // Extract specs injected as header statements by the macro.
+    let header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
+    let vir::headers::Header { require, ensure, .. } = header;
 
     bctx.ctxt.push_body_erasure(
         *def_id,
@@ -3891,11 +3890,13 @@ fn async_block_to_vir<'tcx>(
 
     let typ = bctx.mid_ty_to_vir(expr.span, &bctx.types.node_type(expr.hir_id), false)?;
 
-    // Produce the body as a simple block expression with the coroutine type.
-    // Unlike closures, async blocks can't use NonSpecClosure because the coroutine type
-    // doesn't have closure_req/closure_ens declarations.
-    // Body verification and R-G spec extraction happen at SST/VCGen level.
-    let exprx = ExprX::Block(Arc::new(vec![]), Some(vir_body));
+    // Produce an AsyncBlock expression that carries the specs through to SST/VCGen
+    // for spawn detection and R-G checking.
+    let exprx = ExprX::AsyncBlock {
+        requires: require,
+        ensures: ensure.0,
+        body: vir_body,
+    };
     Ok(bctx.spanned_typed_new(expr.span, &typ, exprx))
 }
 

@@ -1210,6 +1210,16 @@ impl<'a> Builder<'a> {
                 bb = self.build(e, bb)?;
                 Ok(bb)
             }
+            ExprX::AsyncBlock { body, requires, ensures } => {
+                for r in requires.iter() {
+                    bb = self.build(r, bb)?;
+                }
+                for e in ensures.iter() {
+                    bb = self.build(e, bb)?;
+                }
+                bb = self.build(body, bb)?;
+                Ok(bb)
+            }
         }
     }
 

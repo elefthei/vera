@@ -698,6 +698,18 @@ pub(crate) trait AstVisitor<R: Returner, Err, Scope: Scoper> {
                 let e = self.visit_expr(e)?;
                 R::ret(|| expr_new(ExprX::Await(R::get(e))))
             }
+            ExprX::AsyncBlock { requires, ensures, body } => {
+                let requires = self.visit_exprs(requires)?;
+                let ensures = self.visit_exprs(ensures)?;
+                let body = self.visit_expr(body)?;
+                R::ret(|| {
+                    expr_new(ExprX::AsyncBlock {
+                        requires: R::get_vec_a(requires),
+                        ensures: R::get_vec_a(ensures),
+                        body: R::get(body),
+                    })
+                })
+            }
         }
     }
 

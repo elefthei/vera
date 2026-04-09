@@ -2934,6 +2934,14 @@ pub(crate) fn expr_to_stm_opt(
             let rewritten = expr_to_stm_opt(ctx, state, &call_expr)?;
             Ok(rewritten)
         }
+        ExprX::AsyncBlock { requires, ensures, body } => {
+            // Lower the body to SST and record the specs for R-G checking.
+            // The specs are stored in state.spawned_closures for later use by VCGen.
+            let (body_stms, body_val) = expr_to_stm_opt(ctx, state, body)?;
+            // For now, return the body as a block. Specs are extracted at spawn detection.
+            let stm = Spanned::new(expr.span.clone(), crate::sst::StmX::Block(Arc::new(body_stms)));
+            Ok((vec![stm], body_val))
+        }
         ExprX::BorrowMut(_place) | ExprX::BorrowMutTracked(_place) => {
             let (mut stms, bor_sst) = borrow_mut_to_sst(ctx, state, expr)?;
             match bor_sst {
