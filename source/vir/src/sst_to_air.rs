@@ -54,7 +54,7 @@ use std::sync::Arc;
 
 // Re-export temporal types and helpers from wp_context module
 pub use crate::wp_context::{
-    GoalKind, Proposition, PropositionContext, WpContext,
+    GoalKind, Proposition, PropositionContext, SpawnedProcess, WpContext,
     decompose_temporal,
     extract_callee_temporal_ensures, callee_has_temporal_ensures,
 };
@@ -2114,6 +2114,11 @@ fn emit_temporal_implication_check(
     if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
         return Ok(Vec::new());
     }
+    // Skip if this callee is in the process_map — the rely-guarantee check
+    // at function exit handles it with proper Havoc+Assume parameter binding.
+    if state.wp.process_map.iter().any(|p| p.fun == func.x.name) {
+        return Ok(Vec::new());
+    }
 
     // Try SST-level extraction (works for sync functions and async with wrapper walking).
     let callee_temporal = if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
@@ -2291,8 +2296,9 @@ fn emit_temporal_implication_check(
 }
 
 /// Emit rely-guarantee compatibility checks for all spawned processes.
-/// Called at function exit to verify:
-/// 1. Each process's guarantee implies every other process's rely
+/// Uses Havoc+Assume to bind callee parameters into the caller's scope,
+/// then checks:
+/// 1. Pairwise: each process's guarantee implies every other's rely
 /// 2. Conjunction of all guarantees implies the function's global temporal ensures
 fn emit_rely_guarantee_checks(
     ctx: &Ctx,
@@ -2301,29 +2307,79 @@ fn emit_rely_guarantee_checks(
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let process_map = &state.wp.process_map;
-    if process_map.len() < 2 {
+    if process_map.is_empty() {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
-    // Pairwise: each process's guarantee implies every other's rely
-    for (i, (_, guarantee_i)) in process_map.iter().enumerate() {
-        for (j, (rely_j, _)) in process_map.iter().enumerate() {
-            if i == j {
-                continue;
-            }
-            let g_expr = exp_to_expr(ctx, guarantee_i, expr_ctxt)?;
-            let r_expr = exp_to_expr(ctx, rely_j, expr_ctxt)?;
-            let implication = mk_implies(&g_expr, &r_expr);
-            let err = error(
-                span,
-                &format!(
-                    "process {}'s guarantee must imply process {}'s rely (rely-guarantee compatibility)",
-                    i, j
-                ),
-            );
-            stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+
+    // Havoc+Assume: bind each callee's parameters into the caller's AIR scope.
+    // This makes callee-scoped temporal expressions evaluable in the common scope.
+    for proc in process_map.iter() {
+        for par in proc.pars.iter() {
+            let var = suffix_local_unique_id(&par.x.name);
+            stmts.push(Arc::new(StmtX::Havoc(var)));
         }
     }
+
+    // Collect guarantee expressions from all processes
+    let mut all_guarantees: Vec<(usize, Expr)> = Vec::new();
+    let mut all_relies: Vec<(usize, Expr)> = Vec::new();
+    for (i, proc) in process_map.iter().enumerate() {
+        for prop in &proc.propositions {
+            let g_expr = match prop {
+                Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt)?,
+                Proposition::Until { goal, .. } => exp_to_expr(ctx, goal, expr_ctxt)?,
+            };
+            all_guarantees.push((i, g_expr));
+        }
+        // Rely = the function's requires (from SST decl)
+        if let Some(callee_sst) = ctx.func_sst_map.get(&proc.fun) {
+            for req in callee_sst.x.decl.reqs.iter() {
+                if let Ok(r_expr) = exp_to_expr(ctx, req, expr_ctxt) {
+                    all_relies.push((i, r_expr));
+                }
+            }
+        }
+    }
+
+    // 1. Pairwise: each process's guarantee implies every other's rely
+    if process_map.len() >= 2 {
+        for &(i, ref g_expr) in &all_guarantees {
+            for &(j, ref r_expr) in &all_relies {
+                if i == j { continue; }
+                let implication = mk_implies(g_expr, r_expr);
+                let err = error(
+                    span,
+                    &format!(
+                        "process {}'s guarantee must imply process {}'s rely",
+                        i, j
+                    ),
+                );
+                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+            }
+        }
+    }
+
+    // 2. Conjunction of all guarantees must imply the function's global temporal ensures
+    if !state.wp.temporal_context.propositions.is_empty() && !all_guarantees.is_empty() {
+        let g_exprs: Vec<Expr> = all_guarantees.iter().map(|(_, e)| e.clone()).collect();
+        let conjunction = mk_and(&g_exprs);
+        for prop in &state.wp.temporal_context.propositions {
+            let global_expr = match prop {
+                Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt).ok(),
+                Proposition::Until { goal, .. } => exp_to_expr(ctx, goal, expr_ctxt).ok(),
+            };
+            if let Some(global) = global_expr {
+                let implication = mk_implies(&conjunction, &global);
+                let err = error(
+                    span,
+                    "conjunction of spawned process guarantees must imply the function's temporal ensures",
+                );
+                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
+            }
+        }
+    }
+
     Ok(stmts)
 }
 
@@ -4061,34 +4117,28 @@ pub(crate) fn body_stm_to_air(
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
 
     // Multi-process: populate process map from spawned async functions.
-    // Each spawned function's requires = rely (conjoined), temporal ensures = guarantee.
     for spawned_fun in spawned_funs.iter() {
         if let Some(callee_sst) = ctx.func_sst_map.get(spawned_fun) {
-            // Conjoin ALL requires as the rely
-            let reqs = &callee_sst.x.decl.reqs;
-            let rely = if reqs.len() == 1 {
-                reqs[0].clone()
-            } else if reqs.len() > 1 {
-                // Build conjunction: req_1 && req_2 && ... && req_n
-                let bool_typ = Arc::new(TypX::Bool);
-                let mut conj = reqs[0].clone();
-                for req in reqs.iter().skip(1) {
-                    conj = SpannedTyped::new(
-                        &conj.span.clone(),
-                        &bool_typ,
-                        ExpX::Binary(BinaryOp::And, conj.clone(), req.clone()),
-                    );
-                }
-                conj
-            } else {
-                continue; // no requires → skip
-            };
-            // Use ALL temporal ensures as guarantees
-            let enss = &callee_sst.x.decl.enss.0;
-            for guarantee in enss.iter() {
-                state.wp.process_map.push((rely.clone(), guarantee.clone()));
+            let temporal_guarantees = extract_callee_temporal_ensures(callee_sst);
+            if !temporal_guarantees.is_empty() {
+                state.wp.process_map.push(SpawnedProcess {
+                    fun: spawned_fun.clone(),
+                    pars: callee_sst.x.pars.clone(),
+                    propositions: temporal_guarantees,
+                });
             }
         }
+    }
+
+    // When spawned processes provide temporal guarantees, they can discharge
+    // the caller's AG obligations (the conjunction check at function exit
+    // verifies correctness). Clear prefix obligations since the spawned
+    // processes take over temporal responsibility.
+    if !state.wp.process_map.is_empty() && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
+        state.wp.temporal_discharged = true;
+        state.wp.has_infinite_temporal_loop = true;
+        state.wp.temporal_prefix_obligations.clear();
+        state.wp.ag_state_obligations.clear();
     }
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;

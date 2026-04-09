@@ -121,11 +121,21 @@ pub struct WpContext {
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
     /// Process map for multi-process rely-guarantee verification.
-    /// Each entry records (requires_exp, temporal_ensures_exp) for a spawned process.
-    /// The requires IS the rely, the temporal ensures IS the guarantee.
-    /// At function exit, pairwise compatibility is checked:
-    ///   ∀i,j. i≠j → guarantee_i(σ) → rely_j(σ)
-    pub process_map: Vec<(Exp, Exp)>,
+    /// Each entry stores the spawned function, the actual call arguments,
+    /// and the extracted temporal propositions (rely = requires, guarantee = temporal ensures).
+    /// At function exit, pairwise R-G compatibility is checked with Havoc+Assume
+    /// parameter binding to resolve callee variables to caller scope.
+    pub process_map: Vec<SpawnedProcess>,
+}
+
+/// A spawned process's identity and temporal contract.
+pub struct SpawnedProcess {
+    /// The spawned async function's name.
+    pub fun: crate::ast::Fun,
+    /// The callee's parameters (for Havoc+Assume binding at check time).
+    pub pars: crate::sst::Pars,
+    /// The temporal propositions extracted from the function's ensures.
+    pub propositions: Vec<Proposition>,
 }
 
 impl WpContext {

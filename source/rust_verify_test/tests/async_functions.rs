@@ -345,3 +345,77 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// System-level ensures: conjunction of guarantees implies global property
+test_verify_one_file! {
+    #[test] test_multiprocess_system_ensures_pass verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_upper(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 100),
+        {
+            *x = 0; // ensure invariant holds at entry
+            loop invariant *x <= 100, {
+                if *x < 100 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_lower(x: &mut u64) -> (ret: ())
+            ensures ag(*x <= 100),
+        {
+            *x = 0;
+            loop invariant *x <= 100, {
+                if *x > 0 { *x = *x - 1; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 50,
+            ensures ag(*x <= 200),
+        {
+            exec.spawn(task_upper(x));
+            exec.spawn(task_lower(x));
+            // G_upper = (*x <= 100), G_lower = (*x <= 100)
+            // Conjunction: (*x <= 100) ∧ (*x <= 100) → (*x <= 200) ✓
+        }
+    } => Ok(())
+}
+
+// System-level ensures FAIL: conjunction doesn't imply global
+test_verify_one_file! {
+    #[test] test_multiprocess_system_ensures_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn task_a(x: &mut u64) -> (ret: ())
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            loop invariant *x <= 100, {
+                if *x < 100 { *x = *x + 1; }
+                else { *x = 0; }
+            }
+        }
+
+        async fn task_b(x: &mut u64) -> (ret: ())
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            loop invariant *x <= 100, {
+                if *x > 0 { *x = *x - 1; }
+            }
+        }
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 50,
+            ensures ag(*x <= 5),
+        {
+            exec.spawn(task_a(x));
+            exec.spawn(task_b(x));
+            // G_a = (*x <= 100), G_b = (*x <= 100)
+            // Conjunction: (*x <= 100) → (*x <= 5) ✗ FAILS
+        }
+    } => Err(_err) => ()
+}
