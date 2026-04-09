@@ -1,10 +1,5 @@
 //! Multi-process weakest precondition for async Rust.
 //!
-//! **Status: Future work.** These types define the formal multi-process WP
-//! layer from the slides but are not yet wired into the VCGen. The current
-//! implementation uses `WpContext.process_map` with rely-guarantee checking
-//! at the AST level instead.
-//!
 //! This module defines the multi-process configuration `C = (P, σ, i)` and
 //! the `MultiProcessWp` trait that extends `SingleProcessWp` with async/await.
 //!
@@ -15,133 +10,86 @@
 //! Programs without async/await reduce to single-process wp:
 //!   `WP({0 → t}, σ, 0, φ) = wp(t, φ) σ`
 
-use crate::ast::VirErr;
+use crate::ast::{Fun, VirErr};
 use crate::context::Ctx;
-use crate::sst::Stm;
+use crate::messages::Span;
+use crate::sst::{Exp, Pars, Stm};
+use crate::wp_context::{Proposition, SpawnedProcess, extract_callee_temporal_ensures};
 use air::ast::Stmt;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Process identifier.
 pub type PID = u64;
 
-/// Process dictionary: maps PIDs to suspended Rust terms.
-///
-/// Each entry represents an async process (future) with its current
-/// program term. The active process runs until it hits `.await`,
-/// then the scheduler picks the next ready process.
-pub struct ProcessDict {
-    processes: HashMap<PID, Arc<Stm>>,
-    next_pid: PID,
-}
-
-impl ProcessDict {
-    /// Create a new process dictionary with a single main process.
-    pub fn new(main_body: Arc<Stm>) -> Self {
-        let mut processes = HashMap::new();
-        processes.insert(0, main_body);
-        ProcessDict { processes, next_pid: 1 }
-    }
-
-    /// Spawn a new process with the given body. Returns the fresh PID.
-    pub fn spawn(&mut self, body: Arc<Stm>) -> PID {
-        let pid = self.next_pid;
-        self.next_pid += 1;
-        self.processes.insert(pid, body);
-        pid
-    }
-
-    /// Look up a process's current term.
-    pub fn get(&self, pid: PID) -> Option<&Arc<Stm>> {
-        self.processes.get(&pid)
-    }
-
-    /// Update a process's term (e.g., after partial execution or resumption).
-    pub fn update(&mut self, pid: PID, new_body: Arc<Stm>) {
-        self.processes.insert(pid, new_body);
-    }
-}
-
 /// Multi-process configuration `C = (P, σ, i)`.
 ///
-/// - `P`: process dictionary mapping PIDs to Rust terms
+/// - `P`: process map — spawned processes with their temporal contracts
 /// - `σ`: shared mutable state (implicit — tracked by AIR variables)
 /// - `i`: currently active (scheduled) process
 pub struct Configuration {
-    pub processes: ProcessDict,
-    pub active: PID,
+    /// Spawned processes with their temporal contracts.
+    pub processes: Vec<SpawnedProcess>,
 }
 
 impl Configuration {
-    /// Create a configuration with a single main process.
-    pub fn new(main_body: Arc<Stm>) -> Self {
-        Configuration {
-            processes: ProcessDict::new(main_body),
-            active: 0,
-        }
+    /// Create an empty configuration.
+    pub fn new() -> Self {
+        Configuration { processes: Vec::new() }
     }
 
-    /// Spawn an async process. Returns the PID of the new process.
-    /// The active process is unchanged.
-    pub fn spawn(&mut self, body: Arc<Stm>) -> PID {
-        self.processes.spawn(body)
+    /// Spawn an async process. Records its function name, parameters,
+    /// and temporal propositions for rely-guarantee checking.
+    pub fn spawn(&mut self, fun: Fun, pars: Pars, propositions: Vec<Proposition>) -> PID {
+        let pid = self.processes.len() as PID;
+        self.processes.push(SpawnedProcess { fun, pars, propositions });
+        pid
     }
 
-    /// Switch the active process to `pid`.
-    pub fn switch_to(&mut self, pid: PID) {
-        self.active = pid;
+    /// Number of spawned processes.
+    pub fn len(&self) -> usize {
+        self.processes.len()
     }
 
-    /// Get the active process's current term.
-    pub fn active_term(&self) -> Option<&Arc<Stm>> {
-        self.processes.get(self.active)
+    /// Is the configuration empty?
+    pub fn is_empty(&self) -> bool {
+        self.processes.is_empty()
     }
 }
 
 /// Multi-process weakest precondition trait.
 ///
-/// Extends `SingleProcessWp` with async/await constructs.
-/// The `WP` operates on a `Configuration` and delegates sequential
-/// steps to the single-process `wp`.
+/// Extends `SingleProcessWp` with spawn detection and rely-guarantee checking.
+/// The trait operates on a `Configuration` tracking all spawned processes.
 ///
 /// Cooperative scheduling model:
 /// - Each process runs until it hits `.await`, then yields
 /// - The scheduler picks the next process from the ready set
 /// - Temporal formulas φ are over shared state σ
 pub trait MultiProcessWp {
-    /// WP for a sequential step: delegate to single-process wp.
-    ///
-    /// When `P(i)` is a non-async construct, `WP(C, φ) = wp(P(i), φ) σ`.
-    fn wp_sequential(&mut self, ctx: &Ctx, stm: &Stm) -> Result<Vec<Stmt>, VirErr>;
+    /// Get the multi-process configuration.
+    fn configuration(&self) -> &Configuration;
 
-    /// WP for `async { e }`: spawn a future, extend P.
-    ///
-    /// `WP((P, σ, i), φ) = WP((P[p ↦ e], σ, i), φ)`
-    ///
-    /// Creates new process `p` with body `e` (suspended).
-    /// Active process `i` continues running unchanged.
-    /// No state change, no scheduling — futures are lazy.
-    fn wp_async(&mut self, ctx: &Ctx, body: &Stm) -> Result<(PID, Vec<Stmt>), VirErr>;
+    /// Get mutable access to the configuration.
+    fn configuration_mut(&mut self) -> &mut Configuration;
 
-    /// WP for `p.await` (AU callee — terminating):
-    ///
-    /// `WP((P, σ, i), φ AU φ') =`
-    ///   `WP((P, σ, p), φ AU done R)`
-    ///   `∧ ∀x, σ'. R x σ' → WP((P[i ↦ k[x]], σ', i), φ AU φ')`
-    ///
-    /// Switch active to `p`, run it maintaining `φ`, get result, resume `i`.
-    fn wp_await_au(
-        &mut self,
-        ctx: &Ctx,
-        future_pid: PID,
-        continuation: &Stm,
-    ) -> Result<Vec<Stmt>, VirErr>;
-
-    /// WP for `p.await` (AG callee — diverging):
-    ///
-    /// `WP((P, σ, i), AG φ) = wp(P(p), AG φ) σ`
-    ///
-    /// Reduces to single-process wp on callee's body.
-    /// Process `p` runs forever; continuation is unreachable.
-    fn wp_await_ag(&mut self, ctx: &Ctx, future_pid: PID) -> Result<Vec<Stmt>, VirErr>;
+    /// WP for `exec.spawn(async_fn(args))`: record the spawned process.
+    /// Returns the PID of the new process.
+    fn wp_spawn(&mut self, ctx: &Ctx, fun: &Fun) -> PID {
+        if let Some(callee_sst) = ctx.func_sst_map.get(fun) {
+            let props = extract_callee_temporal_ensures(callee_sst);
+            if !props.is_empty() {
+                return self.configuration_mut().spawn(
+                    fun.clone(),
+                    callee_sst.x.pars.clone(),
+                    props,
+                );
+            }
+        }
+        // No temporal ensures — still record for tracking
+        self.configuration_mut().spawn(
+            fun.clone(),
+            Arc::new(vec![]),
+            vec![],
+        )
+    }
 }

@@ -2116,7 +2116,7 @@ fn emit_temporal_implication_check(
     }
     // Skip if this callee is in the process_map — the rely-guarantee check
     // at function exit handles it with proper Havoc+Assume parameter binding.
-    if state.wp.process_map.iter().any(|p| p.fun == func.x.name) {
+    if state.wp.config.processes.iter().any(|p| p.fun == func.x.name) {
         return Ok(Vec::new());
     }
 
@@ -2306,15 +2306,15 @@ fn emit_rely_guarantee_checks(
     span: &Span,
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
-    let process_map = &state.wp.process_map;
-    if process_map.is_empty() {
+    let processes = &state.wp.config.processes;
+    if processes.is_empty() {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
 
     // Havoc+Assume: bind each callee's parameters into the caller's AIR scope.
     // This makes callee-scoped temporal expressions evaluable in the common scope.
-    for proc in process_map.iter() {
+    for proc in processes.iter() {
         for par in proc.pars.iter() {
             let var = suffix_local_unique_id(&par.x.name);
             stmts.push(Arc::new(StmtX::Havoc(var)));
@@ -2324,7 +2324,7 @@ fn emit_rely_guarantee_checks(
     // Collect guarantee expressions from all processes
     let mut all_guarantees: Vec<(usize, Expr)> = Vec::new();
     let mut all_relies: Vec<(usize, Expr)> = Vec::new();
-    for (i, proc) in process_map.iter().enumerate() {
+    for (i, proc) in processes.iter().enumerate() {
         for prop in &proc.propositions {
             let g_expr = match prop {
                 Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt)?,
@@ -2343,7 +2343,7 @@ fn emit_rely_guarantee_checks(
     }
 
     // 1. Pairwise: each process's guarantee implies every other's rely
-    if process_map.len() >= 2 {
+    if processes.len() >= 2 {
         for &(i, ref g_expr) in &all_guarantees {
             for &(j, ref r_expr) in &all_relies {
                 if i == j { continue; }
@@ -2413,6 +2413,18 @@ impl SingleProcessWp for State {
             self.pop_scope();
         }
         Ok(all_stmts)
+    }
+}
+
+use crate::wp_multi::MultiProcessWp;
+
+impl MultiProcessWp for State {
+    fn configuration(&self) -> &crate::wp_multi::Configuration {
+        &self.wp.config
+    }
+
+    fn configuration_mut(&mut self) -> &mut crate::wp_multi::Configuration {
+        &mut self.wp.config
     }
 }
 
@@ -4116,25 +4128,17 @@ pub(crate) fn body_stm_to_air(
 
     let stm = crate::sst_vars::compute_assign_info(&mut state.assign_map, params, local_decls, stm);
 
-    // Multi-process: populate process map from spawned async functions.
+    // Multi-process: populate configuration from spawned async functions
+    // using the MultiProcessWp trait.
     for spawned_fun in spawned_funs.iter() {
-        if let Some(callee_sst) = ctx.func_sst_map.get(spawned_fun) {
-            let temporal_guarantees = extract_callee_temporal_ensures(callee_sst);
-            if !temporal_guarantees.is_empty() {
-                state.wp.process_map.push(SpawnedProcess {
-                    fun: spawned_fun.clone(),
-                    pars: callee_sst.x.pars.clone(),
-                    propositions: temporal_guarantees,
-                });
-            }
-        }
+        state.wp_spawn(ctx, spawned_fun);
     }
 
     // When spawned processes provide temporal guarantees, they can discharge
     // the caller's AG obligations (the conjunction check at function exit
     // verifies correctness). Clear prefix obligations since the spawned
     // processes take over temporal responsibility.
-    if !state.wp.process_map.is_empty() && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
+    if !state.wp.config.is_empty() && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
         state.wp.temporal_discharged = true;
         state.wp.has_infinite_temporal_loop = true;
         state.wp.temporal_prefix_obligations.clear();

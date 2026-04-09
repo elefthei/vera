@@ -120,12 +120,9 @@ pub struct WpContext {
     pub now_goal_accumulators: Vec<(Exp, Ident)>,
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
-    /// Process map for multi-process rely-guarantee verification.
-    /// Each entry stores the spawned function, the actual call arguments,
-    /// and the extracted temporal propositions (rely = requires, guarantee = temporal ensures).
-    /// At function exit, pairwise R-G compatibility is checked with Havoc+Assume
-    /// parameter binding to resolve callee variables to caller scope.
-    pub process_map: Vec<SpawnedProcess>,
+    /// Multi-process configuration tracking spawned async processes.
+    /// Populated by MultiProcessWp::wp_spawn, checked by emit_rely_guarantee_checks.
+    pub config: crate::wp_multi::Configuration,
 }
 
 /// A spawned process's identity and temporal contract.
@@ -153,7 +150,7 @@ impl WpContext {
             au_path_obligations: Vec::new(),
             now_goal_accumulators: Vec::new(),
             now_acc_snapshot_counter: 0,
-            process_map: Vec::new(),
+            config: crate::wp_multi::Configuration::new(),
         }
     }
 }
