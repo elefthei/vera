@@ -702,7 +702,7 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
             local_decls: R::get_vec_a(local_decls),
             local_decls_decreases_init: R::get_vec_a(local_decls_decreases_init),
             statics: def.statics.clone(),
-            spawned_funs: vec![],
+            spawned_funs: def.spawned_funs.clone(),
         })
     }
 
