@@ -93,3 +93,10 @@ pub trait MultiProcessWp {
         )
     }
 }
+
+/// Check if a function call is to Executor::block_on.
+pub fn is_block_on(fun: &Fun) -> bool {
+    fun.path.segments.iter().any(|seg| seg.as_str() == "block_on")
+        && (fun.path.krate.as_ref().map_or(false, |k| k.as_str() == "vstd")
+            || crate::def::fun_to_string(fun).contains("Executor"))
+}

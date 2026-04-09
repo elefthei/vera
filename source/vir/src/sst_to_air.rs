@@ -2711,6 +2711,11 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // ensures imply the caller's obligations. This makes calls transparent
             // for temporal properties (contract-based checking).
             result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func, args)?);
+            // Multi-process: if this is a block_on call, emit R-G checks inline.
+            // block_on is the synchronization point where the scheduler runs all processes.
+            if crate::wp_multi::is_block_on(fun) && !state.wp.config.is_empty() {
+                result.extend(emit_rely_guarantee_checks(ctx, state, &stm.span, expr_ctxt)?);
+            }
             // TICL bind rule (aul_bind_r / ag_bind_r):
             //   {x <- a ;; k x}, w |= φ AU ψ
             //   ⟸  a, w |= φ AU AX done(R)   — callee ensures R (assumed above)

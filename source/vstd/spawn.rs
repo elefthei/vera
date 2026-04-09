@@ -37,7 +37,8 @@ pub trait Executor {
     ;
 
     /// Block on a future's completion — runs the scheduler.
-    /// Requires rely-guarantee compatibility of all spawned processes.
+    /// At this synchronization point, rely-guarantee compatibility
+    /// of all spawned processes is verified.
     #[verifier::external_body]
     fn block_on<F: Future>(&mut self, future: F) -> (ret: F::Output)
         opens_invariants any
