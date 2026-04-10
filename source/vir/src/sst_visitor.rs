@@ -694,16 +694,34 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
         let local_decls_decreases_init = self.visit_stms(&def.local_decls_decreases_init)?;
         let unwind = self.visit_unwind(&def.unwind)?;
 
-        R::ret(|| FuncCheckSst {
-            reqs: R::get_vec_a(reqs),
-            post_condition: Arc::new(R::get(post_condition)),
-            unwind: R::get(unwind),
-            body: R::get(body),
-            local_decls: R::get_vec_a(local_decls),
-            local_decls_decreases_init: R::get_vec_a(local_decls_decreases_init),
-            statics: def.statics.clone(),
-            spawned_funs: def.spawned_funs.clone(),
-            spawned_closures: def.spawned_closures.clone(),
+        // Visit Exps inside each SpawnedClosureSpec
+        let mut visited_closure_reqs: Vec<R::Vec<crate::sst::Exp>> = Vec::new();
+        let mut visited_closure_enss: Vec<R::Vec<crate::sst::Exp>> = Vec::new();
+        for sc in def.spawned_closures.iter() {
+            visited_closure_reqs.push(self.visit_exps(&sc.requires)?);
+            visited_closure_enss.push(self.visit_exps(&sc.ensures)?);
+        }
+
+        R::ret(|| {
+            let spawned_closures: Vec<crate::wp_context::SpawnedClosureSpec> = visited_closure_reqs
+                .into_iter()
+                .zip(visited_closure_enss.into_iter())
+                .map(|(reqs, enss)| crate::wp_context::SpawnedClosureSpec {
+                    requires: R::get_vec(reqs),
+                    ensures: R::get_vec(enss),
+                })
+                .collect();
+            FuncCheckSst {
+                reqs: R::get_vec_a(reqs),
+                post_condition: Arc::new(R::get(post_condition)),
+                unwind: R::get(unwind),
+                body: R::get(body),
+                local_decls: R::get_vec_a(local_decls),
+                local_decls_decreases_init: R::get_vec_a(local_decls_decreases_init),
+                statics: def.statics.clone(),
+                spawned_funs: def.spawned_funs.clone(),
+                spawned_closures,
+            }
         })
     }
 
