@@ -38,10 +38,10 @@ impl Configuration {
     }
 
     /// Spawn an async process. Records its function name, parameters,
-    /// and temporal propositions for rely-guarantee checking.
-    pub fn spawn(&mut self, fun: Fun, pars: Pars, propositions: Vec<Proposition>) -> PID {
+    /// temporal propositions, and relies for rely-guarantee checking.
+    pub fn spawn(&mut self, fun: Fun, pars: Pars, propositions: Vec<Proposition>, relies: Vec<Exp>) -> PID {
         let pid = self.processes.len() as PID;
-        self.processes.push(SpawnedProcess { fun, pars, propositions });
+        self.processes.push(SpawnedProcess { fun, pars, propositions, relies });
         pid
     }
 
@@ -77,18 +77,27 @@ pub trait MultiProcessWp {
     fn wp_spawn(&mut self, ctx: &Ctx, fun: &Fun) -> PID {
         if let Some(callee_sst) = ctx.func_sst_map.get(fun) {
             let props = extract_callee_temporal_ensures(callee_sst);
+            let relies: Vec<Exp> = callee_sst.x.decl.reqs.to_vec();
             if !props.is_empty() {
                 return self.configuration_mut().spawn(
                     fun.clone(),
                     callee_sst.x.pars.clone(),
                     props,
+                    relies,
                 );
             }
+            return self.configuration_mut().spawn(
+                fun.clone(),
+                Arc::new(vec![]),
+                vec![],
+                relies,
+            );
         }
-        // No temporal ensures — still record for tracking
+        // No func_sst_map entry — still record for tracking
         self.configuration_mut().spawn(
             fun.clone(),
             Arc::new(vec![]),
+            vec![],
             vec![],
         )
     }
@@ -100,7 +109,6 @@ pub trait MultiProcessWp {
         for ens in spec.ensures.iter() {
             extract_temporal_from_exp(ens, &mut props);
         }
-        // Synthetic function name for the anonymous async block
         let synthetic_fun = Arc::new(crate::ast::FunX {
             path: Arc::new(crate::ast::PathX {
                 krate: None,
@@ -109,8 +117,9 @@ pub trait MultiProcessWp {
         });
         self.configuration_mut().spawn(
             synthetic_fun,
-            Arc::new(vec![]),  // no params for async blocks (captures bound in scope)
+            Arc::new(vec![]),
             props,
+            spec.requires.clone(), // relies stored directly from the async block's requires
         )
     }
 }

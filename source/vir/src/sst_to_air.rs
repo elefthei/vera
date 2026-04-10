@@ -2332,12 +2332,10 @@ fn emit_rely_guarantee_checks(
             };
             all_guarantees.push((i, g_expr));
         }
-        // Rely = the function's requires (from SST decl)
-        if let Some(callee_sst) = ctx.func_sst_map.get(&proc.fun) {
-            for req in callee_sst.x.decl.reqs.iter() {
-                if let Ok(r_expr) = exp_to_expr(ctx, req, expr_ctxt) {
-                    all_relies.push((i, r_expr));
-                }
+        // Rely = the process's requires (stored directly in SpawnedProcess)
+        for req in &proc.relies {
+            if let Ok(r_expr) = exp_to_expr(ctx, req, expr_ctxt) {
+                all_relies.push((i, r_expr));
             }
         }
     }

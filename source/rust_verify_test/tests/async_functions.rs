@@ -643,3 +643,44 @@ test_verify_one_file! {
         }
     } => Ok(())
 }
+
+// === Gap Regression Tests ===
+
+// Gap 1 regression: async block requires must be used in R-G pairwise checks.
+test_verify_one_file! {
+    #[test] test_gap1_async_block_relies_in_rg verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}
+
+// Gap 2 regression: async block body must be verified against ensures.
+// The body is empty but ensures requires false → should fail.
+test_verify_one_file! {
+    #[test] test_gap2_async_block_body_violates_ensures verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let _f = async
+                requires true,
+                ensures false,
+            {
+            };
+        }
+    } => Err(err) => assert_vir_error_msg(err, "async block ensures not satisfied")
+}

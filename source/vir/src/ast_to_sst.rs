@@ -2961,11 +2961,35 @@ pub(crate) fn expr_to_stm_opt(
             Ok(rewritten)
         }
         ExprX::AsyncBlock { requires, ensures, body } => {
-            // Lower the body to SST and record the specs for R-G checking.
-            // The specs are stored in state.spawned_closures for later use by VCGen.
+            // Verify the async block body against its own specs:
+            // 1. Assume requires (preconditions)
+            // 2. Execute body
+            // 3. Assert ensures (postconditions)
+            let mut all_stms = Vec::new();
+
+            // Assume requires
+            for req in requires.iter() {
+                let (check_stms, exp) = expr_to_pure_exp_check(ctx, state, req)?;
+                all_stms.extend(check_stms);
+                all_stms.push(Spanned::new(req.span.clone(), crate::sst::StmX::Assume(exp)));
+            }
+
+            // Body
             let (body_stms, body_val) = expr_to_stm_opt(ctx, state, body)?;
-            // For now, return the body as a block. Specs are extracted at spawn detection.
-            let stm = Spanned::new(expr.span.clone(), crate::sst::StmX::Block(Arc::new(body_stms)));
+            all_stms.extend(body_stms);
+
+            // Assert ensures
+            for ens in ensures.iter() {
+                let (check_stms, exp) = expr_to_pure_exp_check(ctx, state, ens)?;
+                all_stms.extend(check_stms);
+                let error = crate::messages::error(&ens.span, "async block ensures not satisfied");
+                all_stms.push(Spanned::new(
+                    ens.span.clone(),
+                    crate::sst::StmX::Assert(state.next_assert_id(), Some(error), exp),
+                ));
+            }
+
+            let stm = Spanned::new(expr.span.clone(), crate::sst::StmX::Block(Arc::new(all_stms)));
             Ok((vec![stm], body_val))
         }
         ExprX::BorrowMut(_place) | ExprX::BorrowMutTracked(_place) => {

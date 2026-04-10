@@ -133,6 +133,9 @@ pub struct SpawnedProcess {
     pub pars: crate::sst::Pars,
     /// The temporal propositions extracted from the function's ensures.
     pub propositions: Vec<Proposition>,
+    /// The process's rely conditions (requires). Stored directly so R-G checks
+    /// work for both named functions and anonymous async blocks.
+    pub relies: Vec<Exp>,
 }
 
 /// Specs from an inline async block passed to spawn.
