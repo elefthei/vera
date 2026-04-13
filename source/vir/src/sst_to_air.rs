@@ -4141,11 +4141,14 @@ pub(crate) fn body_stm_to_air(
         state.wp_spawn_closure(spawned_closure);
     }
 
-    // When spawned processes provide temporal guarantees, they can discharge
-    // the caller's AG obligations (the conjunction check at function exit
-    // verifies correctness). Clear prefix obligations since the spawned
-    // processes take over temporal responsibility.
-    if !state.wp.config.is_empty() && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
+    // When spawned processes provide AG (Always) temporal guarantees, they can
+    // discharge the caller's AG obligations. Only discharge if at least one
+    // spawned process actually has an Always guarantee — AF-only processes
+    // can't sustain an infinite AG obligation.
+    let has_ag_guarantee = state.wp.config.processes.iter().any(|p| {
+        p.propositions.iter().any(|prop| matches!(prop, Proposition::Always { .. }))
+    });
+    if has_ag_guarantee && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
         state.wp.temporal_discharged = true;
         state.wp.has_infinite_temporal_loop = true;
         state.wp.temporal_prefix_obligations.clear();

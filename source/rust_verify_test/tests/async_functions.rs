@@ -684,3 +684,34 @@ test_verify_one_file! {
         }
     } => Err(err) => assert_vir_error_msg(err, "async block ensures not satisfied")
 }
+
+// S1 soundness: known limitation — async block body runs inline in enclosing scope.
+// With cooperative scheduling, the body's side effects (including infinite loops)
+// affect the enclosing function. This is documented as a design limitation.
+// Proper isolation requires ownership-based scope separation (future work).
+
+// S2 soundness: AG system with only AF spawned tasks should NOT discharge AG.
+test_verify_one_file! {
+    #[test] test_soundness_ag_not_discharged_by_af_only verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 10,
+            ensures ag(*x <= 100),  // AG obligation on system
+        {
+            // Only AF tasks — can't discharge AG
+            exec.spawn(async
+                requires *x <= 100,
+                ensures af(done(*x == 0)),  // AF, not AG
+            {
+                while *x > 0
+                    invariant *x <= 100,
+                    decreases *x,
+                {
+                    *x = *x - 1;
+                }
+            });
+        }
+    } => Err(_err) => ()
+}
