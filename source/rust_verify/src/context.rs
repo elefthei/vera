@@ -49,6 +49,9 @@ pub struct ContextX<'tcx> {
     pub(crate) vstd_crate_name: Ident,
     pub(crate) name_def_id_map: Rc<RefCell<std::collections::HashMap<Path, DefId>>>,
     pub(crate) next_read_kind_id: AtomicU64,
+    /// Late-registered opaque types (e.g., from async block coroutine types).
+    /// Merged into krate.opaque_types before AIR emission.
+    pub(crate) extra_opaque_types: RefCell<Vec<vir::ast::OpaqueType>>,
 }
 
 /// The context in which a given header node might be interpretted
@@ -125,6 +128,7 @@ impl<'tcx> ContextX<'tcx> {
             vstd_crate_name,
             name_def_id_map: Rc::new(RefCell::new(HashMap::new())),
             next_read_kind_id: AtomicU64::new(0),
+            extra_opaque_types: RefCell::new(Vec::new()),
         }
     }
 

@@ -3890,6 +3890,27 @@ fn async_block_to_vir<'tcx>(
 
     let typ = bctx.mid_ty_to_vir(expr.span, &bctx.types.node_type(expr.hir_id), false)?;
 
+    // Register the coroutine type as an OpaqueType so DCR%/TYPE% are declared in AIR.
+    // Without this, spawn<F: Future>'s ensures clause fails to encode the coroutine type.
+    if let TypX::Opaque { def_path, .. } = &*typ {
+        let synthetic_fun = Arc::new(vir::ast::FunX {
+            path: Arc::new(vir::ast::PathX {
+                krate: None,
+                segments: Arc::new(vec![Arc::new("__coroutine".to_string())]),
+            }),
+        });
+        let opaque_ty = bctx.spanned_new(
+            expr.span,
+            vir::ast::OpaqueTypeX {
+                def_fun: synthetic_fun,
+                name: def_path.clone(),
+                typ_params: Arc::new(vec![]),
+                typ_bounds: Arc::new(vec![]),
+            },
+        );
+        bctx.ctxt.extra_opaque_types.borrow_mut().push(opaque_ty);
+    }
+
     // Produce an AsyncBlock expression that carries the specs through to SST/VCGen
     // for spawn detection and R-G checking.
     let exprx = ExprX::AsyncBlock {
