@@ -4422,31 +4422,34 @@ fn opaque_ty_additional_stmts(
             TypX::Opaque { def_path: ret_typ_def_path, args: _ret_typ_args },
         ) => {
             emit_eq_stmts();
-            let ret_exp_opaque_typ = &ctx.opaque_type_map[ret_exp_def_path];
-            let ret_typ_opaque_typ = &ctx.opaque_type_map[ret_typ_def_path];
+            // Safe lookup: coroutine opaque types may have empty bounds
+            if let (Some(ret_exp_opaque_typ), Some(ret_typ_opaque_typ)) = (
+                ctx.opaque_type_map.get(ret_exp_def_path),
+                ctx.opaque_type_map.get(ret_typ_def_path),
+            ) {
+                let mut ret_exp_projection_map = HashMap::new();
+                let mut ret_typ_projection_map = HashMap::new();
 
-            let mut ret_exp_projection_map = HashMap::new();
-            let mut ret_typ_projection_map = HashMap::new();
-
-            for (ret_exp_bound, ret_typ_bound) in
-                ret_exp_opaque_typ.x.typ_bounds.iter().zip(ret_typ_opaque_typ.x.typ_bounds.iter())
-            {
-                if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_exp_bound {
-                    ret_exp_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                for (ret_exp_bound, ret_typ_bound) in
+                    ret_exp_opaque_typ.x.typ_bounds.iter().zip(ret_typ_opaque_typ.x.typ_bounds.iter())
+                {
+                    if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_exp_bound {
+                        ret_exp_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                    }
+                    if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_typ_bound {
+                        ret_typ_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                    }
                 }
-                if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_typ_bound {
-                    ret_typ_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
-                }
-            }
-            for trait_path_id in ret_exp_projection_map.keys() {
-                if ret_typ_projection_map.contains_key(trait_path_id) {
-                    stmts.extend(opaque_ty_additional_stmts(
-                        ctx,
-                        state,
-                        span,
-                        ret_exp_projection_map[trait_path_id],
-                        ret_typ_projection_map[trait_path_id],
-                    )?);
+                for trait_path_id in ret_exp_projection_map.keys() {
+                    if ret_typ_projection_map.contains_key(trait_path_id) {
+                        stmts.extend(opaque_ty_additional_stmts(
+                            ctx,
+                            state,
+                            span,
+                            ret_exp_projection_map[trait_path_id],
+                            ret_typ_projection_map[trait_path_id],
+                        )?);
+                    }
                 }
             }
         }
