@@ -3649,17 +3649,18 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
+                        let mut now_acc_idx = 0usize; // index into now_goal_accumulators
                         for (goal, goal_kind) in &au_goals {
                             match goal_kind {
                                 GoalKind::Now => {
                                     // For now() goals, use the ghost accumulator variable.
                                     // It tracks whether Q held at ANY intermediate state
                                     // during this loop body iteration (including body start).
-                                    // For now() goals, use the ghost accumulator if available.
-                                    if !state.wp.now_goal_accumulators.is_empty() {
-                                        // Use the first accumulator (typically one now() goal per loop)
-                                        let (_, acc_var) = &state.wp.now_goal_accumulators[0];
+                                    // Each Now goal has its own accumulator, matched by index.
+                                    if now_acc_idx < state.wp.now_goal_accumulators.len() {
+                                        let (_, acc_var) = &state.wp.now_goal_accumulators[now_acc_idx];
                                         disjuncts.push(ident_var(acc_var));
+                                        now_acc_idx += 1;
                                     } else {
                                         // Fallback: evaluate Q at current state
                                         let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
