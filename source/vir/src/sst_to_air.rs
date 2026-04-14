@@ -53,6 +53,7 @@ use std::mem::swap;
 use std::sync::Arc;
 
 // Re-export temporal types and helpers from wp_context module
+#[allow(unused_imports)]
 pub use crate::wp_context::{
     GoalKind, Proposition, PropositionContext, SpawnedProcess, WpContext,
     decompose_temporal,

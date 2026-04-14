@@ -858,9 +858,9 @@ fn expr_get_call(
                 }
                 let function = get_function(ctx, &expr.span, x)?;
 
-                // Multi-process: detect Executor::spawn(async_fn(args))
-                // Record the spawned async function's name for rely-guarantee checking.
-                // Use path segment matching (not substring) to avoid false positives.
+                // Multi-process: detect Executor::spawn calls.
+                // Handles both named async functions and inline async blocks.
+                // Records spawned process info for rely-guarantee checking.
                 {
                     let is_spawn = x.path.segments.iter().any(|s| s.as_str() == "spawn")
                         && (x.path.krate.as_ref().map_or(false, |k| k.as_str() == "vstd")

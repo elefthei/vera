@@ -10,12 +10,10 @@
 //! Programs without async/await reduce to single-process wp:
 //!   `WP({0 → t}, σ, 0, φ) = wp(t, φ) σ`
 
-use crate::ast::{Fun, VirErr};
+use crate::ast::Fun;
 use crate::context::Ctx;
-use crate::messages::Span;
-use crate::sst::{Exp, Pars, Stm};
+use crate::sst::{Exp, Pars};
 use crate::wp_context::{Proposition, SpawnedClosureSpec, SpawnedProcess, extract_callee_temporal_ensures, decompose_temporal};
-use air::ast::Stmt;
 use std::sync::Arc;
 
 /// Process identifier.
