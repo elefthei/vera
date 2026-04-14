@@ -43,8 +43,6 @@ pub mod hash_map;
 #[cfg(all(feature = "alloc", feature = "std"))]
 pub mod hash_set;
 pub mod invariant;
-#[cfg(feature = "std")]
-pub mod spawn;
 #[cfg(verus_keep_ghost)]
 pub mod laws_cmp;
 #[cfg(verus_keep_ghost)]
@@ -73,6 +71,8 @@ pub mod shared;
 #[cfg(feature = "alloc")]
 pub mod simple_pptr;
 pub mod slice;
+#[cfg(feature = "std")]
+pub mod spawn;
 pub mod state_machine_internal;
 pub mod storage_protocol;
 pub mod string;
