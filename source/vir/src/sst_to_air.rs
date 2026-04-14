@@ -3273,6 +3273,8 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             let saved_au_obligations = state.wp.au_path_obligations.clone();
             // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
             let saved_now_accumulators = state.wp.now_goal_accumulators.clone();
+            // Save inside_ag_loop flag — restored after this loop.
+            let saved_inside_ag_loop = state.wp.inside_ag_loop;
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -3293,15 +3295,26 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
 
                 // Pure AG: infinite loop, no AF/AU nested inside.
                 // For loops (for-in) terminate via iterator, never AG.
-                let is_ag_loop = decrease.len() == 0 && !*is_for_loop && !has_invariance_until;
+                // Not applicable inside an AG loop body (inner loops are AU per TICL ag_cprog_while).
+                let is_ag_loop = decrease.len() == 0 && !*is_for_loop && !has_invariance_until
+                    && !state.wp.inside_ag_loop;
 
                 // AG(AF) / AG(AU): has Until nested inside AG.
                 // Requires decreases for liveness progress toward the AF/AU goal.
-                let is_ag_af_loop = has_invariance_until;
+                // Per TICL ag_cprog_while: the AG is discharged by the OUTER loop.
+                // Inner loops (when inside_ag_loop is true) are AU, not AG(AF).
+                let is_ag_af_loop = has_invariance_until && !state.wp.inside_ag_loop;
 
                 // Pure AU: terminating loop with Until (not nested in AG).
+                // Also applies to inner loops inside an AG body (per ag_cprog_while:
+                // the body satisfies "φ AU done(R)" — an AU obligation).
                 let has_au = state.wp.temporal_context.has_until();
                 let is_au_loop = decrease.len() > 0 && has_au && !has_invariance_until;
+                // Inner while loops inside AG(AF) loops are AU loops:
+                // the AG was discharged by the outer loop, leaving AU for the body.
+                let is_inner_au_loop = decrease.len() > 0 && has_invariance_until
+                    && state.wp.inside_ag_loop;
+                let is_au_loop = is_au_loop || is_inner_au_loop;
 
                 if is_ag_loop || is_au_loop || is_ag_af_loop {
                     for (span, inv, _, _) in invs_entry.iter() {
@@ -3353,6 +3366,12 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                         }
                     }
                     state.wp.now_goal_accumulators = now_accs;
+                }
+
+                // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
+                // inner loops are AU (the AG is discharged by the outer loop structure).
+                if is_ag_loop || is_ag_af_loop {
+                    state.wp.inside_ag_loop = true;
                 }
             } else {
                 is_utility_loop_in_temporal = false;
@@ -3775,6 +3794,8 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             state.wp.au_path_obligations = saved_au_obligations;
             // Restore now() goal accumulators from before this loop.
             state.wp.now_goal_accumulators = saved_now_accumulators;
+            // Restore inside_ag_loop flag.
+            state.wp.inside_ag_loop = saved_inside_ag_loop;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {

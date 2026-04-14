@@ -122,6 +122,10 @@ pub struct WpContext {
     pub now_acc_snapshot_counter: u32,
     /// Monotonically increasing counter for unique now_reached variable names.
     pub now_reached_counter: u32,
+    /// True when inside an AG or AG(AF) loop body. Inner loops should be
+    /// classified as AU (not AG/AG(AF)) per TICL ag_cprog_while rule:
+    /// the AG is discharged by the outer loop, inner bodies satisfy AU.
+    pub inside_ag_loop: bool,
     /// Multi-process configuration tracking spawned async processes.
     /// Populated by MultiProcessWp::wp_spawn, checked by emit_rely_guarantee_checks.
     pub config: crate::wp_multi::Configuration,
@@ -170,6 +174,7 @@ impl WpContext {
             now_goal_accumulators: Vec::new(),
             now_acc_snapshot_counter: 0,
             now_reached_counter: 0,
+            inside_ag_loop: false,
             config: crate::wp_multi::Configuration::new(),
         }
     }
