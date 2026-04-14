@@ -469,14 +469,12 @@ fn req_ens_to_air(
             // This must be done at the SST level (not in exp_to_expr) because
             // the BV prover has its own expression converter that can't handle Temporal.
             let exp = match &exp.x {
-                crate::sst::ExpX::Temporal(op, inner, goal) => {
-                    match op {
-                        crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
-                            goal.as_ref().unwrap_or(inner).clone()
-                        }
-                        _ => inner.clone(),
+                crate::sst::ExpX::Temporal(op, inner, goal) => match op {
+                    crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
+                        goal.as_ref().unwrap_or(inner).clone()
                     }
-                }
+                    _ => inner.clone(),
+                },
                 crate::sst::ExpX::Now(inner) | crate::sst::ExpX::Done(inner) => inner.clone(),
                 _ => exp.clone(),
             };

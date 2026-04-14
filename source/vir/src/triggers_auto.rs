@@ -534,14 +534,15 @@ fn gather_terms(ctxt: &mut Ctxt, ctx: &Ctx, exp: &Exp, depth: u64) -> (bool, Ter
             let (is_pure1, term1) = gather_terms(ctxt, ctx, e1, depth + 1);
             if let Some(e2) = e2 {
                 let (is_pure2, term2) = gather_terms(ctxt, ctx, e2, depth + 1);
-                (is_pure1 && is_pure2, Arc::new(TermX::App(ctxt.other(), Arc::new(vec![term1, term2]))))
+                (
+                    is_pure1 && is_pure2,
+                    Arc::new(TermX::App(ctxt.other(), Arc::new(vec![term1, term2]))),
+                )
             } else {
                 (is_pure1, term1)
             }
         }
-        ExpX::Now(e) | ExpX::Done(e) => {
-            gather_terms(ctxt, ctx, e, depth + 1)
-        }
+        ExpX::Now(e) | ExpX::Done(e) => gather_terms(ctxt, ctx, e, depth + 1),
     };
     if let TermX::Var(..) = *term {
         return (is_pure, term);

@@ -663,9 +663,7 @@ fn expand_exp_rec(
                     let r = goal.as_ref().unwrap_or(inner);
                     expand_exp_rec(ctx, ectx, state, r, did_split_yet, negate)
                 }
-                _ => {
-                    expand_exp_rec(ctx, ectx, state, inner, did_split_yet, negate)
-                }
+                _ => expand_exp_rec(ctx, ectx, state, inner, did_split_yet, negate),
             }
         }
         ExpX::Now(inner) | ExpX::Done(inner) => {

@@ -1,8 +1,8 @@
 use crate::ast::{
     BodyVisibility, CallTarget, CallTargetKind, Constant, Datatype, DatatypeTransparency, Dt, Expr,
     ExprX, FieldOpr, Fun, Function, FunctionKind, Krate, MaskSpec, Mode, MultiOp, Opaqueness, Path,
-    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, TemporalOp, Trait, Typ, TypX, UnaryOp,
-    UnaryOpr, UnwindSpec, VarIdent, VirErr, VirErrAs, Visibility,
+    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, TemporalOp, Trait, Typ, TypX, UnaryOp, UnaryOpr,
+    UnwindSpec, VarIdent, VirErr, VirErrAs, Visibility,
 };
 use crate::ast_util::{
     ast_expr_get_proof_note, dt_as_friendly_rust_name, fun_as_friendly_rust_name,
@@ -798,8 +798,12 @@ fn check_one_expr<Emit: EmitError>(
             match area {
                 Area::PostState => {
                     match op {
-                        TemporalOp::AG | TemporalOp::AU | TemporalOp::AN
-                        | TemporalOp::EG | TemporalOp::EU | TemporalOp::EN => {
+                        TemporalOp::AG
+                        | TemporalOp::AU
+                        | TemporalOp::AN
+                        | TemporalOp::EG
+                        | TemporalOp::EU
+                        | TemporalOp::EN => {
                             // Allowed — universal and existential operators are processed by
                             // temporal VCGen. For deterministic programs, ∀ ≡ ∃ (single path).
                         }
@@ -815,7 +819,10 @@ fn check_one_expr<Emit: EmitError>(
                         }
                     }
                     // au/an/eu/en(done(R), _) — done(R) cannot be a path property
-                    if matches!(op, TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN) {
+                    if matches!(
+                        op,
+                        TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN
+                    ) {
                         if matches!(&e1.x, ExprX::Done(_)) {
                             return Err(error(
                                 &e1.span,
@@ -835,7 +842,9 @@ fn check_one_expr<Emit: EmitError>(
                     };
                     return Err(error(
                         &expr.span,
-                        &format!("temporal operator `{op_name}` is not yet supported outside of ensures clauses"),
+                        &format!(
+                            "temporal operator `{op_name}` is not yet supported outside of ensures clauses"
+                        ),
                     ));
                 }
             }
@@ -850,7 +859,9 @@ fn check_one_expr<Emit: EmitError>(
                     let name = if matches!(&expr.x, ExprX::Now(_)) { "now" } else { "done" };
                     return Err(error(
                         &expr.span,
-                        &format!("`{name}()` can only appear inside a temporal ensures clause (e.g., `ensures af(done(Q))`)"),
+                        &format!(
+                            "`{name}()` can only appear inside a temporal ensures clause (e.g., `ensures af(done(Q))`)"
+                        ),
                     ));
                 }
             }
@@ -1413,27 +1424,13 @@ fn check_function<Emit: EmitError>(
             for expr in es.iter() {
                 let msg = "'opens_invariants' clause of public function";
                 let disallow_private_access = Some((&function.x.visibility, msg));
-                check_expr(
-                    ctxt,
-                    function,
-                    expr,
-                    disallow_private_access,
-                    Area::PreState,
-                    emit,
-                )?;
+                check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
             }
         }
         Some(MaskSpec::InvariantOpensSet(expr)) => {
             let msg = "'opens_invariants' clause of public function";
             let disallow_private_access = Some((&function.x.visibility, msg));
-            check_expr(
-                ctxt,
-                function,
-                expr,
-                disallow_private_access,
-                Area::PreState,
-                emit,
-            )?
+            check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?
         }
     }
     match &function.x.unwind_spec {
@@ -1441,27 +1438,13 @@ fn check_function<Emit: EmitError>(
         Some(UnwindSpec::NoUnwindWhen(expr)) => {
             let msg = "unwind clause of public function";
             let disallow_private_access = Some((&function.x.visibility, msg));
-            check_expr(
-                ctxt,
-                function,
-                expr,
-                disallow_private_access,
-                Area::PreState,
-                emit,
-            )?;
+            check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
         }
     }
     for expr in function.x.decrease.iter() {
         let msg = "'decreases' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
-        check_expr(
-            ctxt,
-            function,
-            expr,
-            disallow_private_access,
-            Area::PreState,
-            emit,
-        )?;
+        check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
     }
     if let Some(expr) = &function.x.decrease_when {
         let msg = "'when' clause of public function";
@@ -1478,14 +1461,7 @@ fn check_function<Emit: EmitError>(
                 "decreases_when can only be used when there is a decreases clause (use recommends(...) for nonrecursive functions)",
             ));
         }
-        check_expr(
-            ctxt,
-            function,
-            expr,
-            disallow_private_access,
-            Area::PreState,
-            emit,
-        )?;
+        check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
     }
 
     if function.x.mode == Mode::Exec
