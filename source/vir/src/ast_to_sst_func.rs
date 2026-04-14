@@ -228,7 +228,8 @@ fn func_body_to_sst(
     }
     let proof_body_stm = stms_to_one_stm(&body.span, proof_body_stms);
     let proof_body_stm = check_state.finalize_stm(ctx, &proof_body_stm)?;
-    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } = check_state.finalize()?;
+    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } =
+        check_state.finalize()?;
 
     let is_recursive = crate::recursion::fun_is_recursive(ctx, function);
     let termination_check = if is_recursive && verifying_owning_bucket {
@@ -491,19 +492,30 @@ pub fn func_decl_to_sst(
     // Non-temporal functions (including iterator trait methods) keep standard Verus
     // &mut handling — MutRefFinal for post-state in ensures, old() for pre-state.
     // Requires wrapping is handled inside req_ens_to_sst (when pre=true).
-    let has_temporal = function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
+    let has_temporal = function
+        .x
+        .ensure
+        .0
+        .iter()
+        .chain(function.x.ensure.1.iter())
         .any(|e| crate::ast_visitor::expr_contains_temporal(e));
     let mut_params = crate::ast_visitor::extract_mut_params(&function.x.params);
     let wrap_ens = |exprs: &Arc<Vec<Expr>>| -> Arc<Vec<Expr>> {
-        if mut_params.is_empty() || !has_temporal { return exprs.clone(); }
-        Arc::new(exprs.iter().map(|e| crate::ast_visitor::wrap_mut_params_pre(e, &mut_params, true)).collect())
+        if mut_params.is_empty() || !has_temporal {
+            return exprs.clone();
+        }
+        Arc::new(
+            exprs
+                .iter()
+                .map(|e| crate::ast_visitor::wrap_mut_params_pre(e, &mut_params, true))
+                .collect(),
+        )
     };
 
     let (pars, reqs) = req_ens_to_sst(ctx, diagnostics, function, &function.x.require, true)?;
     let wrapped_ensure0 = wrap_ens(&function.x.ensure.0);
     let wrapped_ensure1 = wrap_ens(&function.x.ensure.1);
-    let (ens_pars, enss0) =
-        req_ens_to_sst(ctx, diagnostics, function, &wrapped_ensure0, false)?;
+    let (ens_pars, enss0) = req_ens_to_sst(ctx, diagnostics, function, &wrapped_ensure0, false)?;
     let (_, enss1) = req_ens_to_sst(ctx, diagnostics, function, &wrapped_ensure1, false)?;
 
     let mut inv_masks: Vec<Exps> = Vec::new();
@@ -1007,11 +1019,18 @@ pub fn func_def_to_sst(
     // Ensures: combine from both sources
     // For temporal functions, wrap ensures to convert MutRefFinal/Local at depth 0
     // to VarAt(Pre), matching the treatment in func_decl_to_sst.
-    let has_temporal_ens = function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
+    let has_temporal_ens = function
+        .x
+        .ensure
+        .0
+        .iter()
+        .chain(function.x.ensure.1.iter())
         .any(|e| crate::ast_visitor::expr_contains_temporal(e));
     let mut_params_body = crate::ast_visitor::extract_mut_params(&function.x.params);
     let wrap_ens_body = |e: &Expr| -> Expr {
-        if mut_params_body.is_empty() || !has_temporal_ens { return e.clone(); }
+        if mut_params_body.is_empty() || !has_temporal_ens {
+            return e.clone();
+        }
         crate::ast_visitor::wrap_mut_params_pre(e, &mut_params_body, true)
     };
 
@@ -1091,7 +1110,8 @@ pub fn func_def_to_sst(
             )?
         };
 
-    let FinalState { mut local_decls, statics, spawned_funs, spawned_closures } = state.finalize()?;
+    let FinalState { mut local_decls, statics, spawned_funs, spawned_closures } =
+        state.finalize()?;
 
     // SST --> AIR
     for decl in decls {

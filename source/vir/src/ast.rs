@@ -1266,7 +1266,11 @@ pub enum ExprX {
 
     /// Async block with requires/ensures specs: `async requires R ensures G { body }`
     /// Used for inline process specification at spawn sites.
-    AsyncBlock { requires: Exprs, ensures: Exprs, body: Expr },
+    AsyncBlock {
+        requires: Exprs,
+        ensures: Exprs,
+        body: Expr,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, ToDebugSNode, Clone, Copy)]

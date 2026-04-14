@@ -154,7 +154,11 @@ pub struct SpawnedClosureSpec {
 
 impl crate::printer::ToDebugSNode for SpawnedClosureSpec {
     fn to_node(&self, _opts: &crate::printer::ToDebugSNodeOpts) -> sise::Node {
-        sise::Node::Atom(format!("SpawnedClosureSpec(reqs={}, ens={})", self.requires.len(), self.ensures.len()))
+        sise::Node::Atom(format!(
+            "SpawnedClosureSpec(reqs={}, ens={})",
+            self.requires.len(),
+            self.ensures.len()
+        ))
     }
 }
 
@@ -202,10 +206,9 @@ pub fn decompose_temporal(
         }
         _ => {
             let obligation = match op {
-                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => Proposition::Always {
-                    property: prop.clone(),
-                    requires_invariance: inside_ag,
-                },
+                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => {
+                    Proposition::Always { property: prop.clone(), requires_invariance: inside_ag }
+                }
                 crate::ast::TemporalOp::AU
                 | crate::ast::TemporalOp::EU
                 | crate::ast::TemporalOp::AN

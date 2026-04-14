@@ -1981,7 +1981,10 @@ pub(crate) mod parsing {
             && (input.peek2(token::Brace)
                 || input.peek2(Token![requires])
                 || input.peek2(Token![ensures])
-                || input.peek2(Token![move]) && (input.peek3(token::Brace) || input.peek3(Token![requires]) || input.peek3(Token![ensures])))
+                || input.peek2(Token![move])
+                    && (input.peek3(token::Brace)
+                        || input.peek3(Token![requires])
+                        || input.peek3(Token![ensures])))
         {
             input.parse().map(Expr::Async)
         } else if input.peek(Token![try]) && input.peek2(token::Brace) {

@@ -3008,13 +3008,7 @@ pub(crate) fn expr_to_vir_innermost<'tcx>(
             ) =>
         {
             // Async block: extract desugared body and process specs
-            Ok(ExprOrPlace::Expr(async_block_to_vir(
-                bctx,
-                expr,
-                body_id,
-                def_id,
-                modifier,
-            )?))
+            Ok(ExprOrPlace::Expr(async_block_to_vir(bctx, expr, body_id, def_id, modifier)?))
         }
         ExprKind::Closure(Closure { fn_decl: _, .. }) => {
             Ok(ExprOrPlace::Expr(closure_to_vir(bctx, expr, expr_typ()?, false, None, modifier)?))
@@ -3874,7 +3868,9 @@ fn async_block_to_vir<'tcx>(
         in_explicit_prophecy_node: false,
         temporal_depth: 0,
         params: bctx.params.clone(),
-        unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(std::collections::HashMap::new())),
+        unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(
+            std::collections::HashMap::new(),
+        )),
         external_opaque_type_map: None,
     };
 
@@ -3883,10 +3879,7 @@ fn async_block_to_vir<'tcx>(
     let header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
     let vir::headers::Header { require, ensure, .. } = header;
 
-    bctx.ctxt.push_body_erasure(
-        *def_id,
-        BodyErasure { erase_body: false, ret_spec: false },
-    );
+    bctx.ctxt.push_body_erasure(*def_id, BodyErasure { erase_body: false, ret_spec: false });
 
     let typ = bctx.mid_ty_to_vir(expr.span, &bctx.types.node_type(expr.hir_id), false)?;
 
@@ -3913,11 +3906,7 @@ fn async_block_to_vir<'tcx>(
 
     // Produce an AsyncBlock expression that carries the specs through to SST/VCGen
     // for spawn detection and R-G checking.
-    let exprx = ExprX::AsyncBlock {
-        requires: require,
-        ensures: ensure.0,
-        body: vir_body,
-    };
+    let exprx = ExprX::AsyncBlock { requires: require, ensures: ensure.0, body: vir_body };
     Ok(bctx.spanned_typed_new(expr.span, &typ, exprx))
 }
 

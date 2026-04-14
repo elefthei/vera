@@ -2075,7 +2075,8 @@ fn chain_count(expr: &Expr) -> u32 {
     }
 }
 
-const ILLEGAL_CALLEES: &[&str] = &["forall", "exists", "choose", "ag", "af", "ax", "eg", "ex", "ef", "au", "an", "eu", "en"];
+const ILLEGAL_CALLEES: &[&str] =
+    &["forall", "exists", "choose", "ag", "af", "ax", "eg", "ex", "ef", "au", "an", "eu", "en"];
 
 impl Visitor {
     fn chain_operators(&mut self, expr: &mut Expr) -> bool {
@@ -2306,16 +2307,20 @@ impl Visitor {
             }
             // Sugar: AF p = AU(true, p), AX p = AN(true, p), etc.
             UnOp::Af(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(true, #arg));
             }
             UnOp::Ax(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(true, #arg));
             }
             UnOp::Ef(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(true, #arg));
             }
             UnOp::Ex(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(true, #arg));
             }
             // Binary temporal operators: au(p, q), an(p, q), eu(p, q), en(p, q)
             // These are parsed as UnOp applied to a parenthesized tuple: au (p, q)
@@ -2337,9 +2342,7 @@ impl Visitor {
                             "temporal operator `{}` requires exactly two arguments: `{}(p, q)`",
                             op_name, op_name,
                         );
-                        *expr = Expr::Verbatim(
-                            quote_spanned!(span => compile_error!(#err)),
-                        );
+                        *expr = Expr::Verbatim(quote_spanned!(span => compile_error!(#err)));
                         return true;
                     }
                 };

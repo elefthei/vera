@@ -455,7 +455,12 @@ impl<'a> State<'a> {
             let mutbl = self.mutated_var_idents.get(&pre_local_decl.ident);
             local_decls.push(pre_local_decl.into_local_decl(mutbl)?);
         }
-        Ok(FinalState { local_decls, statics: self.statics, spawned_funs: self.spawned_funs, spawned_closures: self.spawned_closures })
+        Ok(FinalState {
+            local_decls,
+            statics: self.statics,
+            spawned_funs: self.spawned_funs,
+            spawned_closures: self.spawned_closures,
+        })
     }
 
     fn checking_spec_preconditions(&self, ctx: &Ctx) -> bool {
@@ -868,11 +873,7 @@ fn expr_get_call(
                     if is_spawn {
                         for arg in args.iter() {
                             match &arg.x {
-                                ExprX::Call(
-                                    CallTarget::Fun(_, callee_fun, _, _, _, _),
-                                    _,
-                                    _,
-                                ) => {
+                                ExprX::Call(CallTarget::Fun(_, callee_fun, _, _, _, _), _, _) => {
                                     state.spawned_funs.push(callee_fun.clone());
                                 }
                                 ExprX::AsyncBlock { requires, ensures, .. } => {
@@ -1178,7 +1179,8 @@ pub(crate) fn expr_to_decls_exp_skip_checks(
     state.declare_params(params);
     let exp = expr_to_pure_exp_skip_checks(ctx, &mut state, expr)?;
     let exp = state.finalize_exp(ctx, &exp)?;
-    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } = state.finalize()?;
+    let FinalState { local_decls, statics: _, spawned_funs: _, spawned_closures: _ } =
+        state.finalize()?;
     Ok((local_decls, exp))
 }
 
@@ -2588,11 +2590,22 @@ pub(crate) fn expr_to_stm_opt(
             // Loops in functions with AG/EG temporal ensures don't require decreases:
             // AG/EG semantics: loop is infinite, no termination proof needed.
             // AF/AU: still need decreases (checked later in sst_to_air).
-            let has_ag_ensures = ctx.fun.as_ref().map(|c| {
-                let function = &ctx.func_map[&c.current_fun];
-                function.x.ensure.0.iter().chain(function.x.ensure.1.iter())
-                    .any(|e| matches!(&e.x, ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..)))
-            }).unwrap_or(false);
+            let has_ag_ensures = ctx
+                .fun
+                .as_ref()
+                .map(|c| {
+                    let function = &ctx.func_map[&c.current_fun];
+                    function.x.ensure.0.iter().chain(function.x.ensure.1.iter()).any(|e| {
+                        matches!(
+                            &e.x,
+                            ExprX::Temporal(
+                                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG,
+                                ..
+                            )
+                        )
+                    })
+                })
+                .unwrap_or(false);
             if decrease.len() == 0
                 && !has_ag_ensures
                 && !ctx

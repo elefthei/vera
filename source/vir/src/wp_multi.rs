@@ -13,7 +13,10 @@
 use crate::ast::Fun;
 use crate::context::Ctx;
 use crate::sst::{Exp, Pars};
-use crate::wp_context::{Proposition, SpawnedClosureSpec, SpawnedProcess, extract_callee_temporal_ensures, decompose_temporal};
+use crate::wp_context::{
+    Proposition, SpawnedClosureSpec, SpawnedProcess, decompose_temporal,
+    extract_callee_temporal_ensures,
+};
 use std::sync::Arc;
 
 /// Process identifier.
@@ -37,7 +40,13 @@ impl Configuration {
 
     /// Spawn an async process. Records its function name, parameters,
     /// temporal propositions, and relies for rely-guarantee checking.
-    pub fn spawn(&mut self, fun: Fun, pars: Pars, propositions: Vec<Proposition>, relies: Vec<Exp>) -> PID {
+    pub fn spawn(
+        &mut self,
+        fun: Fun,
+        pars: Pars,
+        propositions: Vec<Proposition>,
+        relies: Vec<Exp>,
+    ) -> PID {
         let pid = self.processes.len() as PID;
         self.processes.push(SpawnedProcess { fun, pars, propositions, relies });
         pid
@@ -84,20 +93,10 @@ pub trait MultiProcessWp {
                     relies,
                 );
             }
-            return self.configuration_mut().spawn(
-                fun.clone(),
-                Arc::new(vec![]),
-                vec![],
-                relies,
-            );
+            return self.configuration_mut().spawn(fun.clone(), Arc::new(vec![]), vec![], relies);
         }
         // No func_sst_map entry — still record for tracking
-        self.configuration_mut().spawn(
-            fun.clone(),
-            Arc::new(vec![]),
-            vec![],
-            vec![],
-        )
+        self.configuration_mut().spawn(fun.clone(), Arc::new(vec![]), vec![], vec![])
     }
 
     /// WP for `exec.spawn(async requires R ensures G { body })`.

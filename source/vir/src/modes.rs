@@ -3408,8 +3408,15 @@ fn check_expr_handle_mut_arg(
             let proph =
                 check_expr_has_mode(ctxt, record, typing, Mode::Spec, e1, Mode::Spec, outer_proph)?;
             if let Some(e2) = e2 {
-                let proph2 =
-                    check_expr_has_mode(ctxt, record, typing, Mode::Spec, e2, Mode::Spec, outer_proph)?;
+                let proph2 = check_expr_has_mode(
+                    ctxt,
+                    record,
+                    typing,
+                    Mode::Spec,
+                    e2,
+                    Mode::Spec,
+                    outer_proph,
+                )?;
                 Ok((Mode::Spec, proph.join(proph2)))
             } else {
                 Ok((Mode::Spec, proph))

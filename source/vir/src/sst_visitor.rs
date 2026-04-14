@@ -401,8 +401,7 @@ pub(crate) trait Visitor<R: Returner, Err, Scope: Scoper> {
                 let is_now = matches!(&exp.x, ExpX::Now(_));
                 let e = self.visit_exp(e)?;
                 R::ret(move || {
-                    let wrapped =
-                        if is_now { ExpX::Now(R::get(e)) } else { ExpX::Done(R::get(e)) };
+                    let wrapped = if is_now { ExpX::Now(R::get(e)) } else { ExpX::Done(R::get(e)) };
                     exp_new(wrapped)
                 })
             }
