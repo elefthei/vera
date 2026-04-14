@@ -312,28 +312,28 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// === Non-temporal ensures rejection tests ===
+// === Non-temporal ensures tests ===
+// Plain ensures (without temporal operators) are allowed for standard Verus functions.
+// Temporal operators are only required when verifying temporal properties.
 
-// Exec function with non-temporal ensures must be rejected
 test_verify_one_file! {
-    #[test] test_nontemporal_ensures_exec_rejected verus_code! {
+    #[test] test_nontemporal_ensures_exec_allowed verus_code! {
         fn test_exec(x: u64) -> (ret: u64)
             ensures ret == x,
         {
             x
         }
-    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+    } => Ok(())
 }
 
-// Proof function with non-temporal ensures must be rejected
 test_verify_one_file! {
-    #[test] test_nontemporal_ensures_proof_rejected verus_code! {
+    #[test] test_nontemporal_ensures_proof_allowed verus_code! {
         proof fn test_proof(x: int)
             ensures x >= 0,
         {
             assume(false);
         }
-    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+    } => Ok(())
 }
 
 // Spec functions cannot have ensures at all (separate well-formedness check),

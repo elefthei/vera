@@ -1370,19 +1370,14 @@ fn check_function<Emit: EmitError>(
         let disallow_private_access = Some((&function.x.visibility, msg));
         check_expr(ctxt, function, ens, disallow_private_access, Area::PostState, emit)?;
 
-        // For exec/proof functions, the top-level ensures expression must use a temporal
-        // operator. Spec functions are pure math (pre → post immediately), so they are exempt.
-        // Also exempt:
-        //   - vstd functions (standard library hasn't been ported to temporal)
-        //   - external_body functions (axioms — no body to verify temporally)
+        // Bare now()/done() without a temporal wrapper (ag, af, au, etc.) is invalid.
+        // They must appear inside a temporal operator: `ensures af(done(Q))`, not `ensures done(Q)`.
         if matches!(function.x.mode, Mode::Exec | Mode::Proof) {
-            let is_vstd = matches!(&function.x.owning_module, Some(path) if path.is_vstd_path());
-            let is_external_body = function.x.attrs.is_external_body;
-            if !is_vstd && !is_external_body && !is_temporal_ensures(ens) {
+            if matches!(&ens.x, ExprX::Now(..) | ExprX::Done(..)) {
                 return Err(error(
                     &ens.span,
-                    "exec/proof function ensures must use a temporal operator \
-                     (e.g., `ensures af(Q)` instead of `ensures Q`)",
+                    "bare `now()` or `done()` in ensures must be wrapped in a temporal operator \
+                     (e.g., `ensures af(done(Q))` instead of `ensures done(Q)`)",
                 ));
             }
         }
