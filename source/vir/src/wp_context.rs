@@ -120,6 +120,8 @@ pub struct WpContext {
     pub now_goal_accumulators: Vec<(Exp, Ident)>,
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
+    /// Monotonically increasing counter for unique now_reached variable names.
+    pub now_reached_counter: u32,
     /// Multi-process configuration tracking spawned async processes.
     /// Populated by MultiProcessWp::wp_spawn, checked by emit_rely_guarantee_checks.
     pub config: crate::wp_multi::Configuration,
@@ -167,6 +169,7 @@ impl WpContext {
             au_path_obligations: Vec::new(),
             now_goal_accumulators: Vec::new(),
             now_acc_snapshot_counter: 0,
+            now_reached_counter: 0,
             config: crate::wp_multi::Configuration::new(),
         }
     }

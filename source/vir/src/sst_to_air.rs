@@ -3273,7 +3273,6 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             let saved_au_obligations = state.wp.au_path_obligations.clone();
             // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
             let saved_now_accumulators = state.wp.now_goal_accumulators.clone();
-            let saved_now_acc_counter = state.wp.now_acc_snapshot_counter;
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -3346,11 +3345,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                 // The accumulator replaces Q in the weakened decreases check.
                 if is_ag_af_loop {
                     let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
-                    let mut now_counter = 0u32;
                     for o in state.wp.temporal_context.propositions.iter() {
                         if let Proposition::Until { goal, goal_kind: GoalKind::Now, requires_invariance: true, .. } = o {
-                            let acc_var = Arc::new(format!("now_reached_{}", now_counter));
-                            now_counter += 1;
+                            state.wp.now_reached_counter += 1;
+                            let acc_var = Arc::new(format!("now_reached_{}", state.wp.now_reached_counter));
                             now_accs.push((goal.clone(), acc_var));
                         }
                     }
@@ -3507,7 +3505,6 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // These are mutable booleans that track whether Q held at any intermediate state.
             for (_, acc_var) in &state.wp.now_goal_accumulators {
                 local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
-                state.local_shared.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
             }
             if loop_isolation {
                 for (x, typ) in typ_inv_vars.iter() {
@@ -3778,7 +3775,6 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             state.wp.au_path_obligations = saved_au_obligations;
             // Restore now() goal accumulators from before this loop.
             state.wp.now_goal_accumulators = saved_now_accumulators;
-            state.wp.now_acc_snapshot_counter = saved_now_acc_counter;
             stmts
         }
         StmX::OpenInvariant(body_stm) => {

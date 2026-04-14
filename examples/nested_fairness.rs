@@ -1,18 +1,18 @@
 // rust_verify/tests/example.rs ignore --- rely-guarantee tutorial example
 //
-// Nested Fairness: ag(af(now)) with progress cycle
+// Nested Fairness: ag(af(now)) with nested loops
 //
-// Two tasks run a batch processor:
-//   - Loop runs forever (AG layer)
-//   - Each iteration drains batch toward 0 (AF layer)
-//   - When batch hits 0 (now goal), it refills for next cycle
+// Two tasks run a batch processor with nested loops:
+//   - Outer loop (infinite): processes batches forever (AG layer)
+//   - Inner loop (terminating): drains current batch (AF layer)
 //
 // The property ag(af(now(*batch == 0))) proves:
-//   - AG: the system runs forever
+//   - AG: the system runs forever (outer loop)
 //   - AF(now(...)): each batch is eventually drained to 0
 //
-// This demonstrates REPEATED progress: drain → refill → drain → ...
-// The decreases *batch proves the AF progress property.
+// This demonstrates REPEATED progress: the batch empties, refills,
+// empties again — infinitely. Both nesting levels contribute to
+// the temporal property.
 //
 // R-G properties verified:
 //   1. Each task's outer loop runs forever (AG)
@@ -28,7 +28,7 @@ fn system(exec: &mut impl Executor, batch: &mut u64)
     requires *batch == 0,
     ensures ag(af(now(*batch == 0))),
 {
-    // Task A: process batches repeatedly
+    // Task A: process batches repeatedly with nested loops
     exec.spawn(async
         requires *batch <= 10,
         ensures ag(af(now(*batch == 0))),
@@ -37,11 +37,12 @@ fn system(exec: &mut impl Executor, batch: &mut u64)
             invariant *batch <= 10,
             decreases *batch,
         {
-            // Drain current batch toward 0
+            // Drain current batch toward 0 (AF progress)
             if *batch > 0 {
                 *batch = *batch - 1;
             }
-            // When *batch == 0: AF(now) goal reached, then refill
+            // When batch hits 0, now() goal is reached.
+            // Refill for next cycle (AG: runs forever).
             if *batch == 0 {
                 *batch = 10;
             }
