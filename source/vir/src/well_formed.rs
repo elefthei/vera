@@ -30,20 +30,6 @@ struct Ctxt<'a> {
 /// Check whether an ensures expression is (or wraps) a temporal operator.
 /// Peels through transparent wrappers like `ProofNote` and `CustomErr` that
 /// may surround the underlying `ExprX::Temporal(...)`.
-fn is_temporal_ensures(expr: &Expr) -> bool {
-    match &expr.x {
-        ExprX::Temporal(..) => true,
-        // Bare now()/done() outside a temporal operator is NOT valid temporal ensures.
-        // They must appear inside ag(), af(), au(), etc.
-        ExprX::Now(..) | ExprX::Done(..) => false,
-        ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
-        ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
-        // Peel through blocks (let bindings) — the temporal operator may be the final expression
-        ExprX::Block(_, Some(final_expr)) => is_temporal_ensures(final_expr),
-        _ => false,
-    }
-}
-
 /// Check whether an expression contains a `done(...)` anywhere in its temporal tree.
 /// Used to detect contradictions like `ag(done(Q))` where AG requires infinite
 /// computation but done requires termination.
