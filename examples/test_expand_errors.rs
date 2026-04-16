@@ -38,7 +38,7 @@ proof fn test()
 
 proof fn test_ret()
     ensures
-        af(done(z())),
+        z(),
 {
 }
 

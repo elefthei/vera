@@ -10,18 +10,18 @@ pub trait TotalOrdered : Sized {
     spec fn le(self, other: Self) -> bool;
 
     proof fn reflexive(x: Self)
-        ensures af(done(Self::le(x, x)));
+        ensures Self::le(x, x);
 
     proof fn transitive(x: Self, y: Self, z: Self)
         requires Self::le(x, y), Self::le(y, z),
-        ensures af(done(Self::le(x, z)));
+        ensures Self::le(x, z);
 
     proof fn antisymmetric(x: Self, y: Self)
         requires Self::le(x, y), Self::le(y, x),
-        ensures af(done(x == y));
+        ensures x == y;
 
     proof fn total(x: Self, y: Self)
-        ensures af(done(Self::le(x, y) || Self::le(y, x)));
+        ensures Self::le(x, y) || Self::le(y, x);
 
     fn compare(&self, other: &Self) -> (c: Cmp)
         ensures (match c {
@@ -110,7 +110,7 @@ impl<K: TotalOrdered, V> TreeMap<K, V> {
 impl<K: TotalOrdered, V> TreeMap<K, V> {
     pub fn new() -> (s: Self)
         ensures
-            af(done(s@ == Map::<K, V>::empty())),
+            s@ == Map::<K, V>::empty(),
     {
         TreeMap::<K, V> { root: None }
     }
@@ -121,8 +121,8 @@ impl<K: TotalOrdered, V> Node<K, V> {
         requires
             old(node).is_some() ==> old(node).unwrap().well_formed(),
         ensures
-            af(done(node.is_some() ==> node.unwrap().well_formed())),
-            af(done(Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).insert(key, value))),
+            node.is_some() ==> node.unwrap().well_formed(),
+            Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).insert(key, value),
         decreases *old(node),
     {
         if node.is_none() {
@@ -147,8 +147,8 @@ impl<K: TotalOrdered, V> Node<K, V> {
         requires
             old(self).well_formed(),
         ensures
-            af(done(self.well_formed())),
-            af(done(self.as_map() =~= old(self).as_map().insert(key, value))),
+            self.well_formed(),
+            self.as_map() =~= old(self).as_map().insert(key, value),
         decreases *old(self),
     {
         match key.compare(&self.key) {
@@ -185,7 +185,7 @@ impl<K: TotalOrdered, V> Node<K, V> {
 impl<K: TotalOrdered, V> TreeMap<K, V> {
     pub fn insert(&mut self, key: K, value: V)
         ensures
-            af(done(self@ == old(self)@.insert(key, value)))
+            self@ == old(self)@.insert(key, value)
     {
         proof { use_type_invariant(&*self); }
         let mut root = None;
@@ -200,8 +200,8 @@ impl<K: TotalOrdered, V> Node<K, V> {
         requires
             old(node).is_some() ==> old(node).unwrap().well_formed(),
         ensures
-            af(done(node.is_some() ==> node.unwrap().well_formed())),
-            af(done(Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).remove(key))),
+            node.is_some() ==> node.unwrap().well_formed(),
+            Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).remove(key),
         decreases *old(node),
     {
         if node.is_some() {
@@ -268,11 +268,11 @@ impl<K: TotalOrdered, V> Node<K, V> {
             old(node).is_some(),
             old(node).unwrap().well_formed(),
         ensures
-            af(done(node.is_some() ==> node.unwrap().well_formed())),
-            af(done(Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).remove(popped.0))),
-            af(done(Node::<K, V>::optional_as_map(*old(node)).dom().contains(popped.0))),
-            af(done(Node::<K, V>::optional_as_map(*old(node))[popped.0] == popped.1)),
-            af(done(forall |elem| #[trigger] Node::<K, V>::optional_as_map(*old(node)).dom().contains(elem) ==> elem.le(popped.0))),
+            node.is_some() ==> node.unwrap().well_formed(),
+            Node::<K, V>::optional_as_map(*node) =~= Node::<K, V>::optional_as_map(*old(node)).remove(popped.0),
+            Node::<K, V>::optional_as_map(*old(node)).dom().contains(popped.0),
+            Node::<K, V>::optional_as_map(*old(node))[popped.0] == popped.1,
+            forall |elem| #[trigger] Node::<K, V>::optional_as_map(*old(node)).dom().contains(elem) ==> elem.le(popped.0),
         decreases *old(node),
     {
         let mut tmp = None;
@@ -310,7 +310,7 @@ impl<K: TotalOrdered, V> Node<K, V> {
 impl<K: TotalOrdered, V> TreeMap<K, V> {
     pub fn delete(&mut self, key: K)
         ensures
-            af(done(self@ == old(self)@.remove(key))),
+            self@ == old(self)@.remove(key),
     {
         proof { use_type_invariant(&*self); }
         let mut root = None;
@@ -398,10 +398,10 @@ impl<K: TotalOrdered, V> TreeMap<K, V> {
 impl<K: Copy + TotalOrdered, V: Clone> Clone for Node<K, V> {
     fn clone(&self) -> (res: Self)
         ensures
-            af(done(self.well_formed() ==> res.well_formed())),
-            af(done(self.as_map().dom() =~= res.as_map().dom())),
-            af(done(forall |key| #[trigger] res.as_map().dom().contains(key) ==>
-                cloned::<V>(self.as_map()[key], res.as_map()[key]))),
+            self.well_formed() ==> res.well_formed(),
+            self.as_map().dom() =~= res.as_map().dom(),
+            forall |key| #[trigger] res.as_map().dom().contains(key) ==>
+                cloned::<V>(self.as_map()[key], res.as_map()[key]),
         decreases self,
     {
         let res = Node {
@@ -434,7 +434,7 @@ impl<K: Copy + TotalOrdered, V: Clone> Clone for Node<K, V> {
 // ANCHOR: clone_signature
 impl<K: Copy + TotalOrdered, V: Clone> Clone for TreeMap<K, V> {
     fn clone(&self) -> (res: Self)
-        ensures af(done(self@.dom() =~= res@.dom())),
+        ensures self@.dom() =~= res@.dom(),
             forall |key| #[trigger] res@.dom().contains(key) ==>
                 cloned::<V>(self@[key], res@[key]),
 // ANCHOR_END: clone_signature
@@ -510,7 +510,7 @@ struct IntWrapper {
 
 impl Clone for IntWrapper {
     fn clone(&self) -> (s: Self)
-        ensures af(done(s == *self))
+        ensures s == *self
     {
         IntWrapper { int_value: self.int_value }
     }
@@ -531,7 +531,7 @@ pub struct WeirdInt {
 impl Clone for WeirdInt {
     fn clone(&self) -> (s: Self)
         ensures
-            af(done(s.int_value == self.int_value)),
+            s.int_value == self.int_value,
     {
         WeirdInt { int_value: self.int_value, other: 0 }
     }

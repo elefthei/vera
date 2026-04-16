@@ -39,7 +39,7 @@ test_verify_one_file! {
         }
 
         proof fn test0() -> (n: nat)
-            ensures af(done(true))
+            ensures true
         {
             100
         }
@@ -526,11 +526,11 @@ test_verify_one_file! {
 
         fn test_cast(v: E) -> (ret: usize)
         ensures
-            af(done(E::A as int == 0)),
-            af(done(E::B as int == 255)),
-            af(done(E::C as int == 256)),
-            af(done(ret == 0 || ret == 255 || ret == 256)),
-            af(done(ret ==  v as int)),
+            E::A as int == 0,
+            E::B as int == 255,
+            E::C as int == 256,
+            ret == 0 || ret == 255 || ret == 256,
+            ret ==  v as int,
         {
             v as usize
         }
@@ -548,8 +548,8 @@ test_verify_one_file_with_options! {
 
         fn test_cast_overflow(v: E) -> (ret: u8)
         ensures
-            af(done(E::C as int == 256)),
-            af(done(ret == v as u8)),
+            E::C as int == 256,
+            ret == v as u8,
         {
             v as u8
         }
@@ -564,7 +564,7 @@ test_verify_one_file! {
         impl E {
             proof fn test_cast(self)
             ensures
-                af(done(self as int == 0))
+                self as int == 0
             {}
         }
     } => Err(err) => assert_vir_error_msg(err, "Zero-sized empty Enum expr")
@@ -579,7 +579,7 @@ test_verify_one_file! {
 
         proof fn test_cast(v: E)
         ensures
-            af(done(v as int == 0)),
+            v as int == 0,
         {}
     } => Err(err) => assert_vir_error_msg(err, "Enum variant should not contain any fields.")
 }
@@ -593,7 +593,7 @@ test_verify_one_file! {
 
         proof fn test_cast(v: E)
         ensures
-            af(done(E::A(false) as int == 0)),
+            E::A(false) as int == 0,
         {}
     } => Err(err) => assert_vir_error_msg(err, "Enum variant should not contain any fields.")
 }

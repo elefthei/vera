@@ -9,14 +9,14 @@ test_verify_one_file! {
 
         pub proof fn commutative<V>(a: Multiset<V>, b: Multiset<V>)
             ensures
-                af(done(a.add(b) === b.add(a))),
+                a.add(b) === b.add(a),
         {
             assert(a.add(b) =~= b.add(a));
         }
 
         pub proof fn associative<V>(a: Multiset<V>, b: Multiset<V>, c: Multiset<V>)
             ensures
-                af(done(a.add(b.add(c)) ===
+                a.add(b.add(c ===
                 a.add(b).add(c))),
         {
             assert(a.add(b.add(c)) =~=
@@ -25,8 +25,8 @@ test_verify_one_file! {
 
         pub proof fn insert2<V>(a: V, b: V)
             ensures
-                af(done(Multiset::empty().insert(a).insert(b) ===
-                Multiset::empty().insert(b).insert(a))),
+                Multiset::empty().insert(a).insert(b) ===
+                Multiset::empty().insert(b).insert(a),
         {
             assert(
                 Multiset::empty().insert(a).insert(b) =~=
@@ -44,7 +44,7 @@ test_verify_one_file! {
 
         pub proof fn add_sub_cancel<V>(a: Multiset<V>, b: Multiset<V>)
             ensures
-                af(done(a.add(b).sub(b) === a)),
+                a.add(b).sub(b) === a,
         {
             assert(a.add(b).sub(b) =~= a);
         }
@@ -53,7 +53,7 @@ test_verify_one_file! {
             requires
                 b.subset_of(a),
             ensures
-                af(done(a.sub(b).add(b) === a)),
+                a.sub(b).add(b) === a,
         {
             assert(a.sub(b).add(b) =~= a);
         }
@@ -69,7 +69,7 @@ test_verify_one_file! {
             requires
                 forall |v| m.count(v) == 0,
             ensures
-                af(done(m.len() == 0)),
+                m.len() == 0,
         {
             if m.len() != 0 {
                 assert(m.count(m.choose()) > 0);
@@ -95,7 +95,7 @@ test_verify_one_file! {
         use vstd::multiset::*;
 
         pub proof fn add_fail<V>(a: Multiset<V>, b: Multiset<V>)
-            ensures af(done(equal(a.add(b), a.add(a))))
+            ensures equal(a.add(b), a.add(a))
         {
             assert(a.add(b) =~= a.add(a)); // FAILS
         }
@@ -107,7 +107,7 @@ test_verify_one_file! {
         use vstd::multiset::*;
 
         pub proof fn sub_add_cancel<V>(a: Multiset<V>, b: Multiset<V>)
-            ensures af(done(equal(a.sub(b).add(b), a)))
+            ensures equal(a.sub(b).add(b), a)
         {
             // Missing the condition `b.le(a)`
             assert(a.sub(b).add(b) =~= a); // FAILS

@@ -50,8 +50,8 @@ fn gcd(a: u64, b: u64) -> (result: u64)
         a >= 0,
         b >= 0,
     ensures
-        af(done(divides(a, result))),
-        af(done(divides(b, result))),
+        divides(a, result),
+        divides(b, result),
 {
     gcd_external(a, b)
 }

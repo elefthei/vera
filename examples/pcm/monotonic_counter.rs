@@ -205,7 +205,7 @@ impl MonotonicCounterResource {
     // knowledge that the current value is 0.
     pub proof fn alloc() -> (tracked result: Self)
         ensures
-            af(done(result@ == (MonotonicCounterResourceValue::FullRightToAdvance { value: 0 }))),
+            result@ == (MonotonicCounterResourceValue::FullRightToAdvance { value: 0 }),
     {
         let v = MonotonicCounterResourceValue::FullRightToAdvance { value: 0 };
         let tracked mut r = Resource::<MonotonicCounterResourceValue>::alloc(v);
@@ -219,8 +219,8 @@ impl MonotonicCounterResource {
             self.id() == other.id(),
             self@.n() == other@.n()
         ensures
-            af(done(r.id() == self.id())),
-            af(done(r@.n() == self@.op(other@).n())),
+            r.id() == self.id(),
+            r@.n() == self@.op(other@).n(),
     {
         let tracked mut r = self.r.join(other.r);
         Self { r }
@@ -234,13 +234,13 @@ impl MonotonicCounterResource {
         requires
             self@ is FullRightToAdvance,
         ensures
-            af(done(({
+            ({
                 let (r1, r2) = return_value;
                 let value = self@->FullRightToAdvance_value;
                 &&& r1.id() == r2.id() == self.id()
                 &&& r1@ == (MonotonicCounterResourceValue::HalfRightToAdvance { value })
                 &&& r2@ == r1@
-            }))),
+            }),
     {
         let value = self@->FullRightToAdvance_value;
         let v_half = MonotonicCounterResourceValue::HalfRightToAdvance { value };
@@ -254,10 +254,10 @@ impl MonotonicCounterResource {
         requires
             old(self)@ is FullRightToAdvance,
         ensures
-            af(done(self.id() == old(self).id())),
-            af(done(self@ == (MonotonicCounterResourceValue::FullRightToAdvance {
+            self.id() == old(self).id(),
+            self@ == (MonotonicCounterResourceValue::FullRightToAdvance {
                 value: old(self)@->FullRightToAdvance_value + 1,
-            }))),
+            }),
     {
         let v = self@->FullRightToAdvance_value;
         let r = MonotonicCounterResourceValue::FullRightToAdvance { value: v + 1 };
@@ -277,12 +277,12 @@ impl MonotonicCounterResource {
             old(self)@ is HalfRightToAdvance,
             old(other)@ is HalfRightToAdvance,
         ensures
-            af(done(old(self)@ == old(other)@)),
-            af(done(self.id() == other.id() == old(self).id())),
-            af(done(other@ == self@)),
-            af(done(self@ == (MonotonicCounterResourceValue::HalfRightToAdvance {
+            old(self)@ == old(other)@,
+            self.id() == other.id() == old(self).id(),
+            other@ == self@,
+            self@ == (MonotonicCounterResourceValue::HalfRightToAdvance {
                 value: old(self)@->HalfRightToAdvance_value + 1,
-            }))),
+            }),
     {
         self.r.validate_2(&other.r);
         let v = self@->HalfRightToAdvance_value;
@@ -292,9 +292,9 @@ impl MonotonicCounterResource {
 
     pub proof fn extract_lower_bound(tracked &self) -> (tracked out: Self)
         ensures
-            af(done(out@ is LowerBound)),
-            af(done(out.id() == self.id())),
-            af(done(out@ == (MonotonicCounterResourceValue::LowerBound { lower_bound: self@.n() }))),
+            out@ is LowerBound,
+            out.id() == self.id(),
+            out@ == (MonotonicCounterResourceValue::LowerBound { lower_bound: self@.n() }),
     {
         self.r.validate();
         let v = MonotonicCounterResourceValue::LowerBound { lower_bound: self@.n() };
@@ -306,11 +306,11 @@ impl MonotonicCounterResource {
         requires
             old(self).id() == other.id(),
         ensures
-            af(done(self@ == old(self)@)),
-            af(done(self@ is LowerBound && other@ is FullRightToAdvance ==> self@.n() <= other@.n())),
-            af(done(other@ is LowerBound && self@ is FullRightToAdvance ==> other@.n() <= self@.n())),
-            af(done(self@ is LowerBound && other@ is HalfRightToAdvance ==> self@.n() <= other@.n())),
-            af(done(other@ is LowerBound && self@ is HalfRightToAdvance ==> other@.n() <= self@.n())),
+            self@ == old(self)@,
+            self@ is LowerBound && other@ is FullRightToAdvance ==> self@.n() <= other@.n(),
+            other@ is LowerBound && self@ is FullRightToAdvance ==> other@.n() <= self@.n(),
+            self@ is LowerBound && other@ is HalfRightToAdvance ==> self@.n() <= other@.n(),
+            other@ is LowerBound && self@ is HalfRightToAdvance ==> other@.n() <= self@.n(),
 
     {
         self.r.validate_2(&other.r)
