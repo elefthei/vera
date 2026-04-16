@@ -591,9 +591,10 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_associated_proof_fn_call_fail_1 PROOF_FN_COMMON.to_string() + verus_code_str! {
         impl Node {
-            proof fn lemma(tracked self) {
-                requires(self.v < 10);
-                ensures af(done((self.v * 2 < 20)));
+            proof fn lemma(tracked self)
+                requires self.v < 10,
+                ensures af(done((self.v * 2 < 20))),
+            {
             }
 
             proof fn other(tracked self) {
