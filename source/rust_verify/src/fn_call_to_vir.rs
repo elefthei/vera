@@ -36,9 +36,9 @@ use vir::ast::{
     ArithOp, ArrayKind, AssertQueryMode, AutospecUsage, BinaryOp, BitshiftBehavior, BitwiseOp,
     BoundsCheck, BuiltinSpecFun, CallTarget, ChainedOp, ComputeMode, Constant, Div0Behavior, ExprX,
     FieldOpr, FunX, HeaderExpr, HeaderExprX, InequalityOp, IntRange, IntegerTypeBoundKind, Mode,
-    ModeCoercion, ModeWrapperMode, MultiOp, OverflowBehavior, Place, PlaceX, Quant, Typ,
-    TypDecoration, TypX, UnaryOp, UnaryOpr, VarAt, VarBinder, VarBinderX, VarIdent, VariantCheck,
-    VirErr,
+    ModeCoercion, ModeWrapperMode, MultiOp, OverflowBehavior, Place, PlaceX, Quant, SpannedTyped,
+    Typ, TypDecoration, TypX, UnaryOp, UnaryOpr, VarAt, VarBinder, VarBinderX, VarIdent,
+    VariantCheck, VirErr,
 };
 use vir::ast_util::{
     const_int_from_string, mk_tuple_typ, mk_tuple_x, typ_to_diagnostic_str, types_equal,
@@ -735,6 +735,13 @@ fn verus_item_to_vir<'tcx, 'a>(
         }
         VerusItem::Temporal(temporal_item) => {
             record_spec_fn_pure_args_only(bctx, expr);
+            // Helper: wrap a VIR expression with Now() if it's not already Now/Done/Temporal
+            let wrap_now = |e: vir::ast::Expr| -> vir::ast::Expr {
+                match &e.x {
+                    ExprX::Now(..) | ExprX::Done(..) | ExprX::Temporal(..) => e,
+                    _ => SpannedTyped::new(&e.span, &e.typ, ExprX::Now(e.clone())),
+                }
+            };
             match temporal_item {
                 // Unary: ag(expr), eg(expr)
                 TemporalItem::Ag | TemporalItem::Eg => {
@@ -753,7 +760,37 @@ fn verus_item_to_vir<'tcx, 'a>(
                         &BodyCtxt { temporal_depth: bctx.temporal_depth + 1, ..bctx.clone() };
                     let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
+                    let vir_arg = wrap_now(vir_arg);
                     mk_expr(ExprX::Temporal(op, vir_arg, None))
+                }
+                // Sugar: af(expr) = au(true, expr), ax = an(true, .), ef = eu(true, .), ex = en(true, .)
+                TemporalItem::Af | TemporalItem::Ax | TemporalItem::Ef | TemporalItem::Ex => {
+                    unsupported_err_unless!(
+                        args_len == 1,
+                        expr.span,
+                        "expected temporal operator with one argument",
+                        &args
+                    );
+                    let op = match temporal_item {
+                        TemporalItem::Af => vir::ast::TemporalOp::AU,
+                        TemporalItem::Ax => vir::ast::TemporalOp::AN,
+                        TemporalItem::Ef => vir::ast::TemporalOp::EU,
+                        TemporalItem::Ex => vir::ast::TemporalOp::EN,
+                        _ => unreachable!(),
+                    };
+                    let bctx =
+                        &BodyCtxt { temporal_depth: bctx.temporal_depth + 1, ..bctx.clone() };
+                    let vir_arg = expr_to_vir(bctx, &args[0], ExprModifier::REGULAR)?
+                        .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
+                    let vir_arg = wrap_now(vir_arg);
+                    // Synthesize `true` as the path/invariant argument
+                    let true_expr = SpannedTyped::new(
+                        &vir_arg.span,
+                        &Arc::new(vir::ast::TypX::Bool),
+                        ExprX::Const(vir::ast::Constant::Bool(true)),
+                    );
+                    let true_expr = wrap_now(true_expr);
+                    mk_expr(ExprX::Temporal(op, true_expr, Some(vir_arg)))
                 }
                 // Binary: au(p, q), an(p, q), eu(p, q), en(p, q)
                 TemporalItem::Au | TemporalItem::An | TemporalItem::Eu | TemporalItem::En => {
@@ -776,9 +813,11 @@ fn verus_item_to_vir<'tcx, 'a>(
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[0]));
                     let vir_arg2 = expr_to_vir(bctx, &args[1], ExprModifier::REGULAR)?
                         .consume(bctx, bctx.types.expr_ty_adjusted(&args[1]));
+                    let vir_arg1 = wrap_now(vir_arg1);
+                    let vir_arg2 = wrap_now(vir_arg2);
                     mk_expr(ExprX::Temporal(op, vir_arg1, Some(vir_arg2)))
                 }
-                // Unary: now(expr), done(expr)
+                // Unary: now(expr), done(expr) — leaf wrappers, no auto-wrapping
                 TemporalItem::Now | TemporalItem::Done => {
                     unsupported_err_unless!(
                         args_len == 1,

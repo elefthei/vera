@@ -120,6 +120,10 @@ pub(crate) enum QuantItem {
 pub(crate) enum TemporalItem {
     Ag,
     Eg,
+    Af,
+    Ax,
+    Ef,
+    Ex,
     Au,
     An,
     Eu,
@@ -498,6 +502,10 @@ fn verus_items_map() -> Vec<(&'static str, VerusItem)> {
 
         ("verus::verus_builtin::ag",                      VerusItem::Temporal(TemporalItem::Ag)),
         ("verus::verus_builtin::eg",                      VerusItem::Temporal(TemporalItem::Eg)),
+        ("verus::verus_builtin::af",                      VerusItem::Temporal(TemporalItem::Af)),
+        ("verus::verus_builtin::ax",                      VerusItem::Temporal(TemporalItem::Ax)),
+        ("verus::verus_builtin::ef",                      VerusItem::Temporal(TemporalItem::Ef)),
+        ("verus::verus_builtin::ex",                      VerusItem::Temporal(TemporalItem::Ex)),
         ("verus::verus_builtin::au",                      VerusItem::Temporal(TemporalItem::Au)),
         ("verus::verus_builtin::an",                      VerusItem::Temporal(TemporalItem::An)),
         ("verus::verus_builtin::eu",                      VerusItem::Temporal(TemporalItem::Eu)),

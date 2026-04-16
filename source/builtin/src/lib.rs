@@ -229,6 +229,35 @@ pub fn eg(_a: bool) -> bool {
     unimplemented!();
 }
 
+// CTL temporal operators — sugar (unary aliases for binary with true)
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::af"]
+#[verifier::spec]
+pub fn af(_a: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::ax"]
+#[verifier::spec]
+pub fn ax(_a: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::ef"]
+#[verifier::spec]
+pub fn ef(_a: bool) -> bool {
+    unimplemented!();
+}
+
+#[cfg(verus_keep_ghost)]
+#[rustc_diagnostic_item = "verus::verus_builtin::ex"]
+#[verifier::spec]
+pub fn ex(_a: bool) -> bool {
+    unimplemented!();
+}
+
 // CTL temporal operators — binary (until, next)
 #[cfg(verus_keep_ghost)]
 #[rustc_diagnostic_item = "verus::verus_builtin::au"]

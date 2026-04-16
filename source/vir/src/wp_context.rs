@@ -230,12 +230,12 @@ pub fn decompose_temporal(
 }
 
 /// Extract the goal kind (Now vs Done) from a temporal goal expression.
-/// Strips the Now/Done wrapper if present; defaults to Done for backward compatibility.
+/// Strips the Now/Done wrapper if present; defaults to Now (bare expressions are state predicates).
 pub fn extract_goal_kind(raw_goal: Exp) -> (Exp, GoalKind) {
     match &raw_goal.x {
         ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
         ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-        _ => (raw_goal, GoalKind::Done),
+        _ => (raw_goal, GoalKind::Now),
     }
 }
 
