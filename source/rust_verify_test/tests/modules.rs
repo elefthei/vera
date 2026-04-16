@@ -110,7 +110,7 @@ test_verify_one_file! {
 
         mod M1 {
             fn test()
-                ensures crate::f(),
+                ensures af(done(crate::f())),
             {
             }
         }
@@ -127,7 +127,7 @@ test_verify_one_file! {
 
         mod M1 {
             fn test()
-                ensures crate::M0::f(), // FAILS
+                ensures af(done(crate::M0::f())), // FAILS
             {
             }
         }
@@ -362,7 +362,7 @@ test_verify_one_file! {
 
             #[verifier::external_body]
             proof fn a(&self)
-                ensures self.bar(),
+                ensures af(done(self.bar())),
             {
             }
         }

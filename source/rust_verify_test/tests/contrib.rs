@@ -39,11 +39,11 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                y == 1 ==> f(x, y) == f2(x),
-                f(x, y) == f(y, x),
-                f2(x) == f2(x),
-                f(x, y) == (x + y) as u32,
-                f2(x) == x + 1,
+                af(done(y == 1 ==> f(x, y) == f2(x))),
+                af(done(f(x, y) == f(y, x))),
+                af(done(f2(x) == f2(x))),
+                af(done(f(x, y) == (x + y) as u32)),
+                af(done(f2(x) == x + 1)),
         {}
 
         mod inner {
@@ -52,7 +52,7 @@ test_verify_one_file! {
                 requires
                     x < 100,
                 ensures
-                    f2(x) == (x + 1),
+                    af(done(f2(x) == (x + 1))),
             {}
         }
     } => Ok(())

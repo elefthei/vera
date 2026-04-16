@@ -185,8 +185,8 @@ impl<T> LogResource<T> {
 
     pub proof fn alloc() -> (tracked result: LogResource<T>)
         ensures
-            result@ is FullAuthority,
-            result@.log() == Seq::<T>::empty(),
+            af(done(result@ is FullAuthority)),
+            af(done(result@.log() == Seq::<T>::empty())),
     {
         let v = LogResourceValue::<T>::FullAuthority { log: Seq::<T>::empty() };
         let tracked r = Resource::<LogResourceValue::<T>>::alloc(v);
@@ -197,14 +197,14 @@ impl<T> LogResource<T> {
         requires
             self@ is FullAuthority,
         ensures
-            ({
+            af(done(({
                 let (half1, half2) = halves;
                 &&& half1@ is HalfAuthority
                 &&& half2@ is HalfAuthority
                 &&& half1.id() == half2.id() == self.id()
                 &&& half1@.log() == self@.log()
                 &&& half2@ == half1@
-            }),
+            }))),
     {
         let half_value = LogResourceValue::<T>::HalfAuthority { log: self@.log() };
         let tracked (half1, half2) = self.r.split(half_value, half_value);
@@ -215,9 +215,9 @@ impl<T> LogResource<T> {
         requires
             old(self)@ is FullAuthority,
         ensures
-            self@ is FullAuthority,
-            self.id() == old(self).id(),
-            self@.log() == old(self)@.log() + seq![v],
+            af(done(self@ is FullAuthority)),
+            af(done(self.id() == old(self).id())),
+            af(done(self@.log() == old(self)@.log() + seq![v])),
     {
         let value = LogResourceValue::<T>::FullAuthority { log: self@.log() + seq![v] };
         update_mut(&mut self.r, value);
@@ -229,10 +229,10 @@ impl<T> LogResource<T> {
             old(other)@ is HalfAuthority,
             old(self).id() == old(other).id(),
         ensures
-            self@ is HalfAuthority,
-            self.id() == other.id() == old(self).id(),
-            self@.log() == old(self)@.log() + seq![v],
-            other@ == self@,
+            af(done(self@ is HalfAuthority)),
+            af(done(self.id() == other.id() == old(self).id())),
+            af(done(self@.log() == old(self)@.log() + seq![v])),
+            af(done(other@ == self@)),
     {
         self.r.validate_2(&other.r);
         let new_log = self@.log() + seq![v];
@@ -242,9 +242,9 @@ impl<T> LogResource<T> {
 
     pub proof fn extract_prefix_knowledge(tracked &self) -> (tracked out: Self)
         ensures
-            out@ is PrefixKnowledge,
-            out.id() == self.id(),
-            out@.log() == self@.log(),
+            af(done(out@ is PrefixKnowledge)),
+            af(done(out.id() == self.id())),
+            af(done(out@.log() == self@.log())),
     {
         let v = LogResourceValue::<T>::PrefixKnowledge { prefix: self@.log() };
         let tracked r = copy_duplicable_part(&self.r, v);
@@ -255,12 +255,12 @@ impl<T> LogResource<T> {
         requires
             old(self).id() == other.id(),
         ensures
-            self@ == old(self)@,
-            is_prefix(self@.log(), other@.log()) || is_prefix(other@.log(), self@.log()),
-            self@ is HalfAuthority ==> is_prefix(other@.log(), self@.log()),
-            self@ is FullAuthority ==> is_prefix(other@.log(), self@.log()),
-            other@ is HalfAuthority ==> is_prefix(self@.log(), other@.log()),
-            other@ is FullAuthority ==> is_prefix(self@.log(), other@.log()),
+            af(done(self@ == old(self)@)),
+            af(done(is_prefix(self@.log(), other@.log()) || is_prefix(other@.log(), self@.log()))),
+            af(done(self@ is HalfAuthority ==> is_prefix(other@.log(), self@.log()))),
+            af(done(self@ is FullAuthority ==> is_prefix(other@.log(), self@.log()))),
+            af(done(other@ is HalfAuthority ==> is_prefix(self@.log(), other@.log()))),
+            af(done(other@ is FullAuthority ==> is_prefix(self@.log(), other@.log()))),
     {
         self.r.validate_2(&other.r)
     }
