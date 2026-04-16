@@ -30,15 +30,19 @@ struct Ctxt<'a> {
 /// Check whether an ensures expression is (or wraps) a temporal operator.
 /// Peels through transparent wrappers like `ProofNote` and `CustomErr` that
 /// may surround the underlying `ExprX::Temporal(...)`.
-/// Check whether an expression contains a `done(...)` anywhere in its temporal tree.
-/// Used to detect contradictions like `ag(done(Q))` where AG requires infinite
-/// computation but done requires termination.
-fn contains_done(expr: &Expr) -> bool {
+/// Check whether an AG/EG expression contains `done(...)` in a contradictory position.
+/// `ag(done(Q))` is contradictory (AG=infinite, done=termination).
+/// `ag(af(done(Q)))` = `ag(au(true, done(Q)))` is also contradictory:
+///   AG requires infinite loop, af(done(Q)) requires eventual termination.
+/// But `ag(af(now(Q)))` is valid — now is a state predicate, not termination.
+/// Only walk through temporal operators to find done; stop at non-temporal expressions.
+fn contains_done_in_temporal(expr: &Expr) -> bool {
     match &expr.x {
         ExprX::Done(_) => true,
         ExprX::Now(_) => false,
         ExprX::Temporal(_, e1, e2) => {
-            contains_done(e1) || e2.as_ref().map_or(false, |e| contains_done(e))
+            contains_done_in_temporal(e1)
+                || e2.as_ref().map_or(false, |e| contains_done_in_temporal(e))
         }
         _ => false,
     }
@@ -778,79 +782,37 @@ fn check_one_expr<Emit: EmitError>(
             ).help("You can dereference the mutable reference normally to get the \"current\"/\"old\" value"));
         }
         ExprX::Temporal(op, e1, _e2) => {
-            // Allow universal temporal operators in postconditions (ensures clauses)
-            // for temporal verification. Reject existential operators and
-            // reject temporal operators everywhere else.
-            match area {
-                Area::PostState => {
-                    match op {
-                        TemporalOp::AG
-                        | TemporalOp::AU
-                        | TemporalOp::AN
-                        | TemporalOp::EG
-                        | TemporalOp::EU
-                        | TemporalOp::EN => {
-                            // Allowed — universal and existential operators are processed by
-                            // temporal VCGen. For deterministic programs, ∀ ≡ ∃ (single path).
-                        }
-                    }
-                    // Reject contradictory temporal combinations:
-                    // ag/eg(done(Q)) — globally requires infinite computation, done(Q) requires termination
-                    if matches!(op, TemporalOp::AG | TemporalOp::EG) {
-                        if contains_done(e1) {
-                            return Err(error(
-                                &expr.span,
-                                "contradiction: ag requires infinite computation, but done requires termination",
-                            ));
-                        }
-                    }
-                    // au/an/eu/en(done(R), _) — done(R) cannot be a path property
-                    if matches!(
-                        op,
-                        TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN
-                    ) {
-                        if matches!(&e1.x, ExprX::Done(_)) {
-                            return Err(error(
-                                &e1.span,
-                                "contradiction: done cannot be a path property — done requires termination, but a path property must hold at every step",
-                            ));
-                        }
+            // Temporal operators are allowed everywhere in VIR expressions.
+            // Contradiction checks only apply in ensures (PostState) where they'd
+            // be verified — in spec fn bodies they're just definitions.
+            if matches!(area, Area::PostState) {
+                // ag/eg(done(Q)) — globally requires infinite computation, done requires termination
+                if matches!(op, TemporalOp::AG | TemporalOp::EG) {
+                    if contains_done_in_temporal(e1) {
+                        return Err(error(
+                            &expr.span,
+                            "contradiction: ag requires infinite computation, but done requires termination",
+                        ));
                     }
                 }
-                _ => {
-                    let op_name = match op {
-                        TemporalOp::AG => "ag",
-                        TemporalOp::EG => "eg",
-                        TemporalOp::AU => "au",
-                        TemporalOp::AN => "an",
-                        TemporalOp::EU => "eu",
-                        TemporalOp::EN => "en",
-                    };
-                    return Err(error(
-                        &expr.span,
-                        &format!(
-                            "temporal operator `{op_name}` is not yet supported outside of ensures clauses"
-                        ),
-                    ));
+                // au/an/eu/en(done(R), _) — done(R) cannot be a path property
+                if matches!(
+                    op,
+                    TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN
+                ) {
+                    if matches!(&e1.x, ExprX::Done(_)) {
+                        return Err(error(
+                            &e1.span,
+                            "contradiction: done cannot be a path property — done requires termination, but a path property must hold at every step",
+                        ));
+                    }
                 }
             }
         }
         ExprX::Now(_) | ExprX::Done(_) => {
-            // now/done are temporal instant markers — only valid inside ensures
-            match area {
-                Area::PostState => {
-                    // OK — inside ensures (will be validated inside a Temporal operator)
-                }
-                _ => {
-                    let name = if matches!(&expr.x, ExprX::Now(_)) { "now" } else { "done" };
-                    return Err(error(
-                        &expr.span,
-                        &format!(
-                            "`{name}()` can only appear inside a temporal ensures clause (e.g., `ensures af(done(Q))`)"
-                        ),
-                    ));
-                }
-            }
+            // now/done are temporal instant markers — valid inside temporal ensures.
+            // No area restriction: they may appear in closure ensures (which are
+            // not Area::PostState from the well_formed checker's perspective).
         }
         _ => {}
     }
