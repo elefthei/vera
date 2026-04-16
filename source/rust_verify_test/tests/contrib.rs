@@ -52,7 +52,7 @@ test_verify_one_file! {
                 requires
                     x < 100,
                 ensures
-                    af(done(f2(x) == (x + 1))),
+                    af(verus_builtin::done(f2(x) == (x + 1))),
             {}
         }
     } => Ok(())

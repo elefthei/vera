@@ -186,12 +186,12 @@ const RING_ALGEBRA: &str = verus_code_str! {
 
         pub broadcast proof fn Ring_succ(p: Ring)
             requires p.inv()
-            ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
+            ensures af(verus_builtin::done(p.inv() && (#[trigger] p.succ()).prev() == p))
         { }
 
         pub broadcast proof fn Ring_prev(p: Ring)
             requires p.inv()
-            ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
+            ensures af(verus_builtin::done(p.inv() && (#[trigger] p.prev()).succ() == p))
         { }
 
         pub broadcast group Ring_properties {
@@ -264,12 +264,12 @@ const RING_ALGEBRA_MEMBERS: &str = verus_code_str! {
 
             pub broadcast proof fn succ_ensures(p: Ring)
                 requires p.inv()
-                ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
+                ensures af(verus_builtin::done(p.inv() && (#[trigger] p.succ()).prev() == p))
             { }
 
             pub broadcast proof fn prev_ensures(p: Ring)
                 requires p.inv()
-                ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
+                ensures af(verus_builtin::done(p.inv() && (#[trigger] p.prev()).succ() == p))
             { }
 
             pub broadcast group properties {
@@ -431,7 +431,7 @@ test_verify_one_file! {
             broadcast use q;
 
             pub broadcast proof fn p(i: int)
-                ensures af(done(f(i)))
+                ensures af(verus_builtin::done(f(i)))
                 decreases i
             {
             }
@@ -445,7 +445,7 @@ test_verify_one_file! {
             broadcast use p;
 
             pub broadcast proof fn q(i: int)
-                ensures af(done(f(i)))
+                ensures af(verus_builtin::done(f(i)))
                 decreases i
             {
             }
@@ -477,12 +477,12 @@ const RING_ALGEBRA_MEMBERS_GENERIC: &str = verus_code_str! {
 
             pub broadcast proof fn succ_ensures(p: Self)
                 requires p.inv()
-                ensures af(done(p.inv() && (#[trigger] p.succ()).prev() == p))
+                ensures af(verus_builtin::done(p.inv() && (#[trigger] p.succ()).prev() == p))
             { }
 
             pub broadcast proof fn prev_ensures(p: Self)
                 requires p.inv()
-                ensures af(done(p.inv() && (#[trigger] p.prev()).succ() == p))
+                ensures af(verus_builtin::done(p.inv() && (#[trigger] p.prev()).succ() == p))
             { }
 
             pub broadcast group properties {
@@ -528,12 +528,12 @@ test_verify_one_file! {
 
                 pub broadcast proof fn spec_succ_ensures(p: Ring)
                     requires p.inv()
-                    ensures af(done(p.inv() && (#[trigger] p.spec_succ()).spec_prev() == p))
+                    ensures af(verus_builtin::done(p.inv() && (#[trigger] p.spec_succ()).spec_prev() == p))
                 { }
 
                 pub broadcast proof fn spec_prev_ensures(p: Ring)
                     requires p.inv()
-                    ensures af(done(p.inv() && (#[trigger] p.spec_prev()).spec_succ() == p))
+                    ensures af(verus_builtin::done(p.inv() && (#[trigger] p.spec_prev()).spec_succ() == p))
                 { }
 
                 pub broadcast group properties {
@@ -570,7 +570,7 @@ test_verify_one_file! {
             broadcast use super::m2::lemma;
 
             pub proof fn lemma(i: int)
-                ensures af(done(f(i)))
+                ensures af(verus_builtin::done(f(i)))
                 decreases i
             {
             }
@@ -580,7 +580,7 @@ test_verify_one_file! {
             use super::*;
 
             pub broadcast proof fn lemma(i: int)
-                ensures af(done(#[trigger] f(i)))
+                ensures af(verus_builtin::done(#[trigger] f(i)))
                 decreases i
             {
                 assume(false);

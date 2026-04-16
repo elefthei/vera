@@ -366,7 +366,7 @@ const SEQ4: &str = verus_code_str! {
         // TODO: make this broadcast_forall
         pub proof fn lemma_ext_equal<A>(x: Seq4<A>, y: Seq4<A>)
             ensures
-                af(done(x =~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] == y[i]))),
+                af(verus_builtin::done(x =~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] == y[i]))),
         {
             if (forall|i: int| 0 <= i < 4 ==> x[i] == y[i]) {
                 assert(x[0] == y[0]);
@@ -378,7 +378,7 @@ const SEQ4: &str = verus_code_str! {
         // TODO: make this broadcast_forall
         pub proof fn lemma_ext_equal_deep<A>(x: Seq4<A>, y: Seq4<A>)
             ensures
-                af(done(x =~~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] =~~= y[i]))),
+                af(verus_builtin::done(x =~~= y <==> (forall|i: int| 0 <= i < 4 ==> x[i] =~~= y[i]))),
         {
             lemma_ext_equal(x, y);
         }
