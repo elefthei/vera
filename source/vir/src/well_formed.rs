@@ -814,10 +814,7 @@ fn check_one_expr<Emit: EmitError>(
                     }
                 }
                 // au/an/eu/en(done(R), _) — done(R) cannot be a path property
-                if matches!(
-                    op,
-                    TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN
-                ) {
+                if matches!(op, TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN) {
                     if matches!(&e1.x, ExprX::Done(_)) {
                         return Err(error(
                             &e1.span,
