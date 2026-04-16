@@ -30,6 +30,24 @@ struct Ctxt<'a> {
 /// Check whether an ensures expression is (or wraps) a temporal operator.
 /// Peels through transparent wrappers like `ProofNote` and `CustomErr` that
 /// may surround the underlying `ExprX::Temporal(...)`.
+/// Check whether an expression contains any temporal operator, `now()`, or `done()`.
+/// Used to reject temporal constructs in requires clauses.
+fn contains_temporal_operator(expr: &Expr) -> bool {
+    match &expr.x {
+        ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => true,
+        _ => {
+            let mut found = false;
+            let _ = crate::ast_visitor::expr_visitor_check(expr, &mut |_, e| {
+                if matches!(&e.x, ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..)) {
+                    found = true;
+                }
+                Ok::<(), ()>(())
+            });
+            found
+        }
+    }
+}
+
 /// Check whether an AG/EG expression contains `done(...)` in a contradictory position.
 /// `ag(done(Q))` is contradictory (AG=infinite, done=termination).
 /// `ag(af(done(Q)))` = `ag(au(true, done(Q)))` is also contradictory:
@@ -1312,6 +1330,18 @@ fn check_function<Emit: EmitError>(
         let msg = "'requires' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
         check_expr(ctxt, function, req, disallow_private_access, Area::PreState, emit)?;
+
+        // Temporal operators (ag, af, au, etc.) and temporal markers (now, done) are
+        // postcondition constructs — they describe properties of execution traces.
+        // In requires (preconditions), use plain state predicates instead.
+        if contains_temporal_operator(req) {
+            return Err(error(
+                &req.span,
+                "temporal operators (`ag`, `af`, `au`, `now`, `done`, etc.) cannot appear in \
+                 `requires` clauses — requires are preconditions on the initial state, not \
+                 properties of execution traces. Use a plain predicate instead.",
+            ));
+        }
     }
     for ens in function.x.ensure.0.iter().chain(function.x.ensure.1.iter()) {
         let msg = "'ensures' clause of public function";

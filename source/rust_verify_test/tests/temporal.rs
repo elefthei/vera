@@ -2626,3 +2626,22 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// Temporal operators in requires must be rejected
+test_verify_one_file! {
+    #[test] test_temporal_in_requires_rejected verus_code! {
+        fn bad_requires(x: &mut u64)
+            requires ag(*x > 0),
+            ensures af(done(true)),
+        { }
+    } => Err(err) => assert_vir_error_msg(err, "temporal operators")
+}
+
+test_verify_one_file! {
+    #[test] test_done_in_requires_rejected verus_code! {
+        fn bad_requires(x: &mut u64)
+            requires done(*x > 0),
+            ensures af(done(true)),
+        { }
+    } => Err(err) => assert_vir_error_msg(err, "temporal operators")
+}
