@@ -3463,14 +3463,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             if !temporal_invs.is_empty() && decrease.len() == 0 {
                 let has_nontrivial_au =
                     state.wp.temporal_context.propositions.iter().any(|o| match o {
-                        Proposition::Until { path, .. } => {
-                            // Check for trivial path: Const(true) or Now(Const(true))
-                            let inner = match &path.x {
-                                ExpX::Now(inner) => inner,
-                                _ => path,
-                            };
-                            !matches!(&inner.x, ExpX::Const(crate::ast::Constant::Bool(true)))
-                        }
+                        Proposition::Until { path, .. } => !path.x.is_trivially_true(),
                         _ => false,
                     });
                 if has_nontrivial_au {
@@ -4164,16 +4157,8 @@ pub(crate) fn body_stm_to_air(
             match o {
                 Proposition::Always { property, .. } => Some(property.clone()),
                 Proposition::Until { path, .. } => {
-                    // AF(ψ) = AU(true, ψ): path = true → skip (trivial prefix)
-                    // Check for Now(Const(true)) from auto-wrapping too
-                    let inner = match &path.x {
-                        ExpX::Now(inner) => inner,
-                        _ => path,
-                    };
-                    match &inner.x {
-                        ExpX::Const(crate::ast::Constant::Bool(true)) => None,
-                        _ => Some(path.clone()),
-                    }
+                    // AF(ψ) = AU(true, ψ): skip trivial true path (incl. Now(true)).
+                    if path.x.is_trivially_true() { None } else { Some(path.clone()) }
                 }
             }
         })
