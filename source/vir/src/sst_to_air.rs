@@ -2109,6 +2109,79 @@ fn emit_temporal_state_assertions(
 /// assert that the callee's temporal ensures imply the caller's obligations.
 /// For AG-AG matches, redirects the VCGen to the callee's body so the
 /// callee's loop can discharge the caller's AG obligation.
+/// Check whether a (caller, callee) proposition pair requires an AIR
+/// implication assertion to discharge the caller's temporal obligation.
+///
+/// Returns `Ok(Some(stmt))` when an assertion must be emitted (and the
+/// caller should mark the obligation discharged), or `Ok(None)` otherwise.
+///
+/// `havoc_mode` restricts coverage to the two categorically-matched cases
+/// (AG/AG and invariance-Until/invariance-Until); cross-category cases
+/// (AG/AG(AF) and AG(AF)/AG) are only emitted when `havoc_mode` is false.
+/// This preserves the pre-refactor behavior where the Havoc+Assume path
+/// only handles same-category implications.
+fn check_caller_callee_pair(
+    ctx: &Ctx,
+    expr_ctxt: &ExprCtxt,
+    span: &Span,
+    caller_prop: &Proposition,
+    callee_prop: &Proposition,
+    callee_ast_has_ag: bool,
+    havoc_mode: bool,
+) -> Result<Option<Stmt>, VirErr> {
+    let mk_assert = |lhs: &Exp, rhs: &Exp, msg: &str| -> Result<Stmt, VirErr> {
+        let lhs_e = exp_to_expr(ctx, lhs, expr_ctxt)?;
+        let rhs_e = exp_to_expr(ctx, rhs, expr_ctxt)?;
+        let implication = mk_implies(&lhs_e, &rhs_e);
+        Ok(Arc::new(StmtX::Assert(None, error(span, msg), None, implication)))
+    };
+    match (caller_prop, callee_prop) {
+        // Case 1: AG caller + AG callee → assert ψ → φ, discharge
+        (
+            Proposition::Always { property: caller_phi, .. },
+            Proposition::Always { property: callee_psi, .. },
+        ) => Ok(Some(mk_assert(
+            callee_psi,
+            caller_phi,
+            "callee's AG temporal ensures must imply caller's AG obligation",
+        )?)),
+        // Case 2: AG(AF/AU) caller + AG(AF/AU) callee → goal → goal, discharge
+        (
+            Proposition::Until { goal: caller_goal, .. },
+            Proposition::Until { goal: callee_goal, .. },
+        ) if caller_prop.requires_invariance()
+            && callee_prop.requires_invariance()
+            && callee_ast_has_ag =>
+        {
+            Ok(Some(mk_assert(
+                callee_goal,
+                caller_goal,
+                "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
+            )?))
+        }
+        // Case 3: AG caller + AG(AF) callee → callee goal must imply caller φ
+        (
+            Proposition::Always { property: caller_phi, .. },
+            Proposition::Until { goal: callee_goal, .. },
+        ) if !havoc_mode && callee_prop.requires_invariance() => Ok(Some(mk_assert(
+            callee_goal,
+            caller_phi,
+            "callee's AG(AF) goal must imply caller's AG property",
+        )?)),
+        // Case 4: AG(AF) caller + AG callee → callee's AG is stronger, discharge
+        (
+            Proposition::Until { goal: caller_goal, .. },
+            Proposition::Always { property: callee_psi, .. },
+        ) if !havoc_mode && caller_prop.requires_invariance() => Ok(Some(mk_assert(
+            callee_psi,
+            caller_goal,
+            "callee's AG property must imply caller's AG(AF/AU) goal",
+        )?)),
+        // Cases 5-7: no discharge required (finite call / standard bind).
+        _ => Ok(None),
+    }
+}
+
 fn emit_temporal_implication_check(
     ctx: &Ctx,
     state: &mut State,
@@ -2126,6 +2199,16 @@ fn emit_temporal_implication_check(
         return Ok(Vec::new());
     }
 
+    let callee_ast_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
+        matches!(
+            &e.x,
+            crate::ast::ExprX::Temporal(
+                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG,
+                ..
+            )
+        )
+    });
+
     // Try SST-level extraction (works for sync functions and async with wrapper walking).
     let callee_temporal = if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
         extract_callee_temporal_ensures(callee_sst)
@@ -2139,87 +2222,17 @@ fn emit_temporal_implication_check(
     if !callee_temporal.is_empty() {
         for caller_prop in &state.wp.temporal_context.propositions {
             for callee_prop in &callee_temporal {
-                match (caller_prop, callee_prop) {
-                    // Case 1: AG caller + AG callee → assert ψ → φ, discharge
-                    (
-                        Proposition::Always { property: caller_phi, .. },
-                        Proposition::Always { property: callee_psi, .. },
-                    ) => {
-                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                        let implication = mk_implies(&psi_expr, &phi_expr);
-                        let err = error(
-                            span,
-                            "callee's AG temporal ensures must imply caller's AG obligation",
-                        );
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 2: AG(AF) caller + AG(AF) callee → assert goal → goal, discharge
-                    (
-                        Proposition::Until { goal: caller_goal, .. },
-                        Proposition::Until { goal: callee_goal, .. },
-                    ) if caller_prop.requires_invariance() && callee_prop.requires_invariance() => {
-                        let callee_ast_has_ag =
-                            func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
-                                matches!(
-                                    &e.x,
-                                    crate::ast::ExprX::Temporal(
-                                        crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG,
-                                        ..
-                                    )
-                                )
-                            });
-                        if callee_ast_has_ag {
-                            let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                            let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                            let implication = mk_implies(&callee_g, &caller_g);
-                            let err = error(
-                                span,
-                                "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
-                            );
-                            stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                            ag_discharged = true;
-                        }
-                    }
-                    // Case 3: AG caller + AG(AF) callee → callee's goal must imply caller's φ
-                    (
-                        Proposition::Always { property: caller_phi, .. },
-                        Proposition::Until { goal: callee_goal, .. },
-                    ) if callee_prop.requires_invariance() => {
-                        let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                        let implication = mk_implies(&callee_g, &phi_expr);
-                        let err =
-                            error(span, "callee's AG(AF) goal must imply caller's AG property");
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 4: AG(AF) caller + AG callee → callee's AG is stronger, discharge
-                    (
-                        Proposition::Until { goal: caller_goal, .. },
-                        Proposition::Always { property: callee_psi, .. },
-                    ) if caller_prop.requires_invariance() => {
-                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                        let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                        let implication = mk_implies(&psi_expr, &caller_g);
-                        let err =
-                            error(span, "callee's AG property must imply caller's AG(AF/AU) goal");
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 5: AG caller + AF callee (no invariance) → callee terminates.
-                    // No discharge — the call is finite, AG continues after via
-                    // existing prefix/state assertions and the bind rule.
-                    (Proposition::Always { .. }, Proposition::Until { .. }) => {}
-                    // Case 6: AF caller + AG callee → callee diverges, AF goal unreachable.
-                    // Not an error here — the AF decreases check will catch it
-                    // because the callee never returns and no progress is made.
-                    (Proposition::Until { .. }, Proposition::Always { .. }) => {}
-                    // Case 7: AF/AU caller + AF/AU callee (neither has invariance)
-                    // Standard bind rule: callee terminates, its postcondition assumed.
-                    // No additional implication check needed.
-                    (Proposition::Until { .. }, Proposition::Until { .. }) => {}
+                if let Some(stmt) = check_caller_callee_pair(
+                    ctx,
+                    expr_ctxt,
+                    span,
+                    caller_prop,
+                    callee_prop,
+                    callee_ast_has_ag,
+                    /* havoc_mode */ false,
+                )? {
+                    stmts.push(stmt);
+                    ag_discharged = true;
                 }
             }
         }
@@ -2229,16 +2242,7 @@ fn emit_temporal_implication_check(
         // then extract temporal ensures and check implication.
         let caller_has_ag = state.wp.temporal_context.has_always()
             || state.wp.temporal_context.has_invariance_until();
-        let callee_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
-            matches!(
-                &e.x,
-                crate::ast::ExprX::Temporal(
-                    crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG,
-                    ..
-                )
-            )
-        });
-        if caller_has_ag && callee_has_ag {
+        if caller_has_ag && callee_ast_has_ag {
             if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
                 // Havoc + Assume: bind callee params to caller args
                 let pars = &callee_sst.x.pars;
@@ -2253,38 +2257,17 @@ fn emit_temporal_implication_check(
                 let callee_temporal_bound = extract_callee_temporal_ensures(callee_sst);
                 for caller_prop in &state.wp.temporal_context.propositions {
                     for callee_prop in &callee_temporal_bound {
-                        match (caller_prop, callee_prop) {
-                            (
-                                Proposition::Until { goal: caller_goal, .. },
-                                Proposition::Until { goal: callee_goal, .. },
-                            ) if caller_prop.requires_invariance()
-                                && callee_prop.requires_invariance() =>
-                            {
-                                let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                                let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                                let implication = mk_implies(&callee_g, &caller_g);
-                                let err = error(
-                                    span,
-                                    "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
-                                );
-                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                                ag_discharged = true;
-                            }
-                            (
-                                Proposition::Always { property: caller_phi, .. },
-                                Proposition::Always { property: callee_psi, .. },
-                            ) => {
-                                let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                                let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                                let implication = mk_implies(&psi_expr, &phi_expr);
-                                let err = error(
-                                    span,
-                                    "callee's AG temporal ensures must imply caller's AG obligation",
-                                );
-                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                                ag_discharged = true;
-                            }
-                            _ => {}
+                        if let Some(stmt) = check_caller_callee_pair(
+                            ctx,
+                            expr_ctxt,
+                            span,
+                            caller_prop,
+                            callee_prop,
+                            callee_ast_has_ag,
+                            /* havoc_mode */ true,
+                        )? {
+                            stmts.push(stmt);
+                            ag_discharged = true;
                         }
                     }
                 }
