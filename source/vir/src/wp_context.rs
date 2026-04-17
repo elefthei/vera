@@ -95,6 +95,105 @@ impl PropositionContext {
     }
 }
 
+/// Role that a loop plays in discharging the enclosing function's temporal
+/// obligations. Computed once at loop entry from the current
+/// `PropositionContext` plus loop shape (has decreases, is for-loop) and the
+/// ambient `inside_ag_loop` flag.
+///
+/// - `PureAg`: infinite loop, no AF/AU inside. No decreases required.
+/// - `AgAf`: infinite AG loop with nested AF/AU; needs decreases for liveness.
+/// - `Au`: terminating AU loop with decreases (includes inner loops inside
+///   an AG(AF) body, per TICL `ag_cprog_while`).
+/// - `Utility`: loop in a temporal context but with no temporal role — e.g.,
+///   a finite helper loop; its invariants still need to carry the prefix
+///   obligations per TICL `ag_seq`/`aul_seq`.
+/// - `None`: no temporal context at all; treat as a standard loop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopTemporalRole {
+    PureAg,
+    AgAf,
+    Au,
+    Utility,
+    None,
+}
+
+impl LoopTemporalRole {
+    /// True when the loop participates in the temporal proof (its invariants
+    /// become temporal invariants, and intermediate-state assertions fire).
+    pub fn is_temporal(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf | Self::Au)
+    }
+
+    /// True when the loop body contains an AG obligation to check at every
+    /// intermediate state.
+    pub fn carries_ag(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf)
+    }
+
+    /// True when the loop body contains an AU obligation to check at every
+    /// intermediate state.
+    pub fn carries_au(self) -> bool {
+        matches!(self, Self::Au | Self::AgAf)
+    }
+
+    /// True when this loop body must start accumulating `now()`-goal ghost
+    /// flags for a weakened decreases check.
+    pub fn allocates_now_accumulators(self) -> bool {
+        matches!(self, Self::AgAf)
+    }
+
+    /// True when we should set `inside_ag_loop = true` before emitting the
+    /// loop body (so inner loops see themselves as AU, per `ag_cprog_while`).
+    pub fn enters_ag_scope(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf)
+    }
+}
+
+impl PropositionContext {
+    /// Classify a loop's temporal role given the current context and the
+    /// loop's shape.
+    ///
+    /// # Arguments
+    /// * `has_decreases` — whether the loop has a `decreases` clause.
+    /// * `is_for_loop` — true for `for` loops (always terminate via iterator).
+    /// * `inside_ag_loop` — the ambient flag; inner loops inside an AG body
+    ///   are classified as AU (the outer AG discharges the invariance).
+    pub fn classify_loop(
+        &self,
+        has_decreases: bool,
+        is_for_loop: bool,
+        inside_ag_loop: bool,
+    ) -> LoopTemporalRole {
+        if self.propositions.is_empty() {
+            return LoopTemporalRole::None;
+        }
+        let has_invariance_until = self.has_invariance_until();
+        let has_au = self.has_until();
+
+        // Pure AG: infinite loop (no decreases), no AF/AU nested inside,
+        // not a for-loop, and not already inside an AG body.
+        let is_ag = !has_decreases && !is_for_loop && !has_invariance_until && !inside_ag_loop;
+        // AG(AF) / AG(AU): has Until nested inside AG, still at outermost AG.
+        let is_ag_af = has_invariance_until && !inside_ag_loop;
+        // Pure AU: terminating loop with Until, not nested in AG.
+        // Also: inner loops inside an AG(AF) body (the AG was discharged by
+        // the outer loop; the body satisfies "φ AU done(R)").
+        let is_au = has_decreases
+            && ((has_au && !has_invariance_until)
+                || (has_invariance_until && inside_ag_loop));
+
+        if is_ag {
+            LoopTemporalRole::PureAg
+        } else if is_ag_af {
+            LoopTemporalRole::AgAf
+        } else if is_au {
+            LoopTemporalRole::Au
+        } else {
+            LoopTemporalRole::Utility
+        }
+    }
+}
+
 /// Temporal verification state threaded through wp.
 ///
 /// Tracks the temporal obligations derived from the function's `ensures` clause

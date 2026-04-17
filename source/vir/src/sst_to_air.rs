@@ -55,7 +55,7 @@ use std::sync::Arc;
 // Re-export temporal types and helpers from wp_context module
 #[allow(unused_imports)]
 pub use crate::wp_context::{
-    GoalKind, Proposition, PropositionContext, SpawnedProcess, WpContext,
+    GoalKind, LoopTemporalRole, Proposition, PropositionContext, SpawnedProcess, WpContext,
     callee_has_temporal_ensures, decompose_temporal, extract_callee_temporal_ensures,
 };
 
@@ -3278,122 +3278,87 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
-            // No separate temporal_invariant annotation needed.
-            //
-            // Classification:
-            // - is_ag_loop:    pure AG — infinite loop, no decreases, no AF/AU inside AG
-            // - is_ag_af_loop: AG(AF) or AG(AU) — infinite loop WITH decreases for liveness
-            //                  The loop runs forever (AG) but must make progress toward
-            //                  the AF/AU goal (requires decreases for liveness).
-            // - is_au_loop:    pure AU — terminating loop with decreases + Until
-            // - utility:       standard loop in temporal context (no temporal role)
-            let is_utility_loop_in_temporal;
-            if !state.wp.temporal_context.propositions.is_empty() {
-                // Detect AG(AF(Q)) / AG(AU(P,Q)): Until obligations nested inside AG.
-                // These have requires_invariance = true on the Until.
-                let has_invariance_until = state.wp.temporal_context.has_invariance_until();
+            // No separate temporal_invariant annotation needed. See `LoopTemporalRole`
+            // in wp_context.rs for the classification rules.
+            let role = state.wp.temporal_context.classify_loop(
+                decrease.len() > 0,
+                *is_for_loop,
+                state.wp.inside_ag_loop,
+            );
+            let is_utility_loop_in_temporal = role == LoopTemporalRole::Utility;
 
-                // Pure AG: infinite loop, no AF/AU nested inside.
-                // For loops (for-in) terminate via iterator, never AG.
-                // Not applicable inside an AG loop body (inner loops are AU per TICL ag_cprog_while).
-                let is_ag_loop = decrease.len() == 0
-                    && !*is_for_loop
-                    && !has_invariance_until
-                    && !state.wp.inside_ag_loop;
-
-                // AG(AF) / AG(AU): has Until nested inside AG.
-                // Requires decreases for liveness progress toward the AF/AU goal.
-                // Per TICL ag_cprog_while: the AG is discharged by the OUTER loop.
-                // Inner loops (when inside_ag_loop is true) are AU, not AG(AF).
-                let is_ag_af_loop = has_invariance_until && !state.wp.inside_ag_loop;
-
-                // Pure AU: terminating loop with Until (not nested in AG).
-                // Also applies to inner loops inside an AG body (per ag_cprog_while:
-                // the body satisfies "φ AU done(R)" — an AU obligation).
-                let has_au = state.wp.temporal_context.has_until();
-                let is_au_loop = decrease.len() > 0 && has_au && !has_invariance_until;
-                // Inner while loops inside AG(AF) loops are AU loops:
-                // the AG was discharged by the outer loop, leaving AU for the body.
-                let is_inner_au_loop =
-                    decrease.len() > 0 && has_invariance_until && state.wp.inside_ag_loop;
-                let is_au_loop = is_au_loop || is_inner_au_loop;
-
-                if is_ag_loop || is_au_loop || is_ag_af_loop {
-                    for (span, inv, _, _) in invs_entry.iter() {
-                        temporal_invs.push((span.clone(), inv.clone()));
-                    }
+            if role.is_temporal() {
+                for (span, inv, _, _) in invs_entry.iter() {
+                    temporal_invs.push((span.clone(), inv.clone()));
                 }
-                is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop && !is_ag_af_loop;
+            }
 
-                // AG soundness: collect AG properties for intermediate state checking.
-                // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
-                // for any Always obligations.
-                if is_ag_loop || is_ag_af_loop {
-                    let ag_props: Vec<Exp> = state
-                        .wp
-                        .temporal_context
-                        .propositions
-                        .iter()
-                        .filter_map(|o| match o {
-                            Proposition::Always { property, .. } => Some(property.clone()),
-                            _ => None,
-                        })
-                        .collect();
-                    // Extend (not replace) — nested AG loops inherit parent AG obligations
-                    state.wp.ag_state_obligations.extend(ag_props);
-                }
+            // AG soundness: collect AG properties for intermediate state checking.
+            // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
+            // for any Always obligations.
+            if role.carries_ag() {
+                let ag_props: Vec<Exp> = state
+                    .wp
+                    .temporal_context
+                    .propositions
+                    .iter()
+                    .filter_map(|o| match o {
+                        Proposition::Always { property, .. } => Some(property.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                // Extend (not replace) — nested AG loops inherit parent AG obligations
+                state.wp.ag_state_obligations.extend(ag_props);
+            }
 
-                // AU soundness: collect AU path+goal pairs for intermediate state checking.
-                // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
-                // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
-                if is_au_loop || is_ag_af_loop {
-                    let au_pairs: Vec<(Exp, Exp)> = state
-                        .wp
-                        .temporal_context
-                        .propositions
-                        .iter()
-                        .filter_map(|o| match o {
-                            Proposition::Until { path, goal, .. } => {
-                                Some((path.clone(), goal.clone()))
-                            }
-                            _ => None,
-                        })
-                        .collect();
-                    state.wp.au_path_obligations.extend(au_pairs);
-                }
-
-                // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
-                // boolean accumulator that tracks whether Q held at any intermediate
-                // state during the loop body. This is needed because now() goals are
-                // state predicates — Q might hold at body START (when x is at the front
-                // of the queue) but not at body END (after x moves to the back).
-                // The accumulator replaces Q in the weakened decreases check.
-                if is_ag_af_loop {
-                    let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
-                    for o in state.wp.temporal_context.propositions.iter() {
-                        if let Proposition::Until {
-                            goal,
-                            goal_kind: GoalKind::Now,
-                            requires_invariance: true,
-                            ..
-                        } = o
-                        {
-                            state.wp.now_reached_counter += 1;
-                            let acc_var =
-                                Arc::new(format!("now_reached_{}", state.wp.now_reached_counter));
-                            now_accs.push((goal.clone(), acc_var));
+            // AU soundness: collect AU path+goal pairs for intermediate state checking.
+            // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
+            // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
+            if role.carries_au() {
+                let au_pairs: Vec<(Exp, Exp)> = state
+                    .wp
+                    .temporal_context
+                    .propositions
+                    .iter()
+                    .filter_map(|o| match o {
+                        Proposition::Until { path, goal, .. } => {
+                            Some((path.clone(), goal.clone()))
                         }
-                    }
-                    state.wp.now_goal_accumulators = now_accs;
-                }
+                        _ => None,
+                    })
+                    .collect();
+                state.wp.au_path_obligations.extend(au_pairs);
+            }
 
-                // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
-                // inner loops are AU (the AG is discharged by the outer loop structure).
-                if is_ag_loop || is_ag_af_loop {
-                    state.wp.inside_ag_loop = true;
+            // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
+            // boolean accumulator that tracks whether Q held at any intermediate
+            // state during the loop body. This is needed because now() goals are
+            // state predicates — Q might hold at body START (when x is at the front
+            // of the queue) but not at body END (after x moves to the back).
+            // The accumulator replaces Q in the weakened decreases check.
+            if role.allocates_now_accumulators() {
+                let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
+                for o in state.wp.temporal_context.propositions.iter() {
+                    if let Proposition::Until {
+                        goal,
+                        goal_kind: GoalKind::Now,
+                        requires_invariance: true,
+                        ..
+                    } = o
+                    {
+                        state.wp.now_reached_counter += 1;
+                        let acc_var =
+                            Arc::new(format!("now_reached_{}", state.wp.now_reached_counter));
+                        now_accs.push((goal.clone(), acc_var));
+                    }
                 }
-            } else {
-                is_utility_loop_in_temporal = false;
+                state.wp.now_goal_accumulators = now_accs;
+            }
+
+            // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
+            // inner loops are AU (the AG is discharged by the outer loop structure).
+            if role.enters_ag_scope() {
+                state.wp.inside_ag_loop = true;
             }
 
             // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
