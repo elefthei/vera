@@ -4,6 +4,63 @@
 //! Vera's VCGen to track temporal obligations from `ensures` clauses.
 //! It also provides helpers for decomposing temporal expressions into
 //! flat leaf obligations.
+//!
+//! # Data flow
+//!
+//! ```text
+//!     AST ensures
+//!         │  (decompose_temporal)
+//!         ▼
+//!    Vec<Proposition>
+//!    (Always{φ} | Until{path, goal, goal_kind, requires_invariance})
+//!         │
+//!         ▼
+//!    PropositionContext
+//!         │  wrapped in ↓
+//!         ▼
+//!    WpContext  ─────────────────────────────────────────────────────┐
+//!    ├── temporal_context: PropositionContext       (what to prove)  │
+//!    ├── temporal_prefix_obligations: Vec<Exp>      (pre-loop state) │
+//!    ├── ag_state_obligations: Vec<Exp>             (mutable: AG φ)  │
+//!    ├── au_path_obligations: Vec<(Exp, Exp)>       (mutable: AU)    │
+//!    ├── now_goal_accumulators: Vec<(Exp, Ident)>   (AG(AF(now Q)))  │
+//!    ├── in_loop_depth: u32                          (walk counter)  │
+//!    ├── inside_ag_loop: bool                        (TICL scope)    │
+//!    ├── temporal_discharged: bool                   (proof status)  │
+//!    └── has_infinite_temporal_loop: bool            (AG witness)    │
+//!                                                                    │
+//!    State walk through sst_to_air::stm_to_stmts_inner ◀──────────── ┘
+//!      • at each program point: emit_temporal_state_assertions
+//!          ─ prefix (outside any loop)    ← temporal_prefix_obligations
+//!          ─ AG state (inside AG body)    ← ag_state_obligations
+//!          ─ AU path  (inside AU body)    ← au_path_obligations
+//!          ─ now()    (AG(AF) body)       ← now_goal_accumulators
+//!      • at Loop: classify_loop() → LoopTemporalRole drives obligation setup
+//!      • at Call: emit_temporal_implication_check pairs caller↔callee props
+//!      • at Return: build ens_exprs using temporal_context.propositions
+//! ```
+//!
+//! # Loop classification
+//!
+//! See [`LoopTemporalRole`] and [`PropositionContext::classify_loop`]. The
+//! classification encodes the TICL `ag_cprog_while` rule: once inside an AG
+//! body, inner loops are AU (the AG is discharged by the outer loop's
+//! invariance argument).
+//!
+//! # Proposition shapes
+//!
+//! Every `ensures` postcondition is normalized to one of two leaf forms:
+//!
+//! - `AG(φ)` — invariance. Requires an infinite loop to discharge.
+//! - `AU(φ, ψ)` — goal-directed, with `af(ψ) = AU(true, ψ)`.
+//!
+//! `requires_invariance` flags AU obligations nested inside an AG (i.e.,
+//! `AG(AF(Q))` or `AG(AU(P, Q))` compositions). These require `decreases`
+//! for liveness progress toward the goal.
+//!
+//! The `goal_kind` distinguishes state predicates (`Now`: `af(now(Q))` —
+//! checked at the first state where Q holds) from termination postconditions
+//! (`Done`: `af(done(Q))` — checked at function return).
 
 use crate::ast::Ident;
 use crate::sst::{Exp, ExpX, FunctionSst};
@@ -179,8 +236,7 @@ impl PropositionContext {
         // Also: inner loops inside an AG(AF) body (the AG was discharged by
         // the outer loop; the body satisfies "φ AU done(R)").
         let is_au = has_decreases
-            && ((has_au && !has_invariance_until)
-                || (has_invariance_until && inside_ag_loop));
+            && ((has_au && !has_invariance_until) || (has_invariance_until && inside_ag_loop));
 
         if is_ag {
             LoopTemporalRole::PureAg

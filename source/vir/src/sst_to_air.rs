@@ -3321,9 +3321,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     .propositions
                     .iter()
                     .filter_map(|o| match o {
-                        Proposition::Until { path, goal, .. } => {
-                            Some((path.clone(), goal.clone()))
-                        }
+                        Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
                         _ => None,
                     })
                     .collect();
