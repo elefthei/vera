@@ -10,12 +10,13 @@
 //! Programs without async/await reduce to single-process wp:
 //!   `WP({0 → t}, σ, 0, φ) = wp(t, φ) σ`
 
-use crate::ast::{Fun, VirErr};
+use crate::ast::Fun;
 use crate::context::Ctx;
-use crate::messages::Span;
-use crate::sst::{Exp, Pars, Stm};
-use crate::wp_context::{Proposition, SpawnedProcess, extract_callee_temporal_ensures};
-use air::ast::Stmt;
+use crate::sst::{Exp, Pars};
+use crate::wp_context::{
+    Proposition, SpawnedClosureSpec, SpawnedProcess, decompose_temporal,
+    extract_callee_temporal_ensures,
+};
 use std::sync::Arc;
 
 /// Process identifier.
@@ -38,10 +39,16 @@ impl Configuration {
     }
 
     /// Spawn an async process. Records its function name, parameters,
-    /// and temporal propositions for rely-guarantee checking.
-    pub fn spawn(&mut self, fun: Fun, pars: Pars, propositions: Vec<Proposition>) -> PID {
+    /// temporal propositions, and relies for rely-guarantee checking.
+    pub fn spawn(
+        &mut self,
+        fun: Fun,
+        pars: Pars,
+        propositions: Vec<Proposition>,
+        relies: Vec<Exp>,
+    ) -> PID {
         let pid = self.processes.len() as PID;
-        self.processes.push(SpawnedProcess { fun, pars, propositions });
+        self.processes.push(SpawnedProcess { fun, pars, propositions, relies });
         pid
     }
 
@@ -77,20 +84,57 @@ pub trait MultiProcessWp {
     fn wp_spawn(&mut self, ctx: &Ctx, fun: &Fun) -> PID {
         if let Some(callee_sst) = ctx.func_sst_map.get(fun) {
             let props = extract_callee_temporal_ensures(callee_sst);
+            let relies: Vec<Exp> = callee_sst.x.decl.reqs.to_vec();
             if !props.is_empty() {
                 return self.configuration_mut().spawn(
                     fun.clone(),
                     callee_sst.x.pars.clone(),
                     props,
+                    relies,
                 );
             }
+            return self.configuration_mut().spawn(fun.clone(), Arc::new(vec![]), vec![], relies);
         }
-        // No temporal ensures — still record for tracking
+        // No func_sst_map entry — still record for tracking
+        self.configuration_mut().spawn(fun.clone(), Arc::new(vec![]), vec![], vec![])
+    }
+
+    /// WP for `exec.spawn(async requires R ensures G { body })`.
+    /// Extract temporal propositions from the inline ensures and add to config.
+    fn wp_spawn_closure(&mut self, spec: &SpawnedClosureSpec) -> PID {
+        let mut props = Vec::new();
+        for ens in spec.ensures.iter() {
+            extract_temporal_from_exp(ens, &mut props);
+        }
+        let synthetic_fun = Arc::new(crate::ast::FunX {
+            path: Arc::new(crate::ast::PathX {
+                krate: None,
+                segments: Arc::new(vec![Arc::new("__async_block".to_string())]),
+            }),
+        });
         self.configuration_mut().spawn(
-            fun.clone(),
+            synthetic_fun,
             Arc::new(vec![]),
-            vec![],
+            props,
+            spec.requires.clone(), // relies stored directly from the async block's requires
         )
+    }
+}
+
+/// Extract temporal propositions from a raw SST ensures expression.
+fn extract_temporal_from_exp(exp: &Exp, obligations: &mut Vec<Proposition>) {
+    use crate::sst::ExpX;
+    match &exp.x {
+        ExpX::Temporal(op, prop, path_prop) => {
+            decompose_temporal(op, prop, path_prop, false, obligations);
+        }
+        ExpX::Binary(crate::ast::BinaryOp::Implies, _, rhs) => {
+            extract_temporal_from_exp(rhs, obligations);
+        }
+        ExpX::Bind(_, body) => {
+            extract_temporal_from_exp(body, obligations);
+        }
+        _ => {}
     }
 }
 

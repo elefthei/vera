@@ -291,7 +291,7 @@ test_verify_one_file! {
             #[verifier::external_body]
             pub broadcast proof fn ab(a: A)
                 ensures #![trigger a.f1()]
-                    af(done((a.f1() ==> a.f2()) && a.f3())),
+                    af(verus_builtin::done((a.f1() ==> a.f2()) && a.f3())),
             {
             }
         }

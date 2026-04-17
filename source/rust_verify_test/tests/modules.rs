@@ -110,7 +110,7 @@ test_verify_one_file! {
 
         mod M1 {
             fn test()
-                ensures af(done(crate::f())),
+                ensures af(verus_builtin::done(crate::f())),
             {
             }
         }
@@ -127,7 +127,7 @@ test_verify_one_file! {
 
         mod M1 {
             fn test()
-                ensures af(done(crate::M0::f())), // FAILS
+                ensures af(verus_builtin::done(crate::M0::f())), // FAILS
             {
             }
         }

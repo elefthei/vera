@@ -428,7 +428,7 @@ test_verify_one_file_with_options! {
     #[test] test_mut_ref_field_fail ["--no-external-by-default"] => FIELD_UPDATE.to_string() + code_str! {
         fn muts_exec(a: &mut u64) {
             requires(*old(a) < 30);
-            ensures af(done((*a == *old(a) + 1)));
+            ensures(af(done((*a == *old(a) + 1))));
             *a = *a + 1;
         }
 
@@ -451,7 +451,7 @@ test_verify_one_file_with_options! {
         #[verifier::proof]
         fn f(#[verifier::proof] x: &mut bool, #[verifier::proof] b: bool) {
             requires(b);
-            ensures af(done((*x)));
+            ensures(af(done((*x))));
 
             *x = b;
         }
@@ -558,7 +558,7 @@ test_verify_one_file! {
         #[verifier::proof]
         fn lemma(#[verifier::proof] node: Node) {
             requires(node.v < 10);
-            ensures af(done((node.v * 2 < 20)));
+            ensures(af(done((node.v * 2 < 20))));
         }
 
         #[verifier::proof]
@@ -576,7 +576,7 @@ test_verify_one_file! {
             #[verifier::proof]
             fn lemma(&self) {
                 requires(self.v < 10);
-                ensures af(done((self.v * 2 < 20)));
+                ensures(af(done((self.v * 2 < 20))));
             }
 
             #[verifier::proof]
@@ -591,9 +591,10 @@ test_verify_one_file! {
 test_verify_one_file! {
     #[test] test_associated_proof_fn_call_fail_1 PROOF_FN_COMMON.to_string() + verus_code_str! {
         impl Node {
-            proof fn lemma(tracked self) {
-                requires(self.v < 10);
-                ensures af(done((self.v * 2 < 20)));
+            proof fn lemma(tracked self)
+                requires self.v < 10,
+                ensures af(done((self.v * 2 < 20))),
+            {
             }
 
             proof fn other(tracked self) {

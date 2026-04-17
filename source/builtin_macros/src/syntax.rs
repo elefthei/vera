@@ -2075,7 +2075,8 @@ fn chain_count(expr: &Expr) -> u32 {
     }
 }
 
-const ILLEGAL_CALLEES: &[&str] = &["forall", "exists", "choose", "ag", "af", "ax", "eg", "ex", "ef", "au", "an", "eu", "en"];
+const ILLEGAL_CALLEES: &[&str] =
+    &["forall", "exists", "choose", "ag", "af", "ax", "eg", "ex", "ef", "au", "an", "eu", "en"];
 
 impl Visitor {
     fn chain_operators(&mut self, expr: &mut Expr) -> bool {
@@ -2306,16 +2307,20 @@ impl Visitor {
             }
             // Sugar: AF p = AU(true, p), AX p = AN(true, p), etc.
             UnOp::Af(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::au(true, #arg));
             }
             UnOp::Ax(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::an(true, #arg));
             }
             UnOp::Ef(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::eu(true, #arg));
             }
             UnOp::Ex(..) => {
-                *expr = quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(true, #arg));
+                *expr =
+                    quote_verbatim!(verus_builtin, span, attrs => #verus_builtin::en(true, #arg));
             }
             // Binary temporal operators: au(p, q), an(p, q), eu(p, q), en(p, q)
             // These are parsed as UnOp applied to a parenthesized tuple: au (p, q)
@@ -2337,9 +2342,7 @@ impl Visitor {
                             "temporal operator `{}` requires exactly two arguments: `{}(p, q)`",
                             op_name, op_name,
                         );
-                        *expr = Expr::Verbatim(
-                            quote_spanned!(span => compile_error!(#err)),
-                        );
+                        *expr = Expr::Verbatim(quote_spanned!(span => compile_error!(#err)));
                         return true;
                     }
                 };
@@ -3393,6 +3396,55 @@ impl Visitor {
         true
     }
 
+    fn handle_async_blocks(&mut self, expr: &mut Expr) -> bool {
+        let Expr::Async(async_expr) = expr else {
+            return false;
+        };
+        if async_expr.requires.is_none() && async_expr.ensures.is_none() {
+            return false;
+        }
+
+        self.visit_expr_with_arith(expr, InsideArith::None);
+
+        let Expr::Async(mut async_expr) = take_expr(expr) else {
+            unreachable!();
+        };
+
+        let requires = self.take_ghost(&mut async_expr.requires);
+        let ensures = self.take_ghost(&mut async_expr.ensures);
+
+        let mut stmts: Vec<Stmt> = Vec::new();
+        self.inside_ghost += 1;
+        if let Some(Requires { token, mut exprs }) = requires {
+            for expr in exprs.exprs.iter_mut() {
+                self.visit_expr_mut(expr);
+            }
+            stmts.push(stmt_with_semi!(
+                verus_builtin, token.span => #verus_builtin::requires([#exprs])));
+        }
+        if let Some(Ensures { token, mut exprs, attrs }) = ensures {
+            if attrs.len() > 0 {
+                let err = "outer attributes only allowed on function's ensures";
+                let expr = Expr::Verbatim(quote_spanned!(token.span => compile_error!(#err)));
+                stmts.push(Stmt::Expr(expr, Some(Semi { spans: [token.span] })));
+            } else {
+                for expr in exprs.exprs.iter_mut() {
+                    self.visit_expr_mut(expr);
+                }
+                stmts.push(stmt_with_semi!(
+                    verus_builtin, token.span => #verus_builtin::ensures([#exprs])));
+            }
+        }
+        self.inside_ghost -= 1;
+
+        if stmts.len() > 0 {
+            async_expr.block.stmts.splice(0..0, stmts);
+        }
+
+        *expr = Expr::Async(async_expr);
+        true
+    }
+
     fn add_loop_specs(
         &mut self,
         stmts: &mut Vec<Stmt>,
@@ -3867,6 +3919,7 @@ impl VisitMut for Visitor {
             || self.handle_cast(expr)
             || self.handle_lit_int(expr)
             || self.handle_lit_float(expr)
+            || self.handle_async_blocks(expr)
             || self.handle_closures(expr)
             || self.handle_unary_ops(expr)
             || self.handle_big_and_big_or(expr)

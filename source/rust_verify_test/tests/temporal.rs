@@ -17,7 +17,7 @@ test_verify_one_file! {
         spec fn always_positive(x: int) -> bool {
             ag (x > 0)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -25,7 +25,7 @@ test_verify_one_file! {
         spec fn exists_path_globally(x: int) -> bool {
             eg (x >= 0)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `eg` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 // === Binary operators ===
@@ -35,7 +35,7 @@ test_verify_one_file! {
         spec fn until_zero(x: int) -> bool {
             au(x > 0, done(x == 0))
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `au` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -43,7 +43,7 @@ test_verify_one_file! {
         spec fn now_and_next(x: int) -> bool {
             an(x > 0, x > 1)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `an` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -51,7 +51,7 @@ test_verify_one_file! {
         spec fn exists_until(x: int) -> bool {
             eu(x >= 0, x == 0)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `eu` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -59,7 +59,7 @@ test_verify_one_file! {
         spec fn exists_next(x: int) -> bool {
             en(x > 0, x == 1)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `en` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 // === Sugar: af = au(true, ·), ax = an(true, ·), ef = eu(true, ·), ex = en(true, ·) ===
@@ -69,7 +69,7 @@ test_verify_one_file! {
         spec fn eventually_zero(x: int) -> bool {
             af (done(x == 0))
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `au` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -77,7 +77,7 @@ test_verify_one_file! {
         spec fn next_positive(x: int) -> bool {
             ax (x > 0)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `an` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -85,7 +85,7 @@ test_verify_one_file! {
         spec fn exists_eventually(x: int) -> bool {
             ef (x == 0)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `eu` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -93,7 +93,7 @@ test_verify_one_file! {
         spec fn exists_next(x: int) -> bool {
             ex (x == 1)
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `en` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 // === Nesting ===
@@ -103,7 +103,7 @@ test_verify_one_file! {
         spec fn always_eventually(x: int) -> bool {
             ag (au(true, done(x == 0)))
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -111,7 +111,7 @@ test_verify_one_file! {
         spec fn always_eventually_sugar(x: int) -> bool {
             ag (af (now(x == 0)))
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 test_verify_one_file! {
@@ -121,7 +121,7 @@ test_verify_one_file! {
         spec fn fairness(v: int) -> bool {
             ag (au(true, done(head_val(v))))
         }
-    } => Err(err) => assert_vir_error_msg(err, "temporal operator `ag` is not yet supported outside of ensures clauses")
+    } => Ok(())
 }
 
 // === temporal invariant loop annotation ===
@@ -312,28 +312,28 @@ test_verify_one_file! {
     } => Ok(())
 }
 
-// === Non-temporal ensures rejection tests ===
+// === Non-temporal ensures tests ===
+// Plain ensures (without temporal operators) are allowed for standard Verus functions.
+// Temporal operators are only required when verifying temporal properties.
 
-// Exec function with non-temporal ensures must be rejected
 test_verify_one_file! {
-    #[test] test_nontemporal_ensures_exec_rejected verus_code! {
+    #[test] test_nontemporal_ensures_exec_allowed verus_code! {
         fn test_exec(x: u64) -> (ret: u64)
             ensures ret == x,
         {
             x
         }
-    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+    } => Ok(())
 }
 
-// Proof function with non-temporal ensures must be rejected
 test_verify_one_file! {
-    #[test] test_nontemporal_ensures_proof_rejected verus_code! {
+    #[test] test_nontemporal_ensures_proof_allowed verus_code! {
         proof fn test_proof(x: int)
             ensures x >= 0,
         {
             assume(false);
         }
-    } => Err(err) => assert_vir_error_msg(err, "exec/proof function ensures must use a temporal operator")
+    } => Ok(())
 }
 
 // Spec functions cannot have ensures at all (separate well-formedness check),
@@ -2625,4 +2625,23 @@ test_verify_one_file! {
             }
         }
     } => Err(_err) => ()
+}
+
+// Temporal operators in requires must be rejected
+test_verify_one_file! {
+    #[test] test_temporal_in_requires_rejected verus_code! {
+        fn bad_requires(x: &mut u64)
+            requires ag(*x > 0),
+            ensures af(done(true)),
+        { }
+    } => Err(err) => assert_vir_error_msg(err, "temporal operators")
+}
+
+test_verify_one_file! {
+    #[test] test_done_in_requires_rejected verus_code! {
+        fn bad_requires(x: &mut u64)
+            requires done(*x > 0),
+            ensures af(done(true)),
+        { }
+    } => Err(err) => assert_vir_error_msg(err, "temporal operators")
 }

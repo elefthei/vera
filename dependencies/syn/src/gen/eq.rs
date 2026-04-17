@@ -553,6 +553,7 @@ impl Eq for crate::ExprAsync {}
 impl PartialEq for crate::ExprAsync {
     fn eq(&self, other: &Self) -> bool {
         self.attrs == other.attrs && self.capture == other.capture
+            && self.requires == other.requires && self.ensures == other.ensures
             && self.block == other.block
     }
 }

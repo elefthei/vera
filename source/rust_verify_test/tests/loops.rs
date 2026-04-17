@@ -998,7 +998,7 @@ test_verify_one_file_with_options! {
                 pub closed spec fn view(&self) -> T { self.t }
 
                 pub fn new(t: T) -> (s: Self)
-                  ensures af(s.view() === t)
+                  ensures af(verus_builtin::done(s.view() === t))
                 {
                     X { t: t }
                 }

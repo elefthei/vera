@@ -71,7 +71,7 @@ test_verify_one_file! {
                 }
 
                 pub fn new() -> Bike {
-                    ensures(|result: Bike| af(done(result.hard_tail)));
+                    ensures(|result: Bike| af(verus_builtin::done(result.hard_tail)));
                     Bike { hard_tail: true }
                 }
             }

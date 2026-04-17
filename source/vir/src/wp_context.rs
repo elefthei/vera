@@ -4,6 +4,63 @@
 //! Vera's VCGen to track temporal obligations from `ensures` clauses.
 //! It also provides helpers for decomposing temporal expressions into
 //! flat leaf obligations.
+//!
+//! # Data flow
+//!
+//! ```text
+//!     AST ensures
+//!         │  (decompose_temporal)
+//!         ▼
+//!    Vec<Proposition>
+//!    (Always{φ} | Until{path, goal, goal_kind, requires_invariance})
+//!         │
+//!         ▼
+//!    PropositionContext
+//!         │  wrapped in ↓
+//!         ▼
+//!    WpContext  ─────────────────────────────────────────────────────┐
+//!    ├── temporal_context: PropositionContext       (what to prove)  │
+//!    ├── temporal_prefix_obligations: Vec<Exp>      (pre-loop state) │
+//!    ├── ag_state_obligations: Vec<Exp>             (mutable: AG φ)  │
+//!    ├── au_path_obligations: Vec<(Exp, Exp)>       (mutable: AU)    │
+//!    ├── now_goal_accumulators: Vec<(Exp, Ident)>   (AG(AF(now Q)))  │
+//!    ├── in_loop_depth: u32                          (walk counter)  │
+//!    ├── inside_ag_loop: bool                        (TICL scope)    │
+//!    ├── temporal_discharged: bool                   (proof status)  │
+//!    └── has_infinite_temporal_loop: bool            (AG witness)    │
+//!                                                                    │
+//!    State walk through sst_to_air::stm_to_stmts_inner ◀──────────── ┘
+//!      • at each program point: emit_temporal_state_assertions
+//!          ─ prefix (outside any loop)    ← temporal_prefix_obligations
+//!          ─ AG state (inside AG body)    ← ag_state_obligations
+//!          ─ AU path  (inside AU body)    ← au_path_obligations
+//!          ─ now()    (AG(AF) body)       ← now_goal_accumulators
+//!      • at Loop: classify_loop() → LoopTemporalRole drives obligation setup
+//!      • at Call: emit_temporal_implication_check pairs caller↔callee props
+//!      • at Return: build ens_exprs using temporal_context.propositions
+//! ```
+//!
+//! # Loop classification
+//!
+//! See [`LoopTemporalRole`] and [`PropositionContext::classify_loop`]. The
+//! classification encodes the TICL `ag_cprog_while` rule: once inside an AG
+//! body, inner loops are AU (the AG is discharged by the outer loop's
+//! invariance argument).
+//!
+//! # Proposition shapes
+//!
+//! Every `ensures` postcondition is normalized to one of two leaf forms:
+//!
+//! - `AG(φ)` — invariance. Requires an infinite loop to discharge.
+//! - `AU(φ, ψ)` — goal-directed, with `af(ψ) = AU(true, ψ)`.
+//!
+//! `requires_invariance` flags AU obligations nested inside an AG (i.e.,
+//! `AG(AF(Q))` or `AG(AU(P, Q))` compositions). These require `decreases`
+//! for liveness progress toward the goal.
+//!
+//! The `goal_kind` distinguishes state predicates (`Now`: `af(now(Q))` —
+//! checked at the first state where Q holds) from termination postconditions
+//! (`Done`: `af(done(Q))` — checked at function return).
 
 use crate::ast::Ident;
 use crate::sst::{Exp, ExpX, FunctionSst};
@@ -95,22 +152,134 @@ impl PropositionContext {
     }
 }
 
-/// Temporal verification state threaded through wp.
+/// Role that a loop plays in discharging the enclosing function's temporal
+/// obligations. Computed once at loop entry from the current
+/// `PropositionContext` plus loop shape (has decreases, is for-loop) and the
+/// ambient `inside_ag_loop` flag.
 ///
-/// Tracks the temporal obligations derived from the function's `ensures` clause
-/// and the verification state as we traverse the function body.
-pub struct WpContext {
-    /// Temporal obligations from ensures clauses.
-    pub temporal_context: PropositionContext,
-    /// Set to true when any loop discharges temporal obligations.
-    pub temporal_discharged: bool,
-    /// Set to true when a loop without decreases exists (AG = infinite loop).
-    pub has_infinite_temporal_loop: bool,
+/// - `PureAg`: infinite loop, no AF/AU inside. No decreases required.
+/// - `AgAf`: infinite AG loop with nested AF/AU; needs decreases for liveness.
+/// - `Au`: terminating AU loop with decreases (includes inner loops inside
+///   an AG(AF) body, per TICL `ag_cprog_while`).
+/// - `Utility`: loop in a temporal context but with no temporal role — e.g.,
+///   a finite helper loop; its invariants still need to carry the prefix
+///   obligations per TICL `ag_seq`/`aul_seq`.
+/// - `None`: no temporal context at all; treat as a standard loop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopTemporalRole {
+    PureAg,
+    AgAf,
+    Au,
+    Utility,
+    None,
+}
+
+impl LoopTemporalRole {
+    /// True when the loop participates in the temporal proof (its invariants
+    /// become temporal invariants, and intermediate-state assertions fire).
+    pub fn is_temporal(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf | Self::Au)
+    }
+
+    /// True when the loop body contains an AG obligation to check at every
+    /// intermediate state.
+    pub fn carries_ag(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf)
+    }
+
+    /// True when the loop body contains an AU obligation to check at every
+    /// intermediate state.
+    pub fn carries_au(self) -> bool {
+        matches!(self, Self::Au | Self::AgAf)
+    }
+
+    /// True when this loop body must start accumulating `now()`-goal ghost
+    /// flags for a weakened decreases check.
+    pub fn allocates_now_accumulators(self) -> bool {
+        matches!(self, Self::AgAf)
+    }
+
+    /// True when we should set `inside_ag_loop = true` before emitting the
+    /// loop body (so inner loops see themselves as AU, per `ag_cprog_while`).
+    pub fn enters_ag_scope(self) -> bool {
+        matches!(self, Self::PureAg | Self::AgAf)
+    }
+}
+
+impl PropositionContext {
+    /// Classify a loop's temporal role given the current context and the
+    /// loop's shape.
+    ///
+    /// # Arguments
+    /// * `has_decreases` — whether the loop has a `decreases` clause.
+    /// * `is_for_loop` — true for `for` loops (always terminate via iterator).
+    /// * `inside_ag_loop` — the ambient flag; inner loops inside an AG body
+    ///   are classified as AU (the outer AG discharges the invariance).
+    pub fn classify_loop(
+        &self,
+        has_decreases: bool,
+        is_for_loop: bool,
+        inside_ag_loop: bool,
+    ) -> LoopTemporalRole {
+        if self.propositions.is_empty() {
+            return LoopTemporalRole::None;
+        }
+        let has_invariance_until = self.has_invariance_until();
+        let has_au = self.has_until();
+
+        // Pure AG: infinite loop (no decreases), no AF/AU nested inside,
+        // not a for-loop, and not already inside an AG body.
+        let is_ag = !has_decreases && !is_for_loop && !has_invariance_until && !inside_ag_loop;
+        // AG(AF) / AG(AU): has Until nested inside AG, still at outermost AG.
+        let is_ag_af = has_invariance_until && !inside_ag_loop;
+        // Pure AU: terminating loop with Until, not nested in AG.
+        // Also: inner loops inside an AG(AF) body (the AG was discharged by
+        // the outer loop; the body satisfies "φ AU done(R)").
+        let is_au = has_decreases
+            && ((has_au && !has_invariance_until) || (has_invariance_until && inside_ag_loop));
+
+        if is_ag {
+            LoopTemporalRole::PureAg
+        } else if is_ag_af {
+            LoopTemporalRole::AgAf
+        } else if is_au {
+            LoopTemporalRole::Au
+        } else {
+            LoopTemporalRole::Utility
+        }
+    }
+}
+
+/// Immutable (after construction) temporal obligations derived from `ensures`.
+///
+/// Populated once at the start of `body_stm_to_air` and read-only throughout
+/// the SST walk. See [`PropositionContext`] for the proposition set and
+/// [`prefix`](Self::prefix) for the AG/AU-derived "every-state" properties
+/// that must hold in prefix code outside the temporal loop.
+pub struct TemporalObligations {
+    /// Leaf propositions (AG/AU) from `ensures`.
+    pub propositions: PropositionContext,
     /// Properties that must hold at every intermediate state in prefix code
     /// before the temporal loop. AG(φ) → [φ], AU(path, goal) → [path].
-    pub temporal_prefix_obligations: Vec<Exp>,
+    pub prefix: Vec<Exp>,
+}
+
+/// Mutable state tracked during the SST → AIR walk.
+///
+/// This captures "where am I?" / "what have I discharged?" / "what
+/// intermediate-state assertions are active?". The walker mutates these
+/// fields as it enters/leaves loops and emits assertions.
+pub struct TemporalRuntime {
+    /// Set to true when any loop discharges temporal obligations.
+    pub discharged: bool,
+    /// Set to true when a loop without decreases exists (AG = infinite loop).
+    pub has_infinite_loop: bool,
     /// Depth counter for loop nesting — prefix assertions only fire outside all loops.
     pub in_loop_depth: u32,
+    /// True when inside an AG or AG(AF) loop body. Inner loops should be
+    /// classified as AU (not AG/AG(AF)) per TICL ag_cprog_while rule:
+    /// the AG is discharged by the outer loop, inner bodies satisfy AU.
+    pub inside_ag_loop: bool,
     /// AG(φ) properties asserted at every intermediate state inside an AG loop body.
     pub ag_state_obligations: Vec<Exp>,
     /// AU(φ,ψ) path+goal pairs asserted at every intermediate state inside AU loops.
@@ -120,6 +289,45 @@ pub struct WpContext {
     pub now_goal_accumulators: Vec<(Exp, Ident)>,
     /// Counter for generating unique snapshot names for now() goal accumulators.
     pub now_acc_snapshot_counter: u32,
+    /// Monotonically increasing counter for unique now_reached variable names.
+    pub now_reached_counter: u32,
+}
+
+impl TemporalRuntime {
+    fn new() -> Self {
+        TemporalRuntime {
+            discharged: false,
+            has_infinite_loop: false,
+            in_loop_depth: 0,
+            inside_ag_loop: false,
+            ag_state_obligations: Vec::new(),
+            au_path_obligations: Vec::new(),
+            now_goal_accumulators: Vec::new(),
+            now_acc_snapshot_counter: 0,
+            now_reached_counter: 0,
+        }
+    }
+
+    /// Snapshot loop-scoped fields before entering a loop body.
+    pub fn snapshot_loop_state(&self) -> LoopStateSnapshot {
+        LoopStateSnapshot {
+            ag_state_obligations: self.ag_state_obligations.clone(),
+            au_path_obligations: self.au_path_obligations.clone(),
+            now_goal_accumulators: self.now_goal_accumulators.clone(),
+            inside_ag_loop: self.inside_ag_loop,
+        }
+    }
+}
+
+/// Temporal verification context threaded through VC generation.
+///
+/// A thin composition of three orthogonal concerns:
+/// - [`obligations`](Self::obligations): what to prove (set once).
+/// - [`runtime`](Self::runtime): where we are in the walk (mutable).
+/// - [`config`](Self::config): multi-process spawned-process bookkeeping.
+pub struct WpContext {
+    pub obligations: TemporalObligations,
+    pub runtime: TemporalRuntime,
     /// Multi-process configuration tracking spawned async processes.
     /// Populated by MultiProcessWp::wp_spawn, checked by emit_rely_guarantee_checks.
     pub config: crate::wp_multi::Configuration,
@@ -133,6 +341,27 @@ pub struct SpawnedProcess {
     pub pars: crate::sst::Pars,
     /// The temporal propositions extracted from the function's ensures.
     pub propositions: Vec<Proposition>,
+    /// The process's rely conditions (requires). Stored directly so R-G checks
+    /// work for both named functions and anonymous async blocks.
+    pub relies: Vec<Exp>,
+}
+
+/// Specs from an inline async block passed to spawn.
+/// Carries the SST-level requires/ensures for R-G checking.
+#[derive(Clone, Debug)]
+pub struct SpawnedClosureSpec {
+    pub requires: Vec<Exp>,
+    pub ensures: Vec<Exp>,
+}
+
+impl crate::printer::ToDebugSNode for SpawnedClosureSpec {
+    fn to_node(&self, _opts: &crate::printer::ToDebugSNodeOpts) -> sise::Node {
+        sise::Node::Atom(format!(
+            "SpawnedClosureSpec(reqs={}, ens={})",
+            self.requires.len(),
+            self.ensures.len()
+        ))
+    }
 }
 
 impl WpContext {
@@ -141,17 +370,50 @@ impl WpContext {
         temporal_prefix_obligations: Vec<Exp>,
     ) -> Self {
         WpContext {
-            temporal_context,
-            temporal_discharged: false,
-            has_infinite_temporal_loop: false,
-            temporal_prefix_obligations,
-            in_loop_depth: 0,
-            ag_state_obligations: Vec::new(),
-            au_path_obligations: Vec::new(),
-            now_goal_accumulators: Vec::new(),
-            now_acc_snapshot_counter: 0,
+            obligations: TemporalObligations {
+                propositions: temporal_context,
+                prefix: temporal_prefix_obligations,
+            },
+            runtime: TemporalRuntime::new(),
             config: crate::wp_multi::Configuration::new(),
         }
+    }
+
+    /// Snapshot loop-scoped temporal state before entering a loop body.
+    /// Call [`LoopStateSnapshot::restore`] after emitting the loop body to
+    /// restore these fields. All other `WpContext` fields are carried through
+    /// (e.g., `runtime.discharged`, counters) and intentionally *not*
+    /// restored.
+    pub fn snapshot_loop_state(&self) -> LoopStateSnapshot {
+        self.runtime.snapshot_loop_state()
+    }
+}
+
+/// Loop-scoped fields that must be save/restored around a loop body to keep
+/// parent-scope obligations intact across nested loops. Produced by
+/// [`WpContext::snapshot_loop_state`]; apply by calling [`Self::restore`].
+///
+/// Fields covered (mirrors the TICL scoping rules):
+/// - `ag_state_obligations`, `au_path_obligations` — inner loops *inherit*
+///   parent obligations (the snapshot is a superset of parent state).
+/// - `now_goal_accumulators` — only active within the AG(AF) loop that
+///   creates them; parent scope sees an empty (or outer) accumulator list.
+/// - `inside_ag_loop` — TICL `ag_cprog_while` scoping flag.
+pub struct LoopStateSnapshot {
+    ag_state_obligations: Vec<Exp>,
+    au_path_obligations: Vec<(Exp, Exp)>,
+    now_goal_accumulators: Vec<(Exp, Ident)>,
+    inside_ag_loop: bool,
+}
+
+impl LoopStateSnapshot {
+    /// Restore the captured loop-scoped fields into `wp`. Intended to be
+    /// called exactly once, after the loop body has been fully emitted.
+    pub fn restore(self, wp: &mut WpContext) {
+        wp.runtime.ag_state_obligations = self.ag_state_obligations;
+        wp.runtime.au_path_obligations = self.au_path_obligations;
+        wp.runtime.now_goal_accumulators = self.now_goal_accumulators;
+        wp.runtime.inside_ag_loop = self.inside_ag_loop;
     }
 }
 
@@ -177,10 +439,9 @@ pub fn decompose_temporal(
         }
         _ => {
             let obligation = match op {
-                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => Proposition::Always {
-                    property: prop.clone(),
-                    requires_invariance: inside_ag,
-                },
+                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG => {
+                    Proposition::Always { property: prop.clone(), requires_invariance: inside_ag }
+                }
                 crate::ast::TemporalOp::AU
                 | crate::ast::TemporalOp::EU
                 | crate::ast::TemporalOp::AN
@@ -202,12 +463,12 @@ pub fn decompose_temporal(
 }
 
 /// Extract the goal kind (Now vs Done) from a temporal goal expression.
-/// Strips the Now/Done wrapper if present; defaults to Done for backward compatibility.
+/// Strips the Now/Done wrapper if present; defaults to Now (bare expressions are state predicates).
 pub fn extract_goal_kind(raw_goal: Exp) -> (Exp, GoalKind) {
     match &raw_goal.x {
         ExpX::Now(inner) => (inner.clone(), GoalKind::Now),
         ExpX::Done(inner) => (inner.clone(), GoalKind::Done),
-        _ => (raw_goal, GoalKind::Done),
+        _ => (raw_goal, GoalKind::Now),
     }
 }
 

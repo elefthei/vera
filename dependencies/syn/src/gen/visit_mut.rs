@@ -1940,6 +1940,12 @@ where
     v.visit_attributes_mut(&mut node.attrs);
     skip!(node.async_token);
     skip!(node.capture);
+    if let Some(it) = &mut node.requires {
+        v.visit_requires_mut(it);
+    }
+    if let Some(it) = &mut node.ensures {
+        v.visit_ensures_mut(it);
+    }
     v.visit_block_mut(&mut node.block);
 }
 #[cfg(feature = "full")]

@@ -434,6 +434,17 @@ impl ExpX {
         self.to_string_prec(global, 5)
     }
 
+    /// Returns true if this expression is the literal `true`, looking through
+    /// a single `Now(...)` wrapper. Used to detect trivial temporal
+    /// subexpressions like `af(Q) = au(true, Q)` or `au(now(true), ...)`.
+    pub fn is_trivially_true(&self) -> bool {
+        let inner = match self {
+            ExpX::Now(inner) => &inner.x,
+            other => other,
+        };
+        matches!(inner, ExpX::Const(crate::ast::Constant::Bool(true)))
+    }
+
     fn to_string_prec(&self, global: &GlobalCtx, precedence: u32) -> String {
         use ExpX::*;
         let (s, inner_precedence) = match &self {

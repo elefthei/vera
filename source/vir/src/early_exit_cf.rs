@@ -81,7 +81,8 @@ fn expr_get_early_exits_rec(
             | ExprX::EvalAndResolve(..)
             | ExprX::Old(..)
             | ExprX::Block(..)
-            | ExprX::Await(_) => VisitorControlFlow::Recurse,
+            | ExprX::Await(_)
+            | ExprX::AsyncBlock { .. } => VisitorControlFlow::Recurse,
             ExprX::Quant(..)
             | ExprX::Closure(..)
             | ExprX::NonSpecClosure { .. }

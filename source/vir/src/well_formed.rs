@@ -1,8 +1,8 @@
 use crate::ast::{
     BodyVisibility, CallTarget, CallTargetKind, Constant, Datatype, DatatypeTransparency, Dt, Expr,
     ExprX, FieldOpr, Fun, Function, FunctionKind, Krate, MaskSpec, Mode, MultiOp, Opaqueness, Path,
-    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, TemporalOp, Trait, Typ, TypX, UnaryOp,
-    UnaryOpr, UnwindSpec, VarIdent, VirErr, VirErrAs, Visibility,
+    Pattern, PatternX, Place, PlaceX, Stmt, StmtX, TemporalOp, Trait, Typ, TypX, UnaryOp, UnaryOpr,
+    UnwindSpec, VarIdent, VirErr, VirErrAs, Visibility,
 };
 use crate::ast_util::{
     ast_expr_get_proof_note, dt_as_friendly_rust_name, fun_as_friendly_rust_name,
@@ -30,29 +30,37 @@ struct Ctxt<'a> {
 /// Check whether an ensures expression is (or wraps) a temporal operator.
 /// Peels through transparent wrappers like `ProofNote` and `CustomErr` that
 /// may surround the underlying `ExprX::Temporal(...)`.
-fn is_temporal_ensures(expr: &Expr) -> bool {
+/// Check whether an expression contains any temporal operator, `now()`, or `done()`.
+/// Used to reject temporal constructs in requires clauses.
+fn contains_temporal_operator(expr: &Expr) -> bool {
     match &expr.x {
-        ExprX::Temporal(..) => true,
-        // Bare now()/done() outside a temporal operator is NOT valid temporal ensures.
-        // They must appear inside ag(), af(), au(), etc.
-        ExprX::Now(..) | ExprX::Done(..) => false,
-        ExprX::UnaryOpr(UnaryOpr::ProofNote(_), inner) => is_temporal_ensures(inner),
-        ExprX::UnaryOpr(UnaryOpr::CustomErr(_), inner) => is_temporal_ensures(inner),
-        // Peel through blocks (let bindings) — the temporal operator may be the final expression
-        ExprX::Block(_, Some(final_expr)) => is_temporal_ensures(final_expr),
-        _ => false,
+        ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..) => true,
+        _ => {
+            let mut found = false;
+            let _ = crate::ast_visitor::expr_visitor_check(expr, &mut |_, e| {
+                if matches!(&e.x, ExprX::Temporal(..) | ExprX::Now(..) | ExprX::Done(..)) {
+                    found = true;
+                }
+                Ok::<(), ()>(())
+            });
+            found
+        }
     }
 }
 
-/// Check whether an expression contains a `done(...)` anywhere in its temporal tree.
-/// Used to detect contradictions like `ag(done(Q))` where AG requires infinite
-/// computation but done requires termination.
-fn contains_done(expr: &Expr) -> bool {
+/// Check whether an AG/EG expression contains `done(...)` in a contradictory position.
+/// `ag(done(Q))` is contradictory (AG=infinite, done=termination).
+/// `ag(af(done(Q)))` = `ag(au(true, done(Q)))` is also contradictory:
+///   AG requires infinite loop, af(done(Q)) requires eventual termination.
+/// But `ag(af(now(Q)))` is valid — now is a state predicate, not termination.
+/// Only walk through temporal operators to find done; stop at non-temporal expressions.
+fn contains_done_in_temporal(expr: &Expr) -> bool {
     match &expr.x {
         ExprX::Done(_) => true,
         ExprX::Now(_) => false,
         ExprX::Temporal(_, e1, e2) => {
-            contains_done(e1) || e2.as_ref().map_or(false, |e| contains_done(e))
+            contains_done_in_temporal(e1)
+                || e2.as_ref().map_or(false, |e| contains_done_in_temporal(e))
         }
         _ => false,
     }
@@ -792,68 +800,34 @@ fn check_one_expr<Emit: EmitError>(
             ).help("You can dereference the mutable reference normally to get the \"current\"/\"old\" value"));
         }
         ExprX::Temporal(op, e1, _e2) => {
-            // Allow universal temporal operators in postconditions (ensures clauses)
-            // for temporal verification. Reject existential operators and
-            // reject temporal operators everywhere else.
-            match area {
-                Area::PostState => {
-                    match op {
-                        TemporalOp::AG | TemporalOp::AU | TemporalOp::AN
-                        | TemporalOp::EG | TemporalOp::EU | TemporalOp::EN => {
-                            // Allowed — universal and existential operators are processed by
-                            // temporal VCGen. For deterministic programs, ∀ ≡ ∃ (single path).
-                        }
-                    }
-                    // Reject contradictory temporal combinations:
-                    // ag/eg(done(Q)) — globally requires infinite computation, done(Q) requires termination
-                    if matches!(op, TemporalOp::AG | TemporalOp::EG) {
-                        if contains_done(e1) {
-                            return Err(error(
-                                &expr.span,
-                                "contradiction: ag requires infinite computation, but done requires termination",
-                            ));
-                        }
-                    }
-                    // au/an/eu/en(done(R), _) — done(R) cannot be a path property
-                    if matches!(op, TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN) {
-                        if matches!(&e1.x, ExprX::Done(_)) {
-                            return Err(error(
-                                &e1.span,
-                                "contradiction: done cannot be a path property — done requires termination, but a path property must hold at every step",
-                            ));
-                        }
+            // Temporal operators are allowed everywhere in VIR expressions.
+            // Contradiction checks only apply in ensures (PostState) where they'd
+            // be verified — in spec fn bodies they're just definitions.
+            if matches!(area, Area::PostState) {
+                // ag/eg(done(Q)) — globally requires infinite computation, done requires termination
+                if matches!(op, TemporalOp::AG | TemporalOp::EG) {
+                    if contains_done_in_temporal(e1) {
+                        return Err(error(
+                            &expr.span,
+                            "contradiction: ag requires infinite computation, but done requires termination",
+                        ));
                     }
                 }
-                _ => {
-                    let op_name = match op {
-                        TemporalOp::AG => "ag",
-                        TemporalOp::EG => "eg",
-                        TemporalOp::AU => "au",
-                        TemporalOp::AN => "an",
-                        TemporalOp::EU => "eu",
-                        TemporalOp::EN => "en",
-                    };
-                    return Err(error(
-                        &expr.span,
-                        &format!("temporal operator `{op_name}` is not yet supported outside of ensures clauses"),
-                    ));
+                // au/an/eu/en(done(R), _) — done(R) cannot be a path property
+                if matches!(op, TemporalOp::AU | TemporalOp::AN | TemporalOp::EU | TemporalOp::EN) {
+                    if matches!(&e1.x, ExprX::Done(_)) {
+                        return Err(error(
+                            &e1.span,
+                            "contradiction: done cannot be a path property — done requires termination, but a path property must hold at every step",
+                        ));
+                    }
                 }
             }
         }
         ExprX::Now(_) | ExprX::Done(_) => {
-            // now/done are temporal instant markers — only valid inside ensures
-            match area {
-                Area::PostState => {
-                    // OK — inside ensures (will be validated inside a Temporal operator)
-                }
-                _ => {
-                    let name = if matches!(&expr.x, ExprX::Now(_)) { "now" } else { "done" };
-                    return Err(error(
-                        &expr.span,
-                        &format!("`{name}()` can only appear inside a temporal ensures clause (e.g., `ensures af(done(Q))`)"),
-                    ));
-                }
-            }
+            // now/done are temporal instant markers — valid inside temporal ensures.
+            // No area restriction: they may appear in closure ensures (which are
+            // not Area::PostState from the well_formed checker's perspective).
         }
         _ => {}
     }
@@ -1353,25 +1327,32 @@ fn check_function<Emit: EmitError>(
         let msg = "'requires' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
         check_expr(ctxt, function, req, disallow_private_access, Area::PreState, emit)?;
+
+        // Temporal operators (ag, af, au, etc.) and temporal markers (now, done) are
+        // postcondition constructs — they describe properties of execution traces.
+        // In requires (preconditions), use plain state predicates instead.
+        if contains_temporal_operator(req) {
+            return Err(error(
+                &req.span,
+                "temporal operators (`ag`, `af`, `au`, `now`, `done`, etc.) cannot appear in \
+                 `requires` clauses — requires are preconditions on the initial state, not \
+                 properties of execution traces. Use a plain predicate instead.",
+            ));
+        }
     }
     for ens in function.x.ensure.0.iter().chain(function.x.ensure.1.iter()) {
         let msg = "'ensures' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
         check_expr(ctxt, function, ens, disallow_private_access, Area::PostState, emit)?;
 
-        // For exec/proof functions, the top-level ensures expression must use a temporal
-        // operator. Spec functions are pure math (pre → post immediately), so they are exempt.
-        // Also exempt:
-        //   - vstd functions (standard library hasn't been ported to temporal)
-        //   - external_body functions (axioms — no body to verify temporally)
+        // Bare now()/done() without a temporal wrapper (ag, af, au, etc.) is invalid.
+        // They must appear inside a temporal operator: `ensures af(done(Q))`, not `ensures done(Q)`.
         if matches!(function.x.mode, Mode::Exec | Mode::Proof) {
-            let is_vstd = matches!(&function.x.owning_module, Some(path) if path.is_vstd_path());
-            let is_external_body = function.x.attrs.is_external_body;
-            if !is_vstd && !is_external_body && !is_temporal_ensures(ens) {
+            if matches!(&ens.x, ExprX::Now(..) | ExprX::Done(..)) {
                 return Err(error(
                     &ens.span,
-                    "exec/proof function ensures must use a temporal operator \
-                     (e.g., `ensures af(Q)` instead of `ensures Q`)",
+                    "bare `now()` or `done()` in ensures must be wrapped in a temporal operator \
+                     (e.g., `ensures af(done(Q))` instead of `ensures done(Q)`)",
                 ));
             }
         }
@@ -1413,27 +1394,13 @@ fn check_function<Emit: EmitError>(
             for expr in es.iter() {
                 let msg = "'opens_invariants' clause of public function";
                 let disallow_private_access = Some((&function.x.visibility, msg));
-                check_expr(
-                    ctxt,
-                    function,
-                    expr,
-                    disallow_private_access,
-                    Area::PreState,
-                    emit,
-                )?;
+                check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
             }
         }
         Some(MaskSpec::InvariantOpensSet(expr)) => {
             let msg = "'opens_invariants' clause of public function";
             let disallow_private_access = Some((&function.x.visibility, msg));
-            check_expr(
-                ctxt,
-                function,
-                expr,
-                disallow_private_access,
-                Area::PreState,
-                emit,
-            )?
+            check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?
         }
     }
     match &function.x.unwind_spec {
@@ -1441,27 +1408,13 @@ fn check_function<Emit: EmitError>(
         Some(UnwindSpec::NoUnwindWhen(expr)) => {
             let msg = "unwind clause of public function";
             let disallow_private_access = Some((&function.x.visibility, msg));
-            check_expr(
-                ctxt,
-                function,
-                expr,
-                disallow_private_access,
-                Area::PreState,
-                emit,
-            )?;
+            check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
         }
     }
     for expr in function.x.decrease.iter() {
         let msg = "'decreases' clause of public function";
         let disallow_private_access = Some((&function.x.visibility, msg));
-        check_expr(
-            ctxt,
-            function,
-            expr,
-            disallow_private_access,
-            Area::PreState,
-            emit,
-        )?;
+        check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
     }
     if let Some(expr) = &function.x.decrease_when {
         let msg = "'when' clause of public function";
@@ -1478,14 +1431,7 @@ fn check_function<Emit: EmitError>(
                 "decreases_when can only be used when there is a decreases clause (use recommends(...) for nonrecursive functions)",
             ));
         }
-        check_expr(
-            ctxt,
-            function,
-            expr,
-            disallow_private_access,
-            Area::PreState,
-            emit,
-        )?;
+        check_expr(ctxt, function, expr, disallow_private_access, Area::PreState, emit)?;
     }
 
     if function.x.mode == Mode::Exec

@@ -1125,6 +1125,7 @@ fn visit_func_check_sst(
         local_decls_decreases_init,
         statics,
         spawned_funs,
+        spawned_closures,
     } = function;
 
     state.temp_types.clear();
@@ -1215,6 +1216,13 @@ fn visit_func_check_sst(
         local_decls_decreases_init,
         statics: statics.clone(),
         spawned_funs: spawned_funs.clone(),
+        spawned_closures: spawned_closures
+            .iter()
+            .map(|sc| crate::wp_context::SpawnedClosureSpec {
+                requires: sc.requires.iter().map(|e| visit_exp_native(ctx, state, e)).collect(),
+                ensures: sc.ensures.iter().map(|e| visit_exp_native(ctx, state, e)).collect(),
+            })
+            .collect(),
     }
 }
 

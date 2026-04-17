@@ -1081,114 +1081,114 @@ test_verify_one_bv_file! {
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_add verus_code! {
-        fn test_add(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
+        fn test_add(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
             assert(ai == x && bi == y ==> (ai + bi) == (x + y)) by(bit_vector);
             assert(ai == x && bu == y ==> (ai + bu) == (x + y)) by(bit_vector);
-            assert(au == x && bi == y ==> (au + bi) == (x + y)) by(bit_vector);
-            assert(au == x && bu == y ==> (au + bu) == (x + y)) by(bit_vector);
+            assert(a_u == x && bi == y ==> (a_u + bi) == (x + y)) by(bit_vector);
+            assert(a_u == x && bu == y ==> (a_u + bu) == (x + y)) by(bit_vector);
             assert(ai == x && (bi + bi2) == y ==> (ai + (bi + bi2)) == (x + y)) by(bit_vector);
             assert(ai == x && (bu + bu2) == y ==> (ai + (bu + bu2)) == (x + y)) by(bit_vector);
-            assert(au == x && (bi + bi2) == y ==> (au + (bi + bi2)) == (x + y)) by(bit_vector);
-            assert(au == x && (bu + bu2) == y ==> (au + (bu + bu2)) == (x + y)) by(bit_vector);
+            assert(a_u == x && (bi + bi2) == y ==> (a_u + (bi + bi2)) == (x + y)) by(bit_vector);
+            assert(a_u == x && (bu + bu2) == y ==> (a_u + (bu + bu2)) == (x + y)) by(bit_vector);
             assert((ai + ai2) == x && bi == y ==> ((ai + ai2) + bi) == (x + y)) by(bit_vector);
             assert((ai + ai2) == x && bu == y ==> ((ai + ai2) + bu) == (x + y)) by(bit_vector);
-            assert((au + au2) == x && bi == y ==> ((au + au2) + bi) == (x + y)) by(bit_vector);
-            assert((au + au2) == x && bu == y ==> ((au + au2) + bu) == (x + y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) + bi) == (x + y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) + bu) == (x + y)) by(bit_vector);
         }
     } => Ok(())
 }
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_sub verus_code! {
-        fn test_sub(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
+        fn test_sub(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
             assert(ai == x && bi == y ==> (ai - bi) == (x - y)) by(bit_vector);
             assert(ai == x && bu == y ==> (ai - bu) == (x - y)) by(bit_vector);
-            assert(au == x && bi == y ==> (au - bi) == (x - y)) by(bit_vector);
-            assert(au == x && bu == y ==> (au - bu) == (x - y)) by(bit_vector);
+            assert(a_u == x && bi == y ==> (a_u - bi) == (x - y)) by(bit_vector);
+            assert(a_u == x && bu == y ==> (a_u - bu) == (x - y)) by(bit_vector);
             assert(ai == x && (bi + bi2) == y ==> (ai - (bi + bi2)) == (x - y)) by(bit_vector);
             assert(ai == x && (bu + bu2) == y ==> (ai - (bu + bu2)) == (x - y)) by(bit_vector);
-            assert(au == x && (bi + bi2) == y ==> (au - (bi + bi2)) == (x - y)) by(bit_vector);
-            assert(au == x && (bu + bu2) == y ==> (au - (bu + bu2)) == (x - y)) by(bit_vector);
+            assert(a_u == x && (bi + bi2) == y ==> (a_u - (bi + bi2)) == (x - y)) by(bit_vector);
+            assert(a_u == x && (bu + bu2) == y ==> (a_u - (bu + bu2)) == (x - y)) by(bit_vector);
             assert((ai + ai2) == x && bi == y ==> ((ai + ai2) - bi) == (x - y)) by(bit_vector);
             assert((ai + ai2) == x && bu == y ==> ((ai + ai2) - bu) == (x - y)) by(bit_vector);
-            assert((au + au2) == x && bi == y ==> ((au + au2) - bi) == (x - y)) by(bit_vector);
-            assert((au + au2) == x && bu == y ==> ((au + au2) - bu) == (x - y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) - bi) == (x - y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) - bu) == (x - y)) by(bit_vector);
         }
     } => Ok(())
 }
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_mul verus_code! {
-        fn test_mul(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
+        fn test_mul(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
             assert(ai == x && bi == y ==> (ai * bi) == (x * y)) by(bit_vector);
             assert(ai == x && bu == y ==> (ai * bu) == (x * y)) by(bit_vector);
-            assert(au == x && bi == y ==> (au * bi) == (x * y)) by(bit_vector);
-            assert(au == x && bu == y ==> (au * bu) == (x * y)) by(bit_vector);
+            assert(a_u == x && bi == y ==> (a_u * bi) == (x * y)) by(bit_vector);
+            assert(a_u == x && bu == y ==> (a_u * bu) == (x * y)) by(bit_vector);
             assert(ai == x && (bi + bi2) == y ==> (ai * (bi + bi2)) == (x * y)) by(bit_vector);
             assert(ai == x && (bu + bu2) == y ==> (ai * (bu + bu2)) == (x * y)) by(bit_vector);
-            assert(au == x && (bi + bi2) == y ==> (au * (bi + bi2)) == (x * y)) by(bit_vector);
-            assert(au == x && (bu + bu2) == y ==> (au * (bu + bu2)) == (x * y)) by(bit_vector);
+            assert(a_u == x && (bi + bi2) == y ==> (a_u * (bi + bi2)) == (x * y)) by(bit_vector);
+            assert(a_u == x && (bu + bu2) == y ==> (a_u * (bu + bu2)) == (x * y)) by(bit_vector);
             assert((ai + ai2) == x && bi == y ==> ((ai + ai2) * bi) == (x * y)) by(bit_vector);
             assert((ai + ai2) == x && bu == y ==> ((ai + ai2) * bu) == (x * y)) by(bit_vector);
-            assert((au + au2) == x && bi == y ==> ((au + au2) * bi) == (x * y)) by(bit_vector);
-            assert((au + au2) == x && bu == y ==> ((au + au2) * bu) == (x * y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) * bi) == (x * y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) * bu) == (x * y)) by(bit_vector);
         }
     } => Ok(())
 }
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_le verus_code! {
-        fn test_le(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
+        fn test_le(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: i32, y: i32) {
             assert(ai == x && bi == y ==> (ai <= bi) == (x <= y)) by(bit_vector);
             assert(ai == x && bu == y ==> (ai <= bu) == (x <= y)) by(bit_vector);
-            assert(au == x && bi == y ==> (au <= bi) == (x <= y)) by(bit_vector);
-            assert(au == x && bu == y ==> (au <= bu) == (x <= y)) by(bit_vector);
+            assert(a_u == x && bi == y ==> (a_u <= bi) == (x <= y)) by(bit_vector);
+            assert(a_u == x && bu == y ==> (a_u <= bu) == (x <= y)) by(bit_vector);
             assert(ai == x && (bi + bi2) == y ==> (ai <= (bi + bi2)) == (x <= y)) by(bit_vector);
             assert(ai == x && (bu + bu2) == y ==> (ai <= (bu + bu2)) == (x <= y)) by(bit_vector);
-            assert(au == x && (bi + bi2) == y ==> (au <= (bi + bi2)) == (x <= y)) by(bit_vector);
-            assert(au == x && (bu + bu2) == y ==> (au <= (bu + bu2)) == (x <= y)) by(bit_vector);
+            assert(a_u == x && (bi + bi2) == y ==> (a_u <= (bi + bi2)) == (x <= y)) by(bit_vector);
+            assert(a_u == x && (bu + bu2) == y ==> (a_u <= (bu + bu2)) == (x <= y)) by(bit_vector);
             assert((ai + ai2) == x && bi == y ==> ((ai + ai2) <= bi) == (x <= y)) by(bit_vector);
             assert((ai + ai2) == x && bu == y ==> ((ai + ai2) <= bu) == (x <= y)) by(bit_vector);
-            assert((au + au2) == x && bi == y ==> ((au + au2) <= bi) == (x <= y)) by(bit_vector);
-            assert((au + au2) == x && bu == y ==> ((au + au2) <= bu) == (x <= y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) <= bi) == (x <= y)) by(bit_vector);
+            assert((a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) <= bu) == (x <= y)) by(bit_vector);
         }
     } => Ok(())
 }
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_div verus_code! {
-        fn test_div(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: u32, y: u32) {
+        fn test_div(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: u32, y: u32) {
             assert(y != 0 ==> ai == x && bi == y ==> (ai as int) / (bi as int) == x / y) by(bit_vector);
             assert(y != 0 ==> ai == x && bu == y ==> (ai as int) / (bu as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> au == x && bi == y ==> (au as int) / (bi as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> au == x && bu == y ==> (au as int) / (bu as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && bi == y ==> (a_u as int) / (bi as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && bu == y ==> (a_u as int) / (bu as int) == x / y) by(bit_vector);
             assert(y != 0 ==> ai == x && (bi + bi2) == y ==> (ai as int) / ((bi + bi2) as int) == x / y) by(bit_vector);
             assert(y != 0 ==> ai == x && (bu + bu2) == y ==> (ai as int) / ((bu + bu2) as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> au == x && (bi + bi2) == y ==> (au as int) / ((bi + bi2) as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> au == x && (bu + bu2) == y ==> (au as int) / ((bu + bu2) as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && (bi + bi2) == y ==> (a_u as int) / ((bi + bi2) as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && (bu + bu2) == y ==> (a_u as int) / ((bu + bu2) as int) == x / y) by(bit_vector);
             assert(y != 0 ==> (ai + ai2) == x && bi == y ==> ((ai + ai2) as int) / (bi as int) == x / y) by(bit_vector);
             assert(y != 0 ==> (ai + ai2) == x && bu == y ==> ((ai + ai2) as int) / (bu as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> (au + au2) == x && bi == y ==> ((au + au2) as int) / (bi as int) == x / y) by(bit_vector);
-            assert(y != 0 ==> (au + au2) == x && bu == y ==> ((au + au2) as int) / (bu as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> (a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) as int) / (bi as int) == x / y) by(bit_vector);
+            assert(y != 0 ==> (a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) as int) / (bu as int) == x / y) by(bit_vector);
         }
     } => Ok(())
 }
 
 test_verify_one_bv_file! {
     #[test] test_by_equating_mod verus_code! {
-        fn test_mod(au: u8, au2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: u32, y: u32) {
+        fn test_mod(a_u: u8, a_u2: u8, bu: u8, bu2: u8, ai: i8, ai2: i8, bi: i8, bi2: i8, x: u32, y: u32) {
             assert(y != 0 ==> ai == x && bi == y ==> (ai as int) % (bi as int) == x % y) by(bit_vector);
             assert(y != 0 ==> ai == x && bu == y ==> (ai as int) % (bu as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> au == x && bi == y ==> (au as int) % (bi as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> au == x && bu == y ==> (au as int) % (bu as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && bi == y ==> (a_u as int) % (bi as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && bu == y ==> (a_u as int) % (bu as int) == x % y) by(bit_vector);
             assert(y != 0 ==> ai == x && (bi + bi2) == y ==> (ai as int) % ((bi + bi2) as int) == x % y) by(bit_vector);
             assert(y != 0 ==> ai == x && (bu + bu2) == y ==> (ai as int) % ((bu + bu2) as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> au == x && (bi + bi2) == y ==> (au as int) % ((bi + bi2) as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> au == x && (bu + bu2) == y ==> (au as int) % ((bu + bu2) as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && (bi + bi2) == y ==> (a_u as int) % ((bi + bi2) as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> a_u == x && (bu + bu2) == y ==> (a_u as int) % ((bu + bu2) as int) == x % y) by(bit_vector);
             assert(y != 0 ==> (ai + ai2) == x && bi == y ==> ((ai + ai2) as int) % (bi as int) == x % y) by(bit_vector);
             assert(y != 0 ==> (ai + ai2) == x && bu == y ==> ((ai + ai2) as int) % (bu as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> (au + au2) == x && bi == y ==> ((au + au2) as int) % (bi as int) == x % y) by(bit_vector);
-            assert(y != 0 ==> (au + au2) == x && bu == y ==> ((au + au2) as int) % (bu as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> (a_u + a_u2) == x && bi == y ==> ((a_u + a_u2) as int) % (bi as int) == x % y) by(bit_vector);
+            assert(y != 0 ==> (a_u + a_u2) == x && bu == y ==> ((a_u + a_u2) as int) % (bu as int) == x % y) by(bit_vector);
         }
     } => Ok(())
 }

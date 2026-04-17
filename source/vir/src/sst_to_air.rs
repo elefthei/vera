@@ -53,10 +53,10 @@ use std::mem::swap;
 use std::sync::Arc;
 
 // Re-export temporal types and helpers from wp_context module
+#[allow(unused_imports)]
 pub use crate::wp_context::{
-    GoalKind, Proposition, PropositionContext, SpawnedProcess, WpContext,
-    decompose_temporal,
-    extract_callee_temporal_ensures, callee_has_temporal_ensures,
+    GoalKind, LoopTemporalRole, Proposition, PropositionContext, SpawnedProcess, WpContext,
+    callee_has_temporal_ensures, decompose_temporal, extract_callee_temporal_ensures,
 };
 
 pub struct PostConditionInfo {
@@ -1952,18 +1952,20 @@ fn temporal_loop_assertions(
         Some(mk_and(&r_exprs))
     };
 
-    for obligation in state.wp.temporal_context.propositions.iter() {
+    for obligation in state.wp.obligations.propositions.propositions.iter() {
         match obligation {
             Proposition::Always { property, .. } => {
                 let phi = exp_to_expr(ctx, property, expr_ctxt)?;
                 if let Some(r_conj) = &r_conjunction {
                     // Explicit implication: assert R → φ
                     let implication = mk_implies(&r_conj, &phi);
-                    let error = error(span, "temporal invariant does not imply AG postcondition property");
+                    let error =
+                        error(span, "temporal invariant does not imply AG postcondition property");
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, implication)));
                 } else {
                     // No temporal invariant — assert φ directly (likely unprovable)
-                    let error = error(span, "temporal AG property: no loop invariant to establish it");
+                    let error =
+                        error(span, "temporal AG property: no loop invariant to establish it");
                     stmts.push(Arc::new(StmtX::Assert(None, error, None, phi)));
                 }
             }
@@ -1972,7 +1974,8 @@ fn temporal_loop_assertions(
                 let path_phi = exp_to_expr(ctx, path, expr_ctxt)?;
                 let goal_psi = exp_to_expr(ctx, goal, expr_ctxt)?;
                 let phi_until_psi = mk_or(&vec![path_phi, goal_psi]);
-                let error = error(span, "AU property must hold at every step until goal is reached");
+                let error =
+                    error(span, "AU property must hold at every step until goal is reached");
                 stmts.push(Arc::new(StmtX::Assert(None, error, None, phi_until_psi)));
             }
         }
@@ -1993,11 +1996,11 @@ fn emit_prefix_assertions(
     // Inside a loop (including its initialization code), the loop's invariant
     // machinery handles temporal properties. Only emit in straight-line prefix
     // code outside all loops.
-    if state.wp.in_loop_depth > 0 {
+    if state.wp.runtime.in_loop_depth > 0 {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
-    for obligation_exp in &state.wp.temporal_prefix_obligations {
+    for obligation_exp in &state.wp.obligations.prefix {
         let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
         let err = error(span, "temporal property must hold before entering the loop");
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
@@ -2015,7 +2018,7 @@ fn emit_ag_state_assertions(
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
-    for obligation_exp in &state.wp.ag_state_obligations {
+    for obligation_exp in &state.wp.runtime.ag_state_obligations {
         let phi = exp_to_expr(ctx, obligation_exp, expr_ctxt)?;
         let err = error(span, "AG property must hold at every intermediate state");
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi)));
@@ -2034,11 +2037,14 @@ fn emit_au_path_assertions(
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
     let mut stmts = Vec::new();
-    for (path_exp, goal_exp) in &state.wp.au_path_obligations {
+    for (path_exp, goal_exp) in &state.wp.runtime.au_path_obligations {
         let phi = exp_to_expr(ctx, path_exp, expr_ctxt)?;
         let psi = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
         let phi_or_psi = mk_or(&vec![phi, psi]);
-        let err = error(span, "AU path property must hold at every intermediate state (or goal already reached)");
+        let err = error(
+            span,
+            "AU path property must hold at every intermediate state (or goal already reached)",
+        );
         stmts.push(Arc::new(StmtX::Assert(None, err, None, phi_or_psi)));
     }
     Ok(stmts)
@@ -2054,17 +2060,17 @@ fn update_now_accumulators(
     _span: &Span,
     expr_ctxt: &ExprCtxt,
 ) -> Result<Vec<Stmt>, VirErr> {
-    if state.wp.now_goal_accumulators.is_empty() {
+    if state.wp.runtime.now_goal_accumulators.is_empty() {
         return Ok(Vec::new());
     }
     let mut stmts = Vec::new();
     // Take a snapshot of the current accumulator values before havocing them.
     let snap_id = {
-        state.wp.now_acc_snapshot_counter += 1;
-        Arc::new(format!("now_acc_{}", state.wp.now_acc_snapshot_counter))
+        state.wp.runtime.now_acc_snapshot_counter += 1;
+        Arc::new(format!("now_acc_{}", state.wp.runtime.now_acc_snapshot_counter))
     };
     stmts.push(Arc::new(StmtX::Snapshot(snap_id.clone())));
-    for (goal_exp, acc_var) in &state.wp.now_goal_accumulators {
+    for (goal_exp, acc_var) in &state.wp.runtime.now_goal_accumulators {
         let q_current = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
         // Havoc the accumulator to allow it to take a new value
         stmts.push(Arc::new(StmtX::Havoc(acc_var.clone())));
@@ -2103,6 +2109,79 @@ fn emit_temporal_state_assertions(
 /// assert that the callee's temporal ensures imply the caller's obligations.
 /// For AG-AG matches, redirects the VCGen to the callee's body so the
 /// callee's loop can discharge the caller's AG obligation.
+/// Check whether a (caller, callee) proposition pair requires an AIR
+/// implication assertion to discharge the caller's temporal obligation.
+///
+/// Returns `Ok(Some(stmt))` when an assertion must be emitted (and the
+/// caller should mark the obligation discharged), or `Ok(None)` otherwise.
+///
+/// `havoc_mode` restricts coverage to the two categorically-matched cases
+/// (AG/AG and invariance-Until/invariance-Until); cross-category cases
+/// (AG/AG(AF) and AG(AF)/AG) are only emitted when `havoc_mode` is false.
+/// This preserves the pre-refactor behavior where the Havoc+Assume path
+/// only handles same-category implications.
+fn check_caller_callee_pair(
+    ctx: &Ctx,
+    expr_ctxt: &ExprCtxt,
+    span: &Span,
+    caller_prop: &Proposition,
+    callee_prop: &Proposition,
+    callee_ast_has_ag: bool,
+    havoc_mode: bool,
+) -> Result<Option<Stmt>, VirErr> {
+    let mk_assert = |lhs: &Exp, rhs: &Exp, msg: &str| -> Result<Stmt, VirErr> {
+        let lhs_e = exp_to_expr(ctx, lhs, expr_ctxt)?;
+        let rhs_e = exp_to_expr(ctx, rhs, expr_ctxt)?;
+        let implication = mk_implies(&lhs_e, &rhs_e);
+        Ok(Arc::new(StmtX::Assert(None, error(span, msg), None, implication)))
+    };
+    match (caller_prop, callee_prop) {
+        // Case 1: AG caller + AG callee → assert ψ → φ, discharge
+        (
+            Proposition::Always { property: caller_phi, .. },
+            Proposition::Always { property: callee_psi, .. },
+        ) => Ok(Some(mk_assert(
+            callee_psi,
+            caller_phi,
+            "callee's AG temporal ensures must imply caller's AG obligation",
+        )?)),
+        // Case 2: AG(AF/AU) caller + AG(AF/AU) callee → goal → goal, discharge
+        (
+            Proposition::Until { goal: caller_goal, .. },
+            Proposition::Until { goal: callee_goal, .. },
+        ) if caller_prop.requires_invariance()
+            && callee_prop.requires_invariance()
+            && callee_ast_has_ag =>
+        {
+            Ok(Some(mk_assert(
+                callee_goal,
+                caller_goal,
+                "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
+            )?))
+        }
+        // Case 3: AG caller + AG(AF) callee → callee goal must imply caller φ
+        (
+            Proposition::Always { property: caller_phi, .. },
+            Proposition::Until { goal: callee_goal, .. },
+        ) if !havoc_mode && callee_prop.requires_invariance() => Ok(Some(mk_assert(
+            callee_goal,
+            caller_phi,
+            "callee's AG(AF) goal must imply caller's AG property",
+        )?)),
+        // Case 4: AG(AF) caller + AG callee → callee's AG is stronger, discharge
+        (
+            Proposition::Until { goal: caller_goal, .. },
+            Proposition::Always { property: callee_psi, .. },
+        ) if !havoc_mode && caller_prop.requires_invariance() => Ok(Some(mk_assert(
+            callee_psi,
+            caller_goal,
+            "callee's AG property must imply caller's AG(AF/AU) goal",
+        )?)),
+        // Cases 5-7: no discharge required (finite call / standard bind).
+        _ => Ok(None),
+    }
+}
+
 fn emit_temporal_implication_check(
     ctx: &Ctx,
     state: &mut State,
@@ -2111,7 +2190,9 @@ fn emit_temporal_implication_check(
     func: &crate::ast::Function,
     call_args: &crate::sst::Exps,
 ) -> Result<Vec<Stmt>, VirErr> {
-    if state.wp.temporal_context.propositions.is_empty() || !callee_has_temporal_ensures(func) {
+    if state.wp.obligations.propositions.propositions.is_empty()
+        || !callee_has_temporal_ensures(func)
+    {
         return Ok(Vec::new());
     }
     // Skip if this callee is in the process_map — the rely-guarantee check
@@ -2119,6 +2200,16 @@ fn emit_temporal_implication_check(
     if state.wp.config.processes.iter().any(|p| p.fun == func.x.name) {
         return Ok(Vec::new());
     }
+
+    let callee_ast_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
+        matches!(
+            &e.x,
+            crate::ast::ExprX::Temporal(
+                crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG,
+                ..
+            )
+        )
+    });
 
     // Try SST-level extraction (works for sync functions and async with wrapper walking).
     let callee_temporal = if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
@@ -2131,95 +2222,19 @@ fn emit_temporal_implication_check(
     let mut ag_discharged = false;
 
     if !callee_temporal.is_empty() {
-        for caller_prop in &state.wp.temporal_context.propositions {
+        for caller_prop in &state.wp.obligations.propositions.propositions {
             for callee_prop in &callee_temporal {
-                match (caller_prop, callee_prop) {
-                    // Case 1: AG caller + AG callee → assert ψ → φ, discharge
-                    (
-                        Proposition::Always { property: caller_phi, .. },
-                        Proposition::Always { property: callee_psi, .. },
-                    ) => {
-                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                        let implication = mk_implies(&psi_expr, &phi_expr);
-                        let err = error(
-                            span,
-                            "callee's AG temporal ensures must imply caller's AG obligation",
-                        );
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 2: AG(AF) caller + AG(AF) callee → assert goal → goal, discharge
-                    (
-                        Proposition::Until { goal: caller_goal, .. },
-                        Proposition::Until { goal: callee_goal, .. },
-                    ) if caller_prop.requires_invariance() && callee_prop.requires_invariance() => {
-                        let callee_ast_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
-                            matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
-                        });
-                        if callee_ast_has_ag {
-                            let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                            let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                            let implication = mk_implies(&callee_g, &caller_g);
-                            let err = error(
-                                span,
-                                "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
-                            );
-                            stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                            ag_discharged = true;
-                        }
-                    }
-                    // Case 3: AG caller + AG(AF) callee → callee's goal must imply caller's φ
-                    (
-                        Proposition::Always { property: caller_phi, .. },
-                        Proposition::Until { goal: callee_goal, .. },
-                    ) if callee_prop.requires_invariance() => {
-                        let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                        let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                        let implication = mk_implies(&callee_g, &phi_expr);
-                        let err = error(
-                            span,
-                            "callee's AG(AF) goal must imply caller's AG property",
-                        );
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 4: AG(AF) caller + AG callee → callee's AG is stronger, discharge
-                    (
-                        Proposition::Until { goal: caller_goal, .. },
-                        Proposition::Always { property: callee_psi, .. },
-                    ) if caller_prop.requires_invariance() => {
-                        let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                        let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                        let implication = mk_implies(&psi_expr, &caller_g);
-                        let err = error(
-                            span,
-                            "callee's AG property must imply caller's AG(AF/AU) goal",
-                        );
-                        stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                        ag_discharged = true;
-                    }
-                    // Case 5: AG caller + AF callee (no invariance) → callee terminates.
-                    // No discharge — the call is finite, AG continues after via
-                    // existing prefix/state assertions and the bind rule.
-                    (
-                        Proposition::Always { .. },
-                        Proposition::Until { .. },
-                    ) => {}
-                    // Case 6: AF caller + AG callee → callee diverges, AF goal unreachable.
-                    // Not an error here — the AF decreases check will catch it
-                    // because the callee never returns and no progress is made.
-                    (
-                        Proposition::Until { .. },
-                        Proposition::Always { .. },
-                    ) => {}
-                    // Case 7: AF/AU caller + AF/AU callee (neither has invariance)
-                    // Standard bind rule: callee terminates, its postcondition assumed.
-                    // No additional implication check needed.
-                    (
-                        Proposition::Until { .. },
-                        Proposition::Until { .. },
-                    ) => {}
+                if let Some(stmt) = check_caller_callee_pair(
+                    ctx,
+                    expr_ctxt,
+                    span,
+                    caller_prop,
+                    callee_prop,
+                    callee_ast_has_ag,
+                    /* havoc_mode */ false,
+                )? {
+                    stmts.push(stmt);
+                    ag_discharged = true;
                 }
             }
         }
@@ -2227,12 +2242,9 @@ fn emit_temporal_implication_check(
         // SST extraction empty (async function with rewritten ensures).
         // Use Havoc + Assume to bind callee params to caller args,
         // then extract temporal ensures and check implication.
-        let caller_has_ag = state.wp.temporal_context.has_always()
-            || state.wp.temporal_context.has_invariance_until();
-        let callee_has_ag = func.x.ensure.0.iter().chain(func.x.ensure.1.iter()).any(|e| {
-            matches!(&e.x, crate::ast::ExprX::Temporal(crate::ast::TemporalOp::AG | crate::ast::TemporalOp::EG, ..))
-        });
-        if caller_has_ag && callee_has_ag {
+        let caller_has_ag = state.wp.obligations.propositions.has_always()
+            || state.wp.obligations.propositions.has_invariance_until();
+        if caller_has_ag && callee_ast_has_ag {
             if let Some(callee_sst) = ctx.func_sst_map.get(&func.x.name) {
                 // Havoc + Assume: bind callee params to caller args
                 let pars = &callee_sst.x.pars;
@@ -2245,38 +2257,19 @@ fn emit_temporal_implication_check(
                 // Now re-extract with bound variables — the temporal expressions
                 // reference callee params which are now bound to caller args.
                 let callee_temporal_bound = extract_callee_temporal_ensures(callee_sst);
-                for caller_prop in &state.wp.temporal_context.propositions {
+                for caller_prop in &state.wp.obligations.propositions.propositions {
                     for callee_prop in &callee_temporal_bound {
-                        match (caller_prop, callee_prop) {
-                            (
-                                Proposition::Until { goal: caller_goal, .. },
-                                Proposition::Until { goal: callee_goal, .. },
-                            ) if caller_prop.requires_invariance() && callee_prop.requires_invariance() => {
-                                let callee_g = exp_to_expr(ctx, callee_goal, expr_ctxt)?;
-                                let caller_g = exp_to_expr(ctx, caller_goal, expr_ctxt)?;
-                                let implication = mk_implies(&callee_g, &caller_g);
-                                let err = error(
-                                    span,
-                                    "callee's AG(AF/AU) goal must imply caller's AG(AF/AU) goal",
-                                );
-                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                                ag_discharged = true;
-                            }
-                            (
-                                Proposition::Always { property: caller_phi, .. },
-                                Proposition::Always { property: callee_psi, .. },
-                            ) => {
-                                let psi_expr = exp_to_expr(ctx, callee_psi, expr_ctxt)?;
-                                let phi_expr = exp_to_expr(ctx, caller_phi, expr_ctxt)?;
-                                let implication = mk_implies(&psi_expr, &phi_expr);
-                                let err = error(
-                                    span,
-                                    "callee's AG temporal ensures must imply caller's AG obligation",
-                                );
-                                stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
-                                ag_discharged = true;
-                            }
-                            _ => {}
+                        if let Some(stmt) = check_caller_callee_pair(
+                            ctx,
+                            expr_ctxt,
+                            span,
+                            caller_prop,
+                            callee_prop,
+                            callee_ast_has_ag,
+                            /* havoc_mode */ true,
+                        )? {
+                            stmts.push(stmt);
+                            ag_discharged = true;
                         }
                     }
                 }
@@ -2288,8 +2281,8 @@ fn emit_temporal_implication_check(
     }
 
     if ag_discharged {
-        state.wp.temporal_discharged = true;
-        state.wp.has_infinite_temporal_loop = true;
+        state.wp.runtime.discharged = true;
+        state.wp.runtime.has_infinite_loop = true;
     }
 
     Ok(stmts)
@@ -2332,12 +2325,10 @@ fn emit_rely_guarantee_checks(
             };
             all_guarantees.push((i, g_expr));
         }
-        // Rely = the function's requires (from SST decl)
-        if let Some(callee_sst) = ctx.func_sst_map.get(&proc.fun) {
-            for req in callee_sst.x.decl.reqs.iter() {
-                if let Ok(r_expr) = exp_to_expr(ctx, req, expr_ctxt) {
-                    all_relies.push((i, r_expr));
-                }
+        // Rely = the process's requires (stored directly in SpawnedProcess)
+        for req in &proc.relies {
+            if let Ok(r_expr) = exp_to_expr(ctx, req, expr_ctxt) {
+                all_relies.push((i, r_expr));
             }
         }
     }
@@ -2346,14 +2337,13 @@ fn emit_rely_guarantee_checks(
     if processes.len() >= 2 {
         for &(i, ref g_expr) in &all_guarantees {
             for &(j, ref r_expr) in &all_relies {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
                 let implication = mk_implies(g_expr, r_expr);
                 let err = error(
                     span,
-                    &format!(
-                        "process {}'s guarantee must imply process {}'s rely",
-                        i, j
-                    ),
+                    &format!("process {}'s guarantee must imply process {}'s rely", i, j),
                 );
                 stmts.push(Arc::new(StmtX::Assert(None, err, None, implication)));
             }
@@ -2361,10 +2351,10 @@ fn emit_rely_guarantee_checks(
     }
 
     // 2. Conjunction of all guarantees must imply the function's global temporal ensures
-    if !state.wp.temporal_context.propositions.is_empty() && !all_guarantees.is_empty() {
+    if !state.wp.obligations.propositions.propositions.is_empty() && !all_guarantees.is_empty() {
         let g_exprs: Vec<Expr> = all_guarantees.iter().map(|(_, e)| e.clone()).collect();
         let conjunction = mk_and(&g_exprs);
-        for prop in &state.wp.temporal_context.propositions {
+        for prop in &state.wp.obligations.propositions.propositions {
             let global_expr = match prop {
                 Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt).ok(),
                 Proposition::Until { goal, .. } => exp_to_expr(ctx, goal, expr_ctxt).ok(),
@@ -2710,7 +2700,9 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // the caller has temporal obligations, assert that the callee's temporal
             // ensures imply the caller's obligations. This makes calls transparent
             // for temporal properties (contract-based checking).
-            result.extend(emit_temporal_implication_check(ctx, state, &stm.span, expr_ctxt, func, args)?);
+            result.extend(emit_temporal_implication_check(
+                ctx, state, &stm.span, expr_ctxt, func, args,
+            )?);
             // Multi-process: if this is a block_on call, emit R-G checks inline.
             // block_on is the synchronization point where the scheduler runs all processes.
             if crate::wp_multi::is_block_on(fun) && !state.wp.config.is_empty() {
@@ -2849,16 +2841,15 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // TICL: AG loops must never exit. A return inside a temporal loop
             // with AG obligations is unsound — assert false to require the
             // return path is unreachable (same as the break check).
-            if state.wp.in_loop_depth > 0 && state.wp.temporal_context.has_always() {
+            if state.wp.runtime.in_loop_depth > 0 && state.wp.obligations.propositions.has_always()
+            {
                 let error = error_with_label(
                     &stm.span,
                     "AG temporal property requires the loop to never exit \
                      (return inside an AG loop is not allowed)",
                     "return must not exit temporal loop here",
                 );
-                stmts.push(Arc::new(StmtX::Assert(
-                    None, error, None, air::ast_util::mk_false(),
-                )));
+                stmts.push(Arc::new(StmtX::Assert(None, error, None, air::ast_util::mk_false())));
             }
             if *inside_body {
                 stmts.push(Arc::new(StmtX::Assume(air::ast_util::mk_false())));
@@ -3102,7 +3093,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                 // for liveness but the loop is still semantically infinite).
                 // Pure AU loops (no AG wrapper) CAN exit when the goal is reached.
                 if *is_break && !loop_info.temporal_invs.is_empty() {
-                    let has_ag = state.wp.temporal_context.has_always();
+                    let has_ag = state.wp.obligations.propositions.has_always();
                     if has_ag {
                         let error = error_with_label(
                             &stm.span,
@@ -3111,7 +3102,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                             "loop must not exit here",
                         );
                         stmts.push(Arc::new(StmtX::Assert(
-                            None, error, None, air::ast_util::mk_false(),
+                            None,
+                            error,
+                            None,
+                            air::ast_util::mk_false(),
                         )));
                     }
                 }
@@ -3139,7 +3133,12 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     // TICL: weaken decreases at continue for ALL Until obligations (goal || m decreased).
                     // This includes af(Q) = Until(true, Q), giving it the weakened check Q || m decreased.
                     let au_goals: Vec<(&Exp, &Exp)> = if !loop_info.temporal_invs.is_empty() {
-                        state.wp.temporal_context.propositions.iter()
+                        state
+                            .wp
+                            .obligations
+                            .propositions
+                            .propositions
+                            .iter()
                             .filter_map(|o| match o {
                                 Proposition::Until { path, goal, .. } => Some((path, goal)),
                                 _ => None,
@@ -3155,7 +3154,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                             disjuncts.push(psi);
                         }
                         let weakened = mk_or(&disjuncts);
-                        let error = error(&stm.span, "temporal AU: goal not reached and no progress at continue");
+                        let error = error(
+                            &stm.span,
+                            "temporal AU: goal not reached and no progress at continue",
+                        );
                         let dec_stmt = StmtX::Assert(None, error, None, weakened);
                         stmts.push(Arc::new(dec_stmt));
                     } else {
@@ -3230,7 +3232,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             pre_modified_params,
         } => {
             let loop_isolation = *loop_isolation;
-            state.wp.in_loop_depth += 1;
+            state.wp.runtime.in_loop_depth += 1;
             let (cond_stm, pos_assume, neg_assume) = if let Some((cond_stm, cond_exp)) = cond {
                 let pos_cond = exp_to_expr(ctx, &cond_exp, expr_ctxt)?;
                 let neg_cond = Arc::new(ExprX::Unary(air::ast::UnaryOp::Not, pos_cond.clone()));
@@ -3268,107 +3270,106 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             let mut invs_entry = Arc::new(invs_entry);
             let mut invs_exit = Arc::new(invs_exit);
 
-            // Save AG obligations from parent scope. Inner loops INHERIT parent AG
-            // obligations — AG(φ) must hold at every state, including inside nested loops.
-            let saved_ag_obligations = state.wp.ag_state_obligations.clone();
-            // Save AU obligations similarly — inner loops inherit parent AU obligations.
-            let saved_au_obligations = state.wp.au_path_obligations.clone();
-            // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
-            let saved_now_accumulators = state.wp.now_goal_accumulators.clone();
-            let saved_now_acc_counter = state.wp.now_acc_snapshot_counter;
+            // Save loop-scoped temporal state. Inner loops INHERIT parent AG/AU
+            // obligations but must not leak their own extensions or now()
+            // accumulators into the parent scope. See LoopStateSnapshot for
+            // the exact set of fields.
+            let loop_state_snapshot = state.wp.snapshot_loop_state();
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
-            // No separate temporal_invariant annotation needed.
-            //
-            // Classification:
-            // - is_ag_loop:    pure AG — infinite loop, no decreases, no AF/AU inside AG
-            // - is_ag_af_loop: AG(AF) or AG(AU) — infinite loop WITH decreases for liveness
-            //                  The loop runs forever (AG) but must make progress toward
-            //                  the AF/AU goal (requires decreases for liveness).
-            // - is_au_loop:    pure AU — terminating loop with decreases + Until
-            // - utility:       standard loop in temporal context (no temporal role)
-            let is_utility_loop_in_temporal;
-            if !state.wp.temporal_context.propositions.is_empty() {
-                // Detect AG(AF(Q)) / AG(AU(P,Q)): Until obligations nested inside AG.
-                // These have requires_invariance = true on the Until.
-                let has_invariance_until = state.wp.temporal_context.has_invariance_until();
+            // No separate temporal_invariant annotation needed. See `LoopTemporalRole`
+            // in wp_context.rs for the classification rules.
+            let role = state.wp.obligations.propositions.classify_loop(
+                decrease.len() > 0,
+                *is_for_loop,
+                state.wp.runtime.inside_ag_loop,
+            );
+            let is_utility_loop_in_temporal = role == LoopTemporalRole::Utility;
 
-                // Pure AG: infinite loop, no AF/AU nested inside.
-                // For loops (for-in) terminate via iterator, never AG.
-                let is_ag_loop = decrease.len() == 0 && !*is_for_loop && !has_invariance_until;
+            if role.is_temporal() {
+                for (span, inv, _, _) in invs_entry.iter() {
+                    temporal_invs.push((span.clone(), inv.clone()));
+                }
+            }
 
-                // AG(AF) / AG(AU): has Until nested inside AG.
-                // Requires decreases for liveness progress toward the AF/AU goal.
-                let is_ag_af_loop = has_invariance_until;
+            // AG soundness: collect AG properties for intermediate state checking.
+            // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
+            // for any Always obligations.
+            if role.carries_ag() {
+                let ag_props: Vec<Exp> = state
+                    .wp
+                    .obligations
+                    .propositions
+                    .propositions
+                    .iter()
+                    .filter_map(|o| match o {
+                        Proposition::Always { property, .. } => Some(property.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                // Extend (not replace) — nested AG loops inherit parent AG obligations
+                state.wp.runtime.ag_state_obligations.extend(ag_props);
+            }
 
-                // Pure AU: terminating loop with Until (not nested in AG).
-                let has_au = state.wp.temporal_context.has_until();
-                let is_au_loop = decrease.len() > 0 && has_au && !has_invariance_until;
+            // AU soundness: collect AU path+goal pairs for intermediate state checking.
+            // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
+            // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
+            if role.carries_au() {
+                let au_pairs: Vec<(Exp, Exp)> = state
+                    .wp
+                    .obligations
+                    .propositions
+                    .propositions
+                    .iter()
+                    .filter_map(|o| match o {
+                        Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
+                        _ => None,
+                    })
+                    .collect();
+                state.wp.runtime.au_path_obligations.extend(au_pairs);
+            }
 
-                if is_ag_loop || is_au_loop || is_ag_af_loop {
-                    for (span, inv, _, _) in invs_entry.iter() {
-                        temporal_invs.push((span.clone(), inv.clone()));
+            // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
+            // boolean accumulator that tracks whether Q held at any intermediate
+            // state during the loop body. This is needed because now() goals are
+            // state predicates — Q might hold at body START (when x is at the front
+            // of the queue) but not at body END (after x moves to the back).
+            // The accumulator replaces Q in the weakened decreases check.
+            if role.allocates_now_accumulators() {
+                let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
+                for o in state.wp.obligations.propositions.propositions.iter() {
+                    if let Proposition::Until {
+                        goal,
+                        goal_kind: GoalKind::Now,
+                        requires_invariance: true,
+                        ..
+                    } = o
+                    {
+                        state.wp.runtime.now_reached_counter += 1;
+                        let acc_var = Arc::new(format!(
+                            "now_reached_{}",
+                            state.wp.runtime.now_reached_counter
+                        ));
+                        now_accs.push((goal.clone(), acc_var));
                     }
                 }
-                is_utility_loop_in_temporal = !is_ag_loop && !is_au_loop && !is_ag_af_loop;
+                state.wp.runtime.now_goal_accumulators = now_accs;
+            }
 
-                // AG soundness: collect AG properties for intermediate state checking.
-                // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
-                // for any Always obligations.
-                if is_ag_loop || is_ag_af_loop {
-                    let ag_props: Vec<Exp> = state.wp.temporal_context.propositions.iter()
-                        .filter_map(|o| match o {
-                            Proposition::Always { property, .. } => Some(property.clone()),
-                            _ => None,
-                        })
-                        .collect();
-                    // Extend (not replace) — nested AG loops inherit parent AG obligations
-                    state.wp.ag_state_obligations.extend(ag_props);
-                }
-
-                // AU soundness: collect AU path+goal pairs for intermediate state checking.
-                // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
-                // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
-                if is_au_loop || is_ag_af_loop {
-                    let au_pairs: Vec<(Exp, Exp)> = state.wp.temporal_context.propositions.iter()
-                        .filter_map(|o| match o {
-                            Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
-                            _ => None,
-                        })
-                        .collect();
-                    state.wp.au_path_obligations.extend(au_pairs);
-                }
-
-                // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
-                // boolean accumulator that tracks whether Q held at any intermediate
-                // state during the loop body. This is needed because now() goals are
-                // state predicates — Q might hold at body START (when x is at the front
-                // of the queue) but not at body END (after x moves to the back).
-                // The accumulator replaces Q in the weakened decreases check.
-                if is_ag_af_loop {
-                    let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
-                    let mut now_counter = 0u32;
-                    for o in state.wp.temporal_context.propositions.iter() {
-                        if let Proposition::Until { goal, goal_kind: GoalKind::Now, requires_invariance: true, .. } = o {
-                            let acc_var = Arc::new(format!("now_reached_{}", now_counter));
-                            now_counter += 1;
-                            now_accs.push((goal.clone(), acc_var));
-                        }
-                    }
-                    state.wp.now_goal_accumulators = now_accs;
-                }
-            } else {
-                is_utility_loop_in_temporal = false;
+            // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
+            // inner loops are AU (the AG is discharged by the outer loop structure).
+            if role.enters_ag_scope() {
+                state.wp.runtime.inside_ag_loop = true;
             }
 
             // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
             // the prefix temporal property φ. Add φ as additional loop invariant
             // so standard invariant checking covers the AU-prefix requirement.
-            if is_utility_loop_in_temporal && !state.wp.temporal_prefix_obligations.is_empty() {
+            if is_utility_loop_in_temporal && !state.wp.obligations.prefix.is_empty() {
                 let mut entry_ext: Vec<_> = (*invs_entry).clone();
                 let mut exit_ext: Vec<_> = (*invs_exit).clone();
-                for prefix_exp in &state.wp.temporal_prefix_obligations {
+                for prefix_exp in &state.wp.obligations.prefix {
                     let prefix_expr = exp_to_expr(ctx, prefix_exp, expr_ctxt)?;
                     entry_ext.push((prefix_exp.span.clone(), prefix_expr.clone(), None, true));
                     exit_ext.push((prefix_exp.span.clone(), prefix_expr, None, true));
@@ -3378,27 +3379,32 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             }
 
             // Track that this loop discharges temporal obligations.
-            if !temporal_invs.is_empty() && !state.wp.temporal_context.propositions.is_empty() {
-                state.wp.temporal_discharged = true;
+            if !temporal_invs.is_empty()
+                && !state.wp.obligations.propositions.propositions.is_empty()
+            {
+                state.wp.runtime.discharged = true;
                 // AG and AG(AF) loops are both semantically infinite:
                 // - AG: no decreases, loop runs forever
                 // - AG(AF): has decreases for liveness progress, but the weakened
                 //   check (Q ∨ m↓) allows the metric to not decrease when Q holds,
                 //   so the loop can run forever.
-                if decrease.len() == 0 || state.wp.temporal_context.has_invariance_until() {
-                    state.wp.has_infinite_temporal_loop = true;
+                if decrease.len() == 0 || state.wp.obligations.propositions.has_invariance_until() {
+                    state.wp.runtime.has_infinite_loop = true;
                 }
             }
 
             // AG(AF) / AG(AU) soundness: require decreases for liveness progress.
             // Without decreases, there's no proof that the AF/AU goal is ever reached.
             // This prevents unsound proofs like ag(af(false)) from passing.
-            if !temporal_invs.is_empty() && state.wp.temporal_context.has_invariance_until()
+            if !temporal_invs.is_empty()
+                && state.wp.obligations.propositions.has_invariance_until()
                 && decrease.len() == 0
             {
-                return Err(error(&stm.span,
-                    "AG(AF) temporal property requires a decreases clause for liveness progress")
-                    .help("add a `decreases` clause that measures progress toward the AF/AU goal"));
+                return Err(error(
+                    &stm.span,
+                    "AG(AF) temporal property requires a decreases clause for liveness progress",
+                )
+                .help("add a `decreases` clause that measures progress toward the AF/AU goal"));
             }
 
             // TICL: AU obligations (excluding af(Q) = Until(true, Q)) require a
@@ -3407,11 +3413,9 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // af(Q) alone with no decreases is fine: it's standard Hoare postcondition
             // semantics — Q is checked at return, no temporal progress needed.
             if !temporal_invs.is_empty() && decrease.len() == 0 {
-                let has_nontrivial_au = state.wp.temporal_context.propositions.iter()
-                    .any(|o| match o {
-                        Proposition::Until { path, .. } => {
-                            !matches!(&path.x, ExpX::Const(crate::ast::Constant::Bool(true)))
-                        }
+                let has_nontrivial_au =
+                    state.wp.obligations.propositions.propositions.iter().any(|o| match o {
+                        Proposition::Until { path, .. } => !path.x.is_trivially_true(),
                         _ => false,
                     });
                 if has_nontrivial_au {
@@ -3507,9 +3511,8 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             let mut local = state.local_shared.clone();
             // Declare ghost accumulator variables for now() goals.
             // These are mutable booleans that track whether Q held at any intermediate state.
-            for (_, acc_var) in &state.wp.now_goal_accumulators {
+            for (_, acc_var) in &state.wp.runtime.now_goal_accumulators {
                 local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
-                state.local_shared.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
             }
             if loop_isolation {
                 for (x, typ) in typ_inv_vars.iter() {
@@ -3544,8 +3547,16 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             }
             // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
             // Only fire for loops in temporal context (utility loops skip this)
-            if !state.wp.temporal_context.propositions.is_empty() && !temporal_invs.is_empty() {
-                air_body.extend(temporal_loop_assertions(ctx, state, &stm.span, expr_ctxt, &temporal_invs)?);
+            if !state.wp.obligations.propositions.propositions.is_empty()
+                && !temporal_invs.is_empty()
+            {
+                air_body.extend(temporal_loop_assertions(
+                    ctx,
+                    state,
+                    &stm.span,
+                    expr_ctxt,
+                    &temporal_invs,
+                )?);
             }
             for dec in decrease_init.iter() {
                 air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
@@ -3556,20 +3567,18 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             // evaluate Q and set now_reached = Q (Q might already hold at entry).
             // Take a snapshot so the first update_now_accumulators call can
             // reference the initial accumulator value.
-            if !state.wp.now_goal_accumulators.is_empty() {
-                for (goal_exp, acc_var) in &state.wp.now_goal_accumulators {
+            if !state.wp.runtime.now_goal_accumulators.is_empty() {
+                for (goal_exp, acc_var) in &state.wp.runtime.now_goal_accumulators {
                     // Havoc the accumulator variable (creates it in AIR scope)
                     air_body.push(Arc::new(StmtX::Havoc(acc_var.clone())));
                     let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
                     // assume(now_reached == Q_at_entry)
-                    air_body.push(Arc::new(StmtX::Assume(
-                        mk_eq(&ident_var(acc_var), &q_init),
-                    )));
+                    air_body.push(Arc::new(StmtX::Assume(mk_eq(&ident_var(acc_var), &q_init))));
                 }
                 // Take initial snapshot for the first accumulator update
                 let snap_id = {
-                    state.wp.now_acc_snapshot_counter += 1;
-                    Arc::new(format!("now_acc_{}", state.wp.now_acc_snapshot_counter))
+                    state.wp.runtime.now_acc_snapshot_counter += 1;
+                    Arc::new(format!("now_acc_{}", state.wp.runtime.now_acc_snapshot_counter))
                 };
                 air_body.push(Arc::new(StmtX::Snapshot(snap_id)));
             }
@@ -3624,9 +3633,16 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     // For Now goals: use ghost accumulator (tracks Q at any intermediate state).
                     // For Done goals: use Q evaluated at body end (current state).
                     let au_goals: Vec<(&Exp, &GoalKind)> = if !temporal_invs.is_empty() {
-                        state.wp.temporal_context.propositions.iter()
+                        state
+                            .wp
+                            .obligations
+                            .propositions
+                            .propositions
+                            .iter()
                             .filter_map(|o| match o {
-                                Proposition::Until { goal, goal_kind, .. } => Some((goal, goal_kind)),
+                                Proposition::Until { goal, goal_kind, .. } => {
+                                    Some((goal, goal_kind))
+                                }
                                 _ => None,
                             })
                             .collect()
@@ -3635,17 +3651,19 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     };
                     if !au_goals.is_empty() {
                         let mut disjuncts = vec![dec_expr.clone()];
+                        let mut now_acc_idx = 0usize; // index into now_goal_accumulators
                         for (goal, goal_kind) in &au_goals {
                             match goal_kind {
                                 GoalKind::Now => {
                                     // For now() goals, use the ghost accumulator variable.
                                     // It tracks whether Q held at ANY intermediate state
                                     // during this loop body iteration (including body start).
-                                    // For now() goals, use the ghost accumulator if available.
-                                    if !state.wp.now_goal_accumulators.is_empty() {
-                                        // Use the first accumulator (typically one now() goal per loop)
-                                        let (_, acc_var) = &state.wp.now_goal_accumulators[0];
+                                    // Each Now goal has its own accumulator, matched by index.
+                                    if now_acc_idx < state.wp.runtime.now_goal_accumulators.len() {
+                                        let (_, acc_var) =
+                                            &state.wp.runtime.now_goal_accumulators[now_acc_idx];
                                         disjuncts.push(ident_var(acc_var));
+                                        now_acc_idx += 1;
                                     } else {
                                         // Fallback: evaluate Q at current state
                                         let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
@@ -3660,7 +3678,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                             }
                         }
                         let weakened = mk_or(&disjuncts);
-                        let error = error(&stm.span, "temporal AU: goal not reached and no progress (decreases not satisfied)");
+                        let error = error(
+                            &stm.span,
+                            "temporal AU: goal not reached and no progress (decreases not satisfied)",
+                        );
                         let dec_stmt = StmtX::Assert(None, error, None, weakened);
                         air_body.push(Arc::new(dec_stmt));
                     } else {
@@ -3752,7 +3773,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                 // After assuming !condition, assert false so the exit path is
                 // unreachable. This catches while-condition exits for AG loops.
                 // (Explicit break exits are caught by the break handler above.)
-                if !temporal_invs.is_empty() && state.wp.temporal_context.has_always() {
+                if !temporal_invs.is_empty() && state.wp.obligations.propositions.has_always() {
                     let error = error_with_label(
                         &stm.span,
                         "AG temporal property requires the loop to never exit \
@@ -3760,7 +3781,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                         "loop must not exit here",
                     );
                     stmts.push(Arc::new(StmtX::Assert(
-                        None, error, None, air::ast_util::mk_false(),
+                        None,
+                        error,
+                        None,
+                        air::ast_util::mk_false(),
                     )));
                 }
             }
@@ -3773,14 +3797,10 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                 let snapshot = Arc::new(StmtX::Snapshot(sid));
                 stmts.push(snapshot);
             }
-            state.wp.in_loop_depth -= 1;
-            // Restore AG obligations from before this loop (handles nesting correctly).
-            state.wp.ag_state_obligations = saved_ag_obligations;
-            // Restore AU obligations from before this loop (handles nesting correctly).
-            state.wp.au_path_obligations = saved_au_obligations;
-            // Restore now() goal accumulators from before this loop.
-            state.wp.now_goal_accumulators = saved_now_accumulators;
-            state.wp.now_acc_snapshot_counter = saved_now_acc_counter;
+            state.wp.runtime.in_loop_depth -= 1;
+            // Restore the loop-scoped temporal state (AG/AU obligations,
+            // now accumulators, inside_ag_loop flag). See LoopStateSnapshot.
+            loop_state_snapshot.restore(&mut state.wp);
             stmts
         }
         StmX::OpenInvariant(body_stm) => {
@@ -3958,6 +3978,7 @@ pub(crate) fn body_stm_to_air(
         statics,
         unwind,
         spawned_funs,
+        spawned_closures,
     } = func_check_sst;
 
     if is_bit_vector_mode {
@@ -4040,9 +4061,7 @@ pub(crate) fn body_stm_to_air(
             }
         }
     }
-    let temporal_context = PropositionContext {
-        propositions: temporal_obligations,
-    };
+    let temporal_context = PropositionContext { propositions: temporal_obligations };
 
     // Derive ens_exprs for Return-point checking:
     // Until goals with Done kind (from af(Q), af(done(Q)), au(φ,Q)) are checked at return.
@@ -4081,18 +4100,19 @@ pub(crate) fn body_stm_to_air(
     // These must hold at every intermediate state in prefix code (before temporal loop).
     // Always(φ) → φ must hold at every step
     // Until(path, goal) → path must hold at every step (skip if path is trivially true)
-    let temporal_prefix_obligations: Vec<Exp> = temporal_context.propositions.iter().filter_map(|o| {
-        match o {
-            Proposition::Always { property, .. } => Some(property.clone()),
-            Proposition::Until { path, .. } => {
-                // AF(ψ) = AU(true, ψ): path = true → skip (trivial prefix)
-                match &path.x {
-                    ExpX::Const(crate::ast::Constant::Bool(true)) => None,
-                    _ => Some(path.clone()),
+    let temporal_prefix_obligations: Vec<Exp> = temporal_context
+        .propositions
+        .iter()
+        .filter_map(|o| {
+            match o {
+                Proposition::Always { property, .. } => Some(property.clone()),
+                Proposition::Until { path, .. } => {
+                    // AF(ψ) = AU(true, ψ): skip trivial true path (incl. Now(true)).
+                    if path.x.is_trivially_true() { None } else { Some(path.clone()) }
                 }
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     let unwind_air = match unwind {
         UnwindSst::MayUnwind => UnwindAir::MayUnwind,
@@ -4138,16 +4158,28 @@ pub(crate) fn body_stm_to_air(
     for spawned_fun in spawned_funs.iter() {
         state.wp_spawn(ctx, spawned_fun);
     }
+    for spawned_closure in spawned_closures.iter() {
+        state.wp_spawn_closure(spawned_closure);
+    }
 
-    // When spawned processes provide temporal guarantees, they can discharge
-    // the caller's AG obligations (the conjunction check at function exit
-    // verifies correctness). Clear prefix obligations since the spawned
-    // processes take over temporal responsibility.
-    if !state.wp.config.is_empty() && (state.wp.temporal_context.has_always() || state.wp.temporal_context.has_invariance_until()) {
-        state.wp.temporal_discharged = true;
-        state.wp.has_infinite_temporal_loop = true;
-        state.wp.temporal_prefix_obligations.clear();
-        state.wp.ag_state_obligations.clear();
+    // When spawned processes provide AG (Always) temporal guarantees, they can
+    // discharge the caller's AG obligations. Only discharge if at least one
+    // spawned process actually has an Always guarantee — AF-only processes
+    // can't sustain an infinite AG obligation.
+    let has_ag_guarantee = state
+        .wp
+        .config
+        .processes
+        .iter()
+        .any(|p| p.propositions.iter().any(|prop| matches!(prop, Proposition::Always { .. })));
+    if has_ag_guarantee
+        && (state.wp.obligations.propositions.has_always()
+            || state.wp.obligations.propositions.has_invariance_until())
+    {
+        state.wp.runtime.discharged = true;
+        state.wp.runtime.has_infinite_loop = true;
+        state.wp.obligations.prefix.clear();
+        state.wp.runtime.ag_state_obligations.clear();
     }
 
     let mut stmts = stm_to_stmts(ctx, &mut state, &stm)?;
@@ -4159,8 +4191,8 @@ pub(crate) fn body_stm_to_air(
     // AG obligations require at least one loop in temporal context.
     // This fires once at function level, allowing utility loops
     // without temporal obligations to coexist with the main temporal loop.
-    if !state.wp.temporal_context.propositions.is_empty() && !state.wp.temporal_discharged {
-        let needs_invariance = state.wp.temporal_context.has_always();
+    if !state.wp.obligations.propositions.propositions.is_empty() && !state.wp.runtime.discharged {
+        let needs_invariance = state.wp.obligations.propositions.has_always();
         if needs_invariance {
             return Err(error(
                 func_span,
@@ -4170,8 +4202,8 @@ pub(crate) fn body_stm_to_air(
     }
     // AG requires at least one infinite loop (no decreases).
     // A function with only terminating loops can't satisfy AG.
-    let has_ag = state.wp.temporal_context.has_always();
-    if has_ag && !state.wp.has_infinite_temporal_loop {
+    let has_ag = state.wp.obligations.propositions.has_always();
+    if has_ag && !state.wp.runtime.has_infinite_loop {
         return Err(error(
             func_span,
             "AG temporal property requires an infinite loop (a loop without decreases)",
@@ -4420,31 +4452,41 @@ fn opaque_ty_additional_stmts(
             TypX::Opaque { def_path: ret_typ_def_path, args: _ret_typ_args },
         ) => {
             emit_eq_stmts();
-            let ret_exp_opaque_typ = &ctx.opaque_type_map[ret_exp_def_path];
-            let ret_typ_opaque_typ = &ctx.opaque_type_map[ret_typ_def_path];
+            // Safe lookup: coroutine opaque types may have empty bounds
+            if let (Some(ret_exp_opaque_typ), Some(ret_typ_opaque_typ)) = (
+                ctx.opaque_type_map.get(ret_exp_def_path),
+                ctx.opaque_type_map.get(ret_typ_def_path),
+            ) {
+                let mut ret_exp_projection_map = HashMap::new();
+                let mut ret_typ_projection_map = HashMap::new();
 
-            let mut ret_exp_projection_map = HashMap::new();
-            let mut ret_typ_projection_map = HashMap::new();
-
-            for (ret_exp_bound, ret_typ_bound) in
-                ret_exp_opaque_typ.x.typ_bounds.iter().zip(ret_typ_opaque_typ.x.typ_bounds.iter())
-            {
-                if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_exp_bound {
-                    ret_exp_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                for (ret_exp_bound, ret_typ_bound) in ret_exp_opaque_typ
+                    .x
+                    .typ_bounds
+                    .iter()
+                    .zip(ret_typ_opaque_typ.x.typ_bounds.iter())
+                {
+                    if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) =
+                        &**ret_exp_bound
+                    {
+                        ret_exp_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                    }
+                    if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) =
+                        &**ret_typ_bound
+                    {
+                        ret_typ_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
+                    }
                 }
-                if let GenericBoundX::TypEquality(trait_path, _, id, proj_typ) = &**ret_typ_bound {
-                    ret_typ_projection_map.insert((trait_path.clone(), id.clone()), proj_typ);
-                }
-            }
-            for trait_path_id in ret_exp_projection_map.keys() {
-                if ret_typ_projection_map.contains_key(trait_path_id) {
-                    stmts.extend(opaque_ty_additional_stmts(
-                        ctx,
-                        state,
-                        span,
-                        ret_exp_projection_map[trait_path_id],
-                        ret_typ_projection_map[trait_path_id],
-                    )?);
+                for trait_path_id in ret_exp_projection_map.keys() {
+                    if ret_typ_projection_map.contains_key(trait_path_id) {
+                        stmts.extend(opaque_ty_additional_stmts(
+                            ctx,
+                            state,
+                            span,
+                            ret_exp_projection_map[trait_path_id],
+                            ret_typ_projection_map[trait_path_id],
+                        )?);
+                    }
                 }
             }
         }

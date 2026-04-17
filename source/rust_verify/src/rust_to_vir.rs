@@ -593,5 +593,8 @@ pub fn crate_to_vir<'a, 'tcx>(
     crate::rust_to_vir_adts::setup_type_invariants(&mut vir).map_err(|e| vec![e])?;
     vir::traits::set_krate_dyn_compatibility(imported, &mut vir);
 
+    // Merge late-registered opaque types (e.g., coroutine types from async blocks)
+    vir.opaque_types.extend(ctxt.extra_opaque_types.borrow().iter().cloned());
+
     Ok((ctxt, Arc::new(vir)))
 }

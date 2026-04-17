@@ -698,6 +698,18 @@ pub(crate) trait AstVisitor<R: Returner, Err, Scope: Scoper> {
                 let e = self.visit_expr(e)?;
                 R::ret(|| expr_new(ExprX::Await(R::get(e))))
             }
+            ExprX::AsyncBlock { requires, ensures, body } => {
+                let requires = self.visit_exprs(requires)?;
+                let ensures = self.visit_exprs(ensures)?;
+                let body = self.visit_expr(body)?;
+                R::ret(|| {
+                    expr_new(ExprX::AsyncBlock {
+                        requires: R::get_vec_a(requires),
+                        ensures: R::get_vec_a(ensures),
+                        body: R::get(body),
+                    })
+                })
+            }
         }
     }
 
@@ -2049,9 +2061,11 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
                 // At depth 0 we want pre-state, so convert to VarAt(Pre).
                 // The inner expression can be Var(x), ReadPlace(Local(x), _), or other forms.
                 match &inner.x {
-                    ExprX::Var(x) if self.mut_params.contains(x) => {
-                        Ok(SpannedTyped::new(&expr.span, &expr.typ, ExprX::VarAt(x.clone(), VarAt::Pre)))
-                    }
+                    ExprX::Var(x) if self.mut_params.contains(x) => Ok(SpannedTyped::new(
+                        &expr.span,
+                        &expr.typ,
+                        ExprX::VarAt(x.clone(), VarAt::Pre),
+                    )),
                     ExprX::ReadPlace(place, _kind) => {
                         if let PlaceX::Local(x) = &place.x {
                             if self.mut_params.contains(x) {
@@ -2095,11 +2109,7 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
                         &place.typ,
                         ExprX::VarAt(x.clone(), VarAt::Pre),
                     );
-                    return Ok(SpannedTyped::new(
-                        &place.span,
-                        &place.typ,
-                        PlaceX::Temporary(expr),
-                    ));
+                    return Ok(SpannedTyped::new(&place.span, &place.typ, PlaceX::Temporary(expr)));
                 }
             }
         }
@@ -2119,7 +2129,11 @@ impl<'a> AstVisitor<Rewrite, VirErr, NoScoper> for WrapMutParamsPreVisitor<'a> {
 /// params to `PlaceX::Temporary(VarAt(x, Pre))`. This is needed for temporal
 /// ensures where let-binding inits contain `DerefMut(Local(x))`, but must NOT
 /// be used for requires wrapping as it breaks iterator specs.
-pub fn wrap_mut_params_pre(expr: &Expr, mut_params: &HashSet<VarIdent>, convert_places: bool) -> Expr {
+pub fn wrap_mut_params_pre(
+    expr: &Expr,
+    mut_params: &HashSet<VarIdent>,
+    convert_places: bool,
+) -> Expr {
     if mut_params.is_empty() {
         return expr.clone();
     }
@@ -2152,9 +2166,7 @@ pub fn expr_contains_temporal(expr: &Expr) -> bool {
                 || expr_contains_temporal(thn)
                 || els.as_ref().map_or(false, |e| expr_contains_temporal(e))
         }
-        ExprX::Match(_, arms) => {
-            arms.iter().any(|a| expr_contains_temporal(&a.x.body))
-        }
+        ExprX::Match(_, arms) => arms.iter().any(|a| expr_contains_temporal(&a.x.body)),
         ExprX::Quant(_, _, body) => expr_contains_temporal(body),
         ExprX::Call(_, _, args) => args.iter().any(|a| expr_contains_temporal(a)),
         ExprX::Old(inner) => expr_contains_temporal(inner),

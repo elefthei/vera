@@ -2998,6 +2998,18 @@ pub(crate) fn expr_to_vir_innermost<'tcx>(
                 true,
             )?))
         }
+        ExprKind::Closure(Closure { kind, body: body_id, def_id, .. })
+            if matches!(
+                kind,
+                rustc_hir::ClosureKind::Coroutine(rustc_hir::CoroutineKind::Desugared(
+                    rustc_hir::CoroutineDesugaring::Async,
+                    rustc_hir::CoroutineSource::Block,
+                ))
+            ) =>
+        {
+            // Async block: extract desugared body and process specs
+            Ok(ExprOrPlace::Expr(async_block_to_vir(bctx, expr, body_id, def_id, modifier)?))
+        }
         ExprKind::Closure(Closure { fn_decl: _, .. }) => {
             Ok(ExprOrPlace::Expr(closure_to_vir(bctx, expr, expr_typ()?, false, None, modifier)?))
         }
@@ -3811,6 +3823,91 @@ pub(crate) fn record_ignore_dummy_capture_operation<'tcx>(
     expr: &Expr<'tcx>,
 ) {
     crate::fn_call_to_vir::record_call(bctx, expr, ResolvedCall::MiscEraseAbsolutely);
+}
+
+fn async_block_to_vir<'tcx>(
+    bctx: &BodyCtxt<'tcx>,
+    expr: &Expr<'tcx>,
+    body_id: &rustc_hir::BodyId,
+    def_id: &rustc_hir::def_id::LocalDefId,
+    modifier: ExprModifier,
+) -> Result<vir::ast::Expr, VirErr> {
+    let tcx = bctx.ctxt.tcx;
+    let body = tcx.hir_body(*body_id);
+
+    // Extract the actual user body from async block desugaring.
+    // Structure: Block → DropTemps → actual user code
+    let actual_body_expr = match body.value.kind {
+        ExprKind::Block(block, ..) => match block.expr {
+            Some(e) => match e.kind {
+                ExprKind::DropTemps(inner) => inner,
+                _ => e,
+            },
+            None => &body.value,
+        },
+        _ => &body.value,
+    };
+
+    // Create BodyCtxt for the async block's body (it has its own TypeckResults)
+    let types = tcx.typeck(*def_id);
+    let async_bctx = BodyCtxt {
+        ctxt: bctx.ctxt.clone(),
+        types,
+        fun_id: def_id.to_def_id(),
+        external_trait_from_to: None,
+        mode: Mode::Exec,
+        external_body: false,
+        in_ghost: false,
+        loop_isolation: false,
+        new_mut_ref: bctx.new_mut_ref,
+        migrate_postcondition_vars: None,
+        header_setting: HeaderSetting::Fn,
+        in_fn_sig: false,
+        in_postcondition: false,
+        in_old: false,
+        in_explicit_prophecy_node: false,
+        temporal_depth: 0,
+        params: bctx.params.clone(),
+        unwrap_param_map: std::rc::Rc::new(std::cell::RefCell::new(
+            std::collections::HashMap::new(),
+        )),
+        external_opaque_type_map: None,
+    };
+
+    let mut vir_body = expr_to_vir_consume(&async_bctx, actual_body_expr, modifier)?;
+    // Extract specs injected as header statements by the macro.
+    let header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
+    let vir::headers::Header { require, ensure, .. } = header;
+
+    bctx.ctxt.push_body_erasure(*def_id, BodyErasure { erase_body: false, ret_spec: false });
+
+    let typ = bctx.mid_ty_to_vir(expr.span, &bctx.types.node_type(expr.hir_id), false)?;
+
+    // Register the coroutine type as an OpaqueType so DCR%/TYPE% are declared in AIR.
+    // Without this, spawn<F: Future>'s ensures clause fails to encode the coroutine type.
+    if let TypX::Opaque { def_path, .. } = &*typ {
+        let synthetic_fun = Arc::new(vir::ast::FunX {
+            path: Arc::new(vir::ast::PathX {
+                krate: None,
+                segments: Arc::new(vec![Arc::new("__coroutine".to_string())]),
+            }),
+        });
+        let opaque_ty = bctx.spanned_new(
+            expr.span,
+            vir::ast::OpaqueTypeX {
+                def_fun: synthetic_fun,
+                name: def_path.clone(),
+                typ_params: Arc::new(vec![]),
+                typ_bounds: Arc::new(vec![]),
+            },
+        );
+        bctx.ctxt.extra_opaque_types.borrow_mut().push(opaque_ty);
+    }
+
+    // Produce an AsyncBlock expression that carries the specs through to SST/VCGen
+    // for spawn detection and R-G checking.
+    let exprx = ExprX::AsyncBlock { requires: require, ensures: ensure.0, body: vir_body };
+    Ok(bctx.spanned_typed_new(expr.span, &typ, exprx))
 }
 
 pub(crate) fn closure_to_vir<'tcx>(

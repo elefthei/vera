@@ -65,6 +65,9 @@ fn def_path_to_vir_path<'tcx>(tcx: TyCtxt<'tcx>, def_path: DefPath) -> Option<Pa
                     vir::def::RUST_OPAQUE_TYPE.to_string() + &d.disambiguator.to_string(),
                 ));
             }
+            DefPathData::Closure => {
+                segments.push(Arc::new(format!("closure_{}", d.disambiguator)));
+            }
             _ => return None,
         }
     }
@@ -591,6 +594,7 @@ pub(crate) fn get_impl_paths_for_clauses<'tcx>(
                                 || Some(trait_def_id) == tcx.lang_items().pointee_trait()
                                 || Some(trait_def_id) == tcx.lang_items().sync_trait()
                                 || Some(trait_def_id) == tcx.lang_items().destruct_trait()
+                                || Some(trait_def_id) == tcx.lang_items().future_trait()
                                 || matches!(
                                     verus_items::get_rust_item(tcx, trait_def_id),
                                     Some(RustItem::Send | RustItem::Thin | RustItem::Any)
@@ -1426,8 +1430,17 @@ pub(crate) fn mid_ty_to_vir_ghost<'tcx>(
             unsupported_err!(span, "&mut types, except in special cases")
         }
         TyKind::FnPtr(..) => unsupported_err!(span, "function pointer types"),
-        TyKind::Coroutine(..) => unsupported_err!(span, "generator types"),
-        TyKind::CoroutineWitness(..) => unsupported_err!(span, "generator witness types"),
+        TyKind::Coroutine(def_id, _args) => {
+            // Handle async block coroutines as opaque future types
+            let def_path =
+                def_id_to_vir_path(tcx, verus_items, *def_id, None::<&mut HashMap<_, _>>);
+            (Arc::new(TypX::Opaque { def_path, args: Arc::new(vec![]) }), false)
+        }
+        TyKind::CoroutineWitness(def_id, _args) => {
+            let def_path =
+                def_id_to_vir_path(tcx, verus_items, *def_id, None::<&mut HashMap<_, _>>);
+            (Arc::new(TypX::Opaque { def_path, args: Arc::new(vec![]) }), false)
+        }
         TyKind::Bound(..) => unsupported_err!(span, "for<'a> types"),
         TyKind::Placeholder(..) => unsupported_err!(span, "type inference Placeholder types"),
         TyKind::Infer(..) => unsupported_err!(span, "type inference Infer types"),

@@ -1965,6 +1965,8 @@ where
         attrs: f.fold_attributes(node.attrs),
         async_token: node.async_token,
         capture: node.capture,
+        requires: (node.requires).map(|it| f.fold_requires(it)),
+        ensures: (node.ensures).map(|it| f.fold_ensures(it)),
         block: f.fold_block(node.block),
     }
 }

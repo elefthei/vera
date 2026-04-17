@@ -463,29 +463,14 @@ fn req_ens_to_air(
             exprs.push(e.clone());
         }
         for (default_ensures, exp) in specs.iter() {
-            // TICL bind rule: strip temporal wrappers to get first-order R.
-            // af(Q) → Q, ag(Q) → Q, au(φ,Q) → Q.
-            // Also strip now/done wrappers: now(Q) → Q, done(Q) → Q.
-            // This must be done at the SST level (not in exp_to_expr) because
-            // the BV prover has its own expression converter that can't handle Temporal.
-            let exp = match &exp.x {
-                crate::sst::ExpX::Temporal(op, inner, goal) => {
-                    match op {
-                        crate::ast::TemporalOp::AU | crate::ast::TemporalOp::AN => {
-                            goal.as_ref().unwrap_or(inner).clone()
-                        }
-                        _ => inner.clone(),
-                    }
-                }
-                crate::sst::ExpX::Now(inner) | crate::sst::ExpX::Done(inner) => inner.clone(),
-                _ => exp.clone(),
-            };
+            // Temporal wrappers (af, ag, au, now, done) are stripped by
+            // exp_to_expr via the TICL bind rule (see sst_to_air.rs ExpX::Temporal).
             let expr_ctxt = if is_singular {
                 ExprCtxt::new_mode_singular(ExprMode::Spec, true)
             } else {
                 ExprCtxt::new_mode(ExprMode::Spec)
             };
-            let mut expr = exp_to_expr(ctx, &exp, &expr_ctxt)?;
+            let mut expr = exp_to_expr(ctx, exp, &expr_ctxt)?;
             if *default_ensures {
                 if is_trait_default_ensures {
                     expr = mk_implies(&str_var(crate::def::DEFAULT_ENSURES), &expr);

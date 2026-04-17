@@ -281,6 +281,7 @@ fn outer_reason_by_expr_kind(e: &Expr) -> Option<OuterProphReason> {
             | ExprX::TwoPhaseBorrowMut(..)
             | ExprX::Old(..)
             | ExprX::Await(..)
+            | ExprX::AsyncBlock { .. }
         => None,
         ExprX::NonSpecClosure { .. } => Some(OuterProphReason::NonSpecClosure),
         ExprX::Loop { .. } => Some(OuterProphReason::Loop),
@@ -3407,8 +3408,15 @@ fn check_expr_handle_mut_arg(
             let proph =
                 check_expr_has_mode(ctxt, record, typing, Mode::Spec, e1, Mode::Spec, outer_proph)?;
             if let Some(e2) = e2 {
-                let proph2 =
-                    check_expr_has_mode(ctxt, record, typing, Mode::Spec, e2, Mode::Spec, outer_proph)?;
+                let proph2 = check_expr_has_mode(
+                    ctxt,
+                    record,
+                    typing,
+                    Mode::Spec,
+                    e2,
+                    Mode::Spec,
+                    outer_proph,
+                )?;
                 Ok((Mode::Spec, proph.join(proph2)))
             } else {
                 Ok((Mode::Spec, proph))
@@ -3431,6 +3439,16 @@ fn check_expr_handle_mut_arg(
             }
             let mut typing = typing.push_var_multi_scope();
             Ok(check_expr(ctxt, record, &mut typing, outer_mode, expect, e, outer_proph)?)
+        }
+        ExprX::AsyncBlock { body, requires, ensures, .. } => {
+            let mut typing = typing.push_var_multi_scope();
+            for r in requires.iter() {
+                check_expr(ctxt, record, &mut typing, outer_mode, expect, r, outer_proph)?;
+            }
+            for e in ensures.iter() {
+                check_expr(ctxt, record, &mut typing, outer_mode, expect, e, outer_proph)?;
+            }
+            Ok(check_expr(ctxt, record, &mut typing, outer_mode, expect, body, outer_proph)?)
         }
     };
     let (mode, proph) = mode_proph?;

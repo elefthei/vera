@@ -1648,8 +1648,8 @@ test_verify_one_file! {
             // TODO: broadcast_forall
             pub proof fn lemma_height_s<A, B>(s: S<A, B>)
                 ensures
-                    af(done(decreases_to!(s => s.get0()))),
-                    af(done(decreases_to!(s => s.get1()))),
+                    af(verus_builtin::done(decreases_to!(s => s.get0()))),
+                    af(verus_builtin::done(decreases_to!(s => s.get1()))),
             {
             }
         }
@@ -2102,7 +2102,7 @@ test_verify_one_file! {
 
             pub broadcast proof fn is_lt<T: Tr>(t: T)
                 ensures
-                    af(done(t.n() != 0 ==> (#[trigger] t.get_lt()).n() < t.n()))
+                    af(verus_builtin::done(t.n() != 0 ==> (#[trigger] t.get_lt()).n() < t.n()))
             {
                 assume(false);
             }

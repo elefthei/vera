@@ -853,9 +853,9 @@ test_verify_one_file_with_options! {
                 int_vec.len() > 0,
             ensures
                 af(done(max_index_rc < int_vec.len())),
-                af(done(forall|idx: int|))
-                    af(done(0 <= idx < int_vec.len() ==>))
-                    af(done(int_vec[idx] <= int_vec[max_index_rc as int])),
+                af(done(forall|idx: int|
+                    0 <= idx < int_vec.len() ==>
+                    int_vec[idx] <= int_vec[max_index_rc as int])),
         {
             let mut count: usize = 0;
             let mut max_index: usize = 0;

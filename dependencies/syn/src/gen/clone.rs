@@ -523,6 +523,8 @@ impl Clone for crate::ExprAsync {
             attrs: self.attrs.clone(),
             async_token: self.async_token.clone(),
             capture: self.capture.clone(),
+            requires: self.requires.clone(),
+            ensures: self.ensures.clone(),
             block: self.block.clone(),
         }
     }

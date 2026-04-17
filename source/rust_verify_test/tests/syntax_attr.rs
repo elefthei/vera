@@ -663,8 +663,8 @@ test_verify_one_file! {
             requires
                 x < 100,
             ensures
-                af(f2(x) == __VERUS_SPEC_f2(x)),
-                af(__VERUS_SPEC_f2(x) == (x + 1)),
+                af(verus_builtin::done(f2(x) == __VERUS_SPEC_f2(x))),
+                af(verus_builtin::done(__VERUS_SPEC_f2(x) == (x + 1))),
             {}
         }
         }

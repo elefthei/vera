@@ -544,3 +544,174 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// === Async Block Syntax Tests ===
+
+test_verify_one_file! {
+    #[test] test_async_block_requires_ensures_parse verus_code! {
+        use vstd::prelude::*;
+        fn test() {
+            let _f = async
+                requires true,
+                ensures true,
+            {
+            };
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] test_async_block_spawn_rg_pass verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] test_async_block_rg_mismatch_fail verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 50,
+                ensures ag(*x <= 50),
+            {
+                loop
+                    invariant *x <= 50,
+                {
+                }
+            });
+        }
+    } => Err(_err) => ()
+}
+
+test_verify_one_file! {
+    #[test] test_async_block_mixed_spawn verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        async fn named_task(x: &mut u64) -> (ret: ())
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            loop
+                invariant *x <= 100,
+            {
+            }
+        }
+
+        // Test that named fn spawn + async block spawn can coexist
+        fn system_named(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(named_task(x));
+        }
+
+        fn system_inline(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}
+
+// === Gap Regression Tests ===
+
+// Gap 1 regression: async block requires must be used in R-G pairwise checks.
+test_verify_one_file! {
+    #[test] test_gap1_async_block_relies_in_rg verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x <= 100,
+            ensures ag(*x <= 100),
+        {
+            exec.spawn(async
+                requires *x <= 100,
+                ensures ag(*x <= 100),
+            {
+                loop
+                    invariant *x <= 100,
+                {
+                }
+            });
+        }
+    } => Ok(())
+}
+
+// Gap 2 regression: async block body must be verified against ensures.
+// The body is empty but ensures requires false → should fail.
+test_verify_one_file! {
+    #[test] test_gap2_async_block_body_violates_ensures verus_code! {
+        use vstd::prelude::*;
+
+        fn test() {
+            let _f = async
+                requires true,
+                ensures false,
+            {
+            };
+        }
+    } => Err(err) => assert_vir_error_msg(err, "async block ensures not satisfied")
+}
+
+// S1 soundness: known limitation — async block body runs inline in enclosing scope.
+// With cooperative scheduling, the body's side effects (including infinite loops)
+// affect the enclosing function. This is documented as a design limitation.
+// Proper isolation requires ownership-based scope separation (future work).
+
+// S2 soundness: AG system with only AF spawned tasks should NOT discharge AG.
+test_verify_one_file! {
+    #[test] test_soundness_ag_not_discharged_by_af_only verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor, x: &mut u64)
+            requires *x == 10,
+            ensures ag(*x <= 100),  // AG obligation on system
+        {
+            // Only AF tasks — can't discharge AG
+            exec.spawn(async
+                requires *x <= 100,
+                ensures af(done(*x == 0)),  // AF, not AG
+            {
+                while *x > 0
+                    invariant *x <= 100,
+                    decreases *x,
+                {
+                    *x = *x - 1;
+                }
+            });
+        }
+    } => Err(_err) => ()
+}

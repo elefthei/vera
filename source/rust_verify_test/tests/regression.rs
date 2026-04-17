@@ -933,7 +933,7 @@ test_verify_one_file! {
 
                 spec fn b2(t: T::V) -> bool;
 
-                proof fn b_proof(t: T) requires Self::b1(t), ensures af(done(Self::b2(t@)));
+                proof fn b_proof(t: T) requires Self::b1(t), ensures af(verus_builtin::done(Self::b2(t@)));
             }
 
         }
@@ -1031,7 +1031,7 @@ test_verify_one_file! {
 
                 pub proof fn p(s: S)
                     requires p1(s),
-                    ensures af(done(p2(s))) {
+                    ensures af(verus_builtin::done(p2(s))) {
 
                     assume(false);
                 }
@@ -1039,10 +1039,10 @@ test_verify_one_file! {
                 pub trait A {
                     proof fn two(s: S)
                         requires p1(s),
-                        ensures af(done(p2(s)));
+                        ensures af(verus_builtin::done(p2(s)));
 
                     proof fn one()
-                        ensures af(done(forall|s: S| p1(s) ==> p2(s)));
+                        ensures af(verus_builtin::done(forall|s: S| p1(s) ==> p2(s)));
                 }
             }
         }
