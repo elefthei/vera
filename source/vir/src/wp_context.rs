@@ -250,22 +250,36 @@ impl PropositionContext {
     }
 }
 
-/// Temporal verification state threaded through wp.
+/// Immutable (after construction) temporal obligations derived from `ensures`.
 ///
-/// Tracks the temporal obligations derived from the function's `ensures` clause
-/// and the verification state as we traverse the function body.
-pub struct WpContext {
-    /// Temporal obligations from ensures clauses.
-    pub temporal_context: PropositionContext,
-    /// Set to true when any loop discharges temporal obligations.
-    pub temporal_discharged: bool,
-    /// Set to true when a loop without decreases exists (AG = infinite loop).
-    pub has_infinite_temporal_loop: bool,
+/// Populated once at the start of `body_stm_to_air` and read-only throughout
+/// the SST walk. See [`PropositionContext`] for the proposition set and
+/// [`prefix`](Self::prefix) for the AG/AU-derived "every-state" properties
+/// that must hold in prefix code outside the temporal loop.
+pub struct TemporalObligations {
+    /// Leaf propositions (AG/AU) from `ensures`.
+    pub propositions: PropositionContext,
     /// Properties that must hold at every intermediate state in prefix code
     /// before the temporal loop. AG(φ) → [φ], AU(path, goal) → [path].
-    pub temporal_prefix_obligations: Vec<Exp>,
+    pub prefix: Vec<Exp>,
+}
+
+/// Mutable state tracked during the SST → AIR walk.
+///
+/// This captures "where am I?" / "what have I discharged?" / "what
+/// intermediate-state assertions are active?". The walker mutates these
+/// fields as it enters/leaves loops and emits assertions.
+pub struct TemporalRuntime {
+    /// Set to true when any loop discharges temporal obligations.
+    pub discharged: bool,
+    /// Set to true when a loop without decreases exists (AG = infinite loop).
+    pub has_infinite_loop: bool,
     /// Depth counter for loop nesting — prefix assertions only fire outside all loops.
     pub in_loop_depth: u32,
+    /// True when inside an AG or AG(AF) loop body. Inner loops should be
+    /// classified as AU (not AG/AG(AF)) per TICL ag_cprog_while rule:
+    /// the AG is discharged by the outer loop, inner bodies satisfy AU.
+    pub inside_ag_loop: bool,
     /// AG(φ) properties asserted at every intermediate state inside an AG loop body.
     pub ag_state_obligations: Vec<Exp>,
     /// AU(φ,ψ) path+goal pairs asserted at every intermediate state inside AU loops.
@@ -277,10 +291,43 @@ pub struct WpContext {
     pub now_acc_snapshot_counter: u32,
     /// Monotonically increasing counter for unique now_reached variable names.
     pub now_reached_counter: u32,
-    /// True when inside an AG or AG(AF) loop body. Inner loops should be
-    /// classified as AU (not AG/AG(AF)) per TICL ag_cprog_while rule:
-    /// the AG is discharged by the outer loop, inner bodies satisfy AU.
-    pub inside_ag_loop: bool,
+}
+
+impl TemporalRuntime {
+    fn new() -> Self {
+        TemporalRuntime {
+            discharged: false,
+            has_infinite_loop: false,
+            in_loop_depth: 0,
+            inside_ag_loop: false,
+            ag_state_obligations: Vec::new(),
+            au_path_obligations: Vec::new(),
+            now_goal_accumulators: Vec::new(),
+            now_acc_snapshot_counter: 0,
+            now_reached_counter: 0,
+        }
+    }
+
+    /// Snapshot loop-scoped fields before entering a loop body.
+    pub fn snapshot_loop_state(&self) -> LoopStateSnapshot {
+        LoopStateSnapshot {
+            ag_state_obligations: self.ag_state_obligations.clone(),
+            au_path_obligations: self.au_path_obligations.clone(),
+            now_goal_accumulators: self.now_goal_accumulators.clone(),
+            inside_ag_loop: self.inside_ag_loop,
+        }
+    }
+}
+
+/// Temporal verification context threaded through VC generation.
+///
+/// A thin composition of three orthogonal concerns:
+/// - [`obligations`](Self::obligations): what to prove (set once).
+/// - [`runtime`](Self::runtime): where we are in the walk (mutable).
+/// - [`config`](Self::config): multi-process spawned-process bookkeeping.
+pub struct WpContext {
+    pub obligations: TemporalObligations,
+    pub runtime: TemporalRuntime,
     /// Multi-process configuration tracking spawned async processes.
     /// Populated by MultiProcessWp::wp_spawn, checked by emit_rely_guarantee_checks.
     pub config: crate::wp_multi::Configuration,
@@ -323,17 +370,11 @@ impl WpContext {
         temporal_prefix_obligations: Vec<Exp>,
     ) -> Self {
         WpContext {
-            temporal_context,
-            temporal_discharged: false,
-            has_infinite_temporal_loop: false,
-            temporal_prefix_obligations,
-            in_loop_depth: 0,
-            ag_state_obligations: Vec::new(),
-            au_path_obligations: Vec::new(),
-            now_goal_accumulators: Vec::new(),
-            now_acc_snapshot_counter: 0,
-            now_reached_counter: 0,
-            inside_ag_loop: false,
+            obligations: TemporalObligations {
+                propositions: temporal_context,
+                prefix: temporal_prefix_obligations,
+            },
+            runtime: TemporalRuntime::new(),
             config: crate::wp_multi::Configuration::new(),
         }
     }
@@ -341,15 +382,10 @@ impl WpContext {
     /// Snapshot loop-scoped temporal state before entering a loop body.
     /// Call [`LoopStateSnapshot::restore`] after emitting the loop body to
     /// restore these fields. All other `WpContext` fields are carried through
-    /// (e.g., `temporal_discharged`, counters) and intentionally *not*
+    /// (e.g., `runtime.discharged`, counters) and intentionally *not*
     /// restored.
     pub fn snapshot_loop_state(&self) -> LoopStateSnapshot {
-        LoopStateSnapshot {
-            ag_state_obligations: self.ag_state_obligations.clone(),
-            au_path_obligations: self.au_path_obligations.clone(),
-            now_goal_accumulators: self.now_goal_accumulators.clone(),
-            inside_ag_loop: self.inside_ag_loop,
-        }
+        self.runtime.snapshot_loop_state()
     }
 }
 
@@ -374,10 +410,10 @@ impl LoopStateSnapshot {
     /// Restore the captured loop-scoped fields into `wp`. Intended to be
     /// called exactly once, after the loop body has been fully emitted.
     pub fn restore(self, wp: &mut WpContext) {
-        wp.ag_state_obligations = self.ag_state_obligations;
-        wp.au_path_obligations = self.au_path_obligations;
-        wp.now_goal_accumulators = self.now_goal_accumulators;
-        wp.inside_ag_loop = self.inside_ag_loop;
+        wp.runtime.ag_state_obligations = self.ag_state_obligations;
+        wp.runtime.au_path_obligations = self.au_path_obligations;
+        wp.runtime.now_goal_accumulators = self.now_goal_accumulators;
+        wp.runtime.inside_ag_loop = self.inside_ag_loop;
     }
 }
 
