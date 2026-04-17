@@ -3266,15 +3266,11 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             let mut invs_entry = Arc::new(invs_entry);
             let mut invs_exit = Arc::new(invs_exit);
 
-            // Save AG obligations from parent scope. Inner loops INHERIT parent AG
-            // obligations — AG(φ) must hold at every state, including inside nested loops.
-            let saved_ag_obligations = state.wp.ag_state_obligations.clone();
-            // Save AU obligations similarly — inner loops inherit parent AU obligations.
-            let saved_au_obligations = state.wp.au_path_obligations.clone();
-            // Save now() goal accumulators — only active within the AG(AF) loop that creates them.
-            let saved_now_accumulators = state.wp.now_goal_accumulators.clone();
-            // Save inside_ag_loop flag — restored after this loop.
-            let saved_inside_ag_loop = state.wp.inside_ag_loop;
+            // Save loop-scoped temporal state. Inner loops INHERIT parent AG/AU
+            // obligations but must not leak their own extensions or now()
+            // accumulators into the parent scope. See LoopStateSnapshot for
+            // the exact set of fields.
+            let loop_state_snapshot = state.wp.snapshot_loop_state();
 
             // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
             // the loop's regular invariants serve as the temporal refinement mapping R.
@@ -3789,14 +3785,9 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                 stmts.push(snapshot);
             }
             state.wp.in_loop_depth -= 1;
-            // Restore AG obligations from before this loop (handles nesting correctly).
-            state.wp.ag_state_obligations = saved_ag_obligations;
-            // Restore AU obligations from before this loop (handles nesting correctly).
-            state.wp.au_path_obligations = saved_au_obligations;
-            // Restore now() goal accumulators from before this loop.
-            state.wp.now_goal_accumulators = saved_now_accumulators;
-            // Restore inside_ag_loop flag.
-            state.wp.inside_ag_loop = saved_inside_ag_loop;
+            // Restore the loop-scoped temporal state (AG/AU obligations,
+            // now accumulators, inside_ag_loop flag). See LoopStateSnapshot.
+            loop_state_snapshot.restore(&mut state.wp);
             stmts
         }
         StmX::OpenInvariant(body_stm) => {

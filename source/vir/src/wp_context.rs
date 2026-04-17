@@ -337,6 +337,48 @@ impl WpContext {
             config: crate::wp_multi::Configuration::new(),
         }
     }
+
+    /// Snapshot loop-scoped temporal state before entering a loop body.
+    /// Call [`LoopStateSnapshot::restore`] after emitting the loop body to
+    /// restore these fields. All other `WpContext` fields are carried through
+    /// (e.g., `temporal_discharged`, counters) and intentionally *not*
+    /// restored.
+    pub fn snapshot_loop_state(&self) -> LoopStateSnapshot {
+        LoopStateSnapshot {
+            ag_state_obligations: self.ag_state_obligations.clone(),
+            au_path_obligations: self.au_path_obligations.clone(),
+            now_goal_accumulators: self.now_goal_accumulators.clone(),
+            inside_ag_loop: self.inside_ag_loop,
+        }
+    }
+}
+
+/// Loop-scoped fields that must be save/restored around a loop body to keep
+/// parent-scope obligations intact across nested loops. Produced by
+/// [`WpContext::snapshot_loop_state`]; apply by calling [`Self::restore`].
+///
+/// Fields covered (mirrors the TICL scoping rules):
+/// - `ag_state_obligations`, `au_path_obligations` — inner loops *inherit*
+///   parent obligations (the snapshot is a superset of parent state).
+/// - `now_goal_accumulators` — only active within the AG(AF) loop that
+///   creates them; parent scope sees an empty (or outer) accumulator list.
+/// - `inside_ag_loop` — TICL `ag_cprog_while` scoping flag.
+pub struct LoopStateSnapshot {
+    ag_state_obligations: Vec<Exp>,
+    au_path_obligations: Vec<(Exp, Exp)>,
+    now_goal_accumulators: Vec<(Exp, Ident)>,
+    inside_ag_loop: bool,
+}
+
+impl LoopStateSnapshot {
+    /// Restore the captured loop-scoped fields into `wp`. Intended to be
+    /// called exactly once, after the loop body has been fully emitted.
+    pub fn restore(self, wp: &mut WpContext) {
+        wp.ag_state_obligations = self.ag_state_obligations;
+        wp.au_path_obligations = self.au_path_obligations;
+        wp.now_goal_accumulators = self.now_goal_accumulators;
+        wp.inside_ag_loop = self.inside_ag_loop;
+    }
 }
 
 // ---------------------------------------------------------------------------
