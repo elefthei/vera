@@ -18,6 +18,8 @@ pub mod ops;
 pub mod btree;
 #[cfg(all(feature = "alloc", feature = "std"))]
 pub mod hash;
+#[cfg(feature = "std")]
+pub mod sync;
 
 pub mod num;
 pub mod option;
