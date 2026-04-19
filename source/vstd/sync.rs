@@ -17,7 +17,6 @@
 //!
 //! Poisoning ([`std::sync::PoisonError`]) is not modeled; `lock` is specified
 //! to always succeed.
-
 #![cfg(feature = "std")]
 
 use super::prelude::*;

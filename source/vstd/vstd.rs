@@ -63,8 +63,6 @@ pub mod proph;
 pub mod raw_ptr;
 pub mod relations;
 pub mod rwlock;
-#[cfg(feature = "std")]
-pub mod sync;
 pub mod seq;
 pub mod seq_lib;
 pub mod set;
@@ -78,6 +76,8 @@ pub mod spawn;
 pub mod state_machine_internal;
 pub mod storage_protocol;
 pub mod string;
+#[cfg(feature = "std")]
+pub mod sync;
 #[cfg(feature = "std")]
 pub mod thread;
 pub mod tokens;

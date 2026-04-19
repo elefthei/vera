@@ -13,7 +13,6 @@
 //!
 //! Poisoning (`PoisonError` / `LockResult::Err`) is currently not modeled;
 //! `Mutex::lock` is specified to always succeed.
-
 #![cfg(feature = "std")]
 use super::super::prelude::*;
 
@@ -36,8 +35,7 @@ impl<T> View for Mutex<T> {
 #[verifier::reject_recursive_types(T)]
 #[verifier::external_type_specification]
 #[verifier::external_body]
-pub struct ExMutexGuard<'a, T: ?Sized + 'a>(MutexGuard<'a, T>)
-    where T: core::marker::MetaSized;
+pub struct ExMutexGuard<'a, T: ?Sized + 'a>(MutexGuard<'a, T>) where T: core::marker::MetaSized;
 
 impl<'a, T> View for MutexGuard<'a, T> {
     type V = T;
@@ -57,5 +55,4 @@ pub assume_specification<T>[ Mutex::<T>::new ](t: T) -> (m: Mutex<T>)
 // would need `spec_eq` on a `?Sized` view. The M2 lowering will synthesize an
 // intrinsic ghost update `m@ := g@` at end-of-scope without needing a proxy
 // for `lock` itself.
-
 } // verus!
