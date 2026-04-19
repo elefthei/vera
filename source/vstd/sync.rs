@@ -1,5 +1,25 @@
 //! Vera-friendly wrapper around [`std::sync::Mutex`].
 //!
+//! # When to use this module vs [`crate::rwlock`]
+//!
+//! For **shared mutable state with a safety invariant** (e.g., a bounded
+//! counter), prefer [`crate::rwlock::RwLock<V, Pred>`]:
+//!
+//! - `Pred::inv(v)` is enforced at every `release_write`, so the invariant
+//!   holds by construction.
+//! - Works with `Arc<RwLock<V, Pred>>` across two async tasks. See
+//!   `examples/bounded_counter_rwlock.rs` and
+//!   `rust_verify_test/tests/arc_lock_rg.rs`.
+//! - No rely/guarantee machinery is needed for safety (Pred handles it).
+//!
+//! Use [`VMutex`] only when you need the `std::sync::Mutex` shape without
+//! a predicate invariant. **Known limitation**: `VMutexGuard::commit`
+//! currently cannot mutate `VMutex@` through `&self` under Verus' alias
+//! analysis. For invariant-preserving writes, `RwLock<V, Pred>` is the
+//! correct primitive.
+//!
+//! # About this module
+//!
 //! `std::sync::Mutex::lock` cannot be specified via `assume_specification`
 //! because its signature bounds `T: ?Sized` while Verus' `View::view` return
 //! type and `spec_eq` both require `Sized`. [`VMutex`] is a thin newtype with

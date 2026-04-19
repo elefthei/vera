@@ -27,8 +27,13 @@
 // Note on shared state: in real Rust this would be `Arc<Mutex<usize>>` cloned
 // into each task. Under Vera's cooperative scheduling each async-block step is
 // atomic, so `&mut u64` is semantically equivalent to "Mutex held for one
-// step". We use the simpler form here; see plan.md for the Mutex spec
-// extension that would let this example use `Arc<Mutex<u64>>` literally.
+// step". We use the simpler form here.
+//
+// For a shared-state variant using `Arc<RwLock<u64, Pred>>` (where `Pred`
+// enforces `v <= N` structurally at every release), see
+// `examples/bounded_counter_rwlock.rs`. That primitive handles the safety
+// invariant by construction and does not need R-G; this `&mut T` example
+// remains the canonical tutorial for R-G temporal reasoning.
 
 use vstd::prelude::*;
 use vstd::spawn::*;

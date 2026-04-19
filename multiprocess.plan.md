@@ -74,3 +74,50 @@ Total: ~1 week
 ## Dependencies
 - Tier 1 soundness fixes: recommended first (nested now/done, spec fn temporal)
 - Executor R-G end-to-end (Tier 2 items 4-5): should be done as part of Phase 1-2
+
+## Shared-state R-G pattern: `Arc<RwLock<V, Pred>>`
+
+For the common case of "two async tasks share a bounded/invariant-
+preserving cell", the recommended Vera idiom is
+`Arc<vstd::rwlock::RwLock<V, Pred>>`:
+
+```rust
+impl RwLockPredicate<u64> for BoundedByN {
+    open spec fn inv(self, v: u64) -> bool { v <= N }
+}
+
+fn bump_up(lock: &Arc<RwLock<u64, BoundedByN>>) {
+    let (v, h) = lock.acquire_write();
+    if v < N { h.release_write(v + 1); } else { h.release_write(v); }
+}
+
+fn system(exec: &mut impl Executor) {
+    let lock = Arc::new(RwLock::new(0u64, Ghost(BoundedByN)));
+    let a = lock.clone();
+    exec.spawn(async move { bump_up(&a); });
+    let b = lock.clone();
+    exec.spawn(async move { bump_down(&b); });
+}
+```
+
+Why this works:
+- `Pred::inv` is enforced at every `release_write`; the safety invariant
+  is structural — no R-G machinery needed for safety.
+- Each process clones the `Arc` — both handles refer to the same
+  tokenized state machine.
+- R-G is still useful here for properties `Pred` cannot express
+  (progress, ordering, history).
+
+Limitations / workarounds:
+- Inlining `.acquire_write()` directly inside `async move { ... }`
+  currently triggers an ICE in `vir/src/modes.rs:730`. Wrap lock
+  operations in a helper `fn` taking `&Arc<RwLock<...>>` until fixed.
+- `RwLock<V, Pred>` exposes `inv(v)` but no `lock@` view, so temporal
+  formulas like `ag(lock@ <= N)` aren't directly expressible. For
+  R-G-style temporal reasoning over shared state, use the `&mut T`
+  pattern in `examples/bounded_counter_rg.rs`.
+
+See also:
+- `examples/bounded_counter_rwlock.rs` — full worked example.
+- `rust_verify_test/tests/arc_lock_rg.rs` — positive + negative tests.
+- `examples/bounded_counter_rg.rs` — `&mut T` R-G tutorial.
