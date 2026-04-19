@@ -3872,12 +3872,6 @@ fn async_block_to_vir<'tcx>(
     // lost.  We now translate both sides and flatten them into a single VIR
     // Block so `read_header` still sees the header calls in their original
     // position.
-    let body_span = body.value.span;
-    let body_typ = async_bctx.mid_ty_to_vir(
-        body_span,
-        &async_bctx.types.node_type(body.value.hir_id),
-        false,
-    )?;
     // Async block desugaring shape:
     //   body.value = Block { stmts: outer_stmts, expr: Some(DropTemps(inner)) }
     //
@@ -3919,7 +3913,7 @@ fn async_block_to_vir<'tcx>(
             match &translated.x {
                 vir::ast::ExprX::Block(outer_stmts, Some(tail_expr)) => {
                     if let vir::ast::ExprX::Block(inner_stmts, inner_tail) = &tail_expr.x {
-                        let mut merged: Vec<_> = (**outer_stmts).iter().cloned().collect();
+                        let mut merged: Vec<_> = (**outer_stmts).to_vec();
                         merged.extend((**inner_stmts).iter().cloned());
                         translated
                             .new_x(vir::ast::ExprX::Block(Arc::new(merged), inner_tail.clone()))
