@@ -33,7 +33,7 @@ use crate::sst::{
     BndInfo, BndInfoUser, BndX, CallFun, Dest, Exp, ExpX, InternalFun, Stm, StmX, UniqueIdent,
     UnwindSst,
 };
-use crate::sst::{FuncCheckSst, Pars, PostConditionKind, Stms};
+use crate::sst::{Exps, FuncCheckSst, LoopInvs, Pars, PostConditionKind, Stms};
 use crate::sst_util::{sst_exp_get_proof_note, subst_typ_for_datatype};
 use crate::sst_vars::{AssignMap, get_loc_var};
 use crate::util::{vec_map, vec_map_result};
@@ -2416,6 +2416,513 @@ fn stm_to_stmts(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, Vi
     state.wp_stm(ctx, stm)
 }
 
+/// Lower a single `StmX::Loop` to AIR statements.
+///
+/// Extracted verbatim from the `StmX::Loop { .. }` arm of
+/// `stm_to_stmts_inner`. Preserves the original sequence of state
+/// mutations (`in_loop_depth`, `LoopStateSnapshot`, temporal role
+/// classification, `ag_state_obligations` / `au_path_obligations`
+/// extension, `now_goal_accumulators`, `inside_ag_loop`, `discharged`,
+/// `has_infinite_loop`, `loop_infos`) so the emitted AIR is byte-identical
+/// to the pre-refactor output.
+fn emit_loop(
+    ctx: &Ctx,
+    state: &mut State,
+    expr_ctxt: &ExprCtxt,
+    stm: &Stm,
+    loop_isolation: bool,
+    is_for_loop: bool,
+    id: u64,
+    label: &Option<String>,
+    cond: &Option<(Stm, Exp)>,
+    body: &Stm,
+    invs: &LoopInvs,
+    decrease: &Exps,
+    typ_inv_vars: &Arc<Vec<(UniqueIdent, Typ)>>,
+    modified_vars: &Option<Arc<crate::sst_vars::HavocSet>>,
+    pre_modified_params: &Option<Arc<crate::sst_vars::HavocSet>>,
+) -> Result<Vec<Stmt>, VirErr> {
+    state.wp.runtime.in_loop_depth += 1;
+    let (cond_stm, pos_assume, neg_assume) = if let Some((cond_stm, cond_exp)) = cond {
+        let pos_cond = exp_to_expr(ctx, &cond_exp, expr_ctxt)?;
+        let neg_cond = Arc::new(ExprX::Unary(air::ast::UnaryOp::Not, pos_cond.clone()));
+        let pos_assume = Arc::new(StmtX::Assume(pos_cond));
+        let neg_assume = Arc::new(StmtX::Assume(neg_cond));
+        (Some(cond_stm), Some(pos_assume), Some(neg_assume))
+    } else {
+        (None, None, None)
+    };
+    let mut invs_entry: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
+    let mut invs_exit: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
+    let mut temporal_invs: Vec<(Span, Expr)> = Vec::new();
+    let mut hint_message = None;
+    let modified_vars = modified_vars.as_ref().unwrap();
+    for inv in invs.iter() {
+        let inv_exp =
+            crate::loop_inference::finalize_inv(&modified_vars, &inv.inv, &mut hint_message);
+        let msg_opt = exp_get_custom_err(&inv_exp);
+        let expr = exp_to_expr(ctx, &inv_exp, expr_ctxt)?;
+        if cond.is_some() {
+            assert!(inv.at_entry);
+            assert!(inv.at_exit);
+        }
+        let both = inv.at_entry && inv.at_exit;
+        if inv.at_entry {
+            invs_entry.push((inv.inv.span.clone(), expr.clone(), msg_opt.clone(), both));
+        }
+        if inv.at_exit {
+            invs_exit.push((inv.inv.span.clone(), expr.clone(), msg_opt.clone(), both));
+        }
+    }
+    let mut invs_entry = Arc::new(invs_entry);
+    let mut invs_exit = Arc::new(invs_exit);
+
+    // Save loop-scoped temporal state. Inner loops INHERIT parent AG/AU
+    // obligations but must not leak their own extensions or now()
+    // accumulators into the parent scope. See LoopStateSnapshot for
+    // the exact set of fields.
+    let loop_state_snapshot = state.wp.snapshot_loop_state();
+
+    // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
+    // the loop's regular invariants serve as the temporal refinement mapping R.
+    // No separate temporal_invariant annotation needed. See `LoopTemporalRole`
+    // in wp_context.rs for the classification rules.
+    let role = state.wp.obligations.propositions.classify_loop(
+        decrease.len() > 0,
+        is_for_loop,
+        state.wp.runtime.inside_ag_loop,
+    );
+    let is_utility_loop_in_temporal = role == LoopTemporalRole::Utility;
+
+    if role.is_temporal() {
+        for (span, inv, _, _) in invs_entry.iter() {
+            temporal_invs.push((span.clone(), inv.clone()));
+        }
+    }
+
+    // AG soundness: collect AG properties for intermediate state checking.
+    // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
+    // for any Always obligations.
+    if role.carries_ag() {
+        let ag_props: Vec<Exp> = state
+            .wp
+            .obligations
+            .propositions
+            .propositions
+            .iter()
+            .filter_map(|o| o.as_always().map(|(p, _)| p.clone()))
+            .collect();
+        // Extend (not replace) — nested AG loops inherit parent AG obligations
+        state.wp.runtime.ag_state_obligations.extend(ag_props);
+    }
+
+    // AU soundness: collect AU path+goal pairs for intermediate state checking.
+    // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
+    // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
+    if role.carries_au() {
+        let au_pairs: Vec<(Exp, Exp)> = state
+            .wp
+            .obligations
+            .propositions
+            .propositions
+            .iter()
+            .filter_map(|o| o.as_until().map(|(p, g, _, _)| (p.clone(), g.clone())))
+            .collect();
+        state.wp.runtime.au_path_obligations.extend(au_pairs);
+    }
+
+    // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
+    // boolean accumulator that tracks whether Q held at any intermediate
+    // state during the loop body. This is needed because now() goals are
+    // state predicates — Q might hold at body START (when x is at the front
+    // of the queue) but not at body END (after x moves to the back).
+    // The accumulator replaces Q in the weakened decreases check.
+    if role.allocates_now_accumulators() {
+        let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
+        for o in state.wp.obligations.propositions.propositions.iter() {
+            if let Proposition::Until {
+                goal,
+                goal_kind: GoalKind::Now,
+                requires_invariance: true,
+                ..
+            } = o
+            {
+                state.wp.runtime.now_reached_counter += 1;
+                let acc_var =
+                    Arc::new(format!("now_reached_{}", state.wp.runtime.now_reached_counter));
+                now_accs.push((goal.clone(), acc_var));
+            }
+        }
+        state.wp.runtime.now_goal_accumulators = now_accs;
+    }
+
+    // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
+    // inner loops are AU (the AG is discharged by the outer loop structure).
+    if role.enters_ag_scope() {
+        state.wp.runtime.inside_ag_loop = true;
+    }
+
+    // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
+    // the prefix temporal property φ. Add φ as additional loop invariant
+    // so standard invariant checking covers the AU-prefix requirement.
+    if is_utility_loop_in_temporal && !state.wp.obligations.prefix.is_empty() {
+        let mut entry_ext: Vec<_> = (*invs_entry).clone();
+        let mut exit_ext: Vec<_> = (*invs_exit).clone();
+        for prefix_exp in &state.wp.obligations.prefix {
+            let prefix_expr = exp_to_expr(ctx, prefix_exp, expr_ctxt)?;
+            entry_ext.push((prefix_exp.span.clone(), prefix_expr.clone(), None, true));
+            exit_ext.push((prefix_exp.span.clone(), prefix_expr, None, true));
+        }
+        invs_entry = Arc::new(entry_ext);
+        invs_exit = Arc::new(exit_ext);
+    }
+
+    // Track that this loop discharges temporal obligations.
+    if !temporal_invs.is_empty() && !state.wp.obligations.propositions.propositions.is_empty() {
+        state.wp.runtime.discharged = true;
+        // AG and AG(AF) loops are both semantically infinite:
+        // - AG: no decreases, loop runs forever
+        // - AG(AF): has decreases for liveness progress, but the weakened
+        //   check (Q ∨ m↓) allows the metric to not decrease when Q holds,
+        //   so the loop can run forever.
+        if decrease.len() == 0 || state.wp.obligations.propositions.has_invariance_until() {
+            state.wp.runtime.has_infinite_loop = true;
+        }
+    }
+
+    // AG(AF) / AG(AU) soundness: require decreases for liveness progress.
+    // Without decreases, there's no proof that the AF/AU goal is ever reached.
+    // This prevents unsound proofs like ag(af(false)) from passing.
+    if !temporal_invs.is_empty()
+        && state.wp.obligations.propositions.has_invariance_until()
+        && decrease.len() == 0
+    {
+        return Err(error(
+            &stm.span,
+            "AG(AF) temporal property requires a decreases clause for liveness progress",
+        )
+        .help("add a `decreases` clause that measures progress toward the AF/AU goal"));
+    }
+
+    // TICL: AU obligations (excluding af(Q) = Until(true, Q)) require a
+    // decreases clause for progress. A non-for loop without decreases that
+    // has genuine AU(φ, ψ) with non-trivial path must error.
+    // af(Q) alone with no decreases is fine: it's standard Hoare postcondition
+    // semantics — Q is checked at return, no temporal progress needed.
+    if !temporal_invs.is_empty() && decrease.len() == 0 {
+        let has_nontrivial_au =
+            state.wp.obligations.propositions.propositions.iter().any(|o| match o {
+                Proposition::Until { path, .. } => !path.x.is_trivially_true(),
+                _ => false,
+            });
+        if has_nontrivial_au {
+            return Err(error(&stm.span,
+                "AU temporal property requires a decreases clause to prove progress toward the goal")
+                .help("add a `decreases` clause to this loop, or use AG if the loop is intentionally infinite"));
+        }
+    }
+
+    let (_, decrease_init) =
+        crate::recursion::mk_decreases_at_entry(ctx, &stm.span, Some(id), &decrease)?;
+
+    let entry_snap_id = if ctx.debug {
+        // Add a snapshot to capture the start of the while loop
+        // We add the snapshot via Block to avoid copying the entire AST of the loop body
+        let entry_snap = state.update_current_sid(SUFFIX_SNAP_WHILE_BEGIN);
+        Some(entry_snap)
+    } else {
+        None
+    };
+
+    let mut air_body: Vec<Stmt> = state.static_prelude.clone();
+    if !loop_isolation {
+        air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_LOOP))));
+        modified_vars.emit_havocs(ctx, SNAPSHOT_LOOP, &mut air_body);
+    }
+
+    let mut local = state.local_shared.clone();
+    // Declare ghost accumulator variables for now() goals.
+    // These are mutable booleans that track whether Q held at any intermediate state.
+    for (_, acc_var) in &state.wp.runtime.now_goal_accumulators {
+        local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
+    }
+    if loop_isolation {
+        for (x, typ) in typ_inv_vars.iter() {
+            let typ_inv = typ_invariant(ctx, typ, &ident_var(&suffix_local_unique_id(x)));
+            if let Some(expr) = typ_inv {
+                local.push(mk_unnamed_axiom(expr));
+            }
+        }
+
+        // For any mutable param `x` to the function, we might refer to either
+        // *x or *old(x) within the loop body or invariants.
+        // (This could either be because the user uses `old`, or because of expressions
+        // derived from the specification, which refer to params at input time).
+        // Thus we need to create the "pre" snapshot so that `old` has something to refer to.
+        air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_PRE))));
+
+        for exp in state.local_decls_decreases_init.clone().iter() {
+            air_body.append(&mut stm_to_stmts(ctx, state, exp)?);
+        }
+
+        // For any variable that might have been mutated since the beginning of the
+        // function, we need to havoc it, in order to create a difference between
+        // the "current" value and the "pre-state" value.
+        let pre_modified_params = pre_modified_params.as_ref().unwrap();
+        pre_modified_params.emit_havocs(ctx, SNAPSHOT_PRE, &mut air_body);
+    }
+
+    // Assume invariants for the beginning of the loop body.
+    // (These need to go after the above Havoc statements.)
+    for (_, inv, _, _) in invs_entry.iter() {
+        air_body.push(Arc::new(StmtX::Assume(inv.clone())));
+    }
+    // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
+    // Only fire for loops in temporal context (utility loops skip this)
+    if !state.wp.obligations.propositions.propositions.is_empty() && !temporal_invs.is_empty() {
+        air_body.extend(temporal_loop_assertions(
+            ctx,
+            state,
+            &stm.span,
+            expr_ctxt,
+            &temporal_invs,
+        )?);
+    }
+    for dec in decrease_init.iter() {
+        air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
+    }
+
+    // Initialize now() goal accumulators at loop body start.
+    // After invariants are assumed and decreases are initialized,
+    // evaluate Q and set now_reached = Q (Q might already hold at entry).
+    // Take a snapshot so the first update_now_accumulators call can
+    // reference the initial accumulator value.
+    if !state.wp.runtime.now_goal_accumulators.is_empty() {
+        for (goal_exp, acc_var) in &state.wp.runtime.now_goal_accumulators {
+            // Havoc the accumulator variable (creates it in AIR scope)
+            air_body.push(Arc::new(StmtX::Havoc(acc_var.clone())));
+            let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
+            // assume(now_reached == Q_at_entry)
+            air_body.push(Arc::new(StmtX::Assume(mk_eq(&ident_var(acc_var), &q_init))));
+        }
+        // Take initial snapshot for the first accumulator update
+        let snap_id = {
+            state.wp.runtime.now_acc_snapshot_counter += 1;
+            Arc::new(format!("now_acc_{}", state.wp.runtime.now_acc_snapshot_counter))
+        };
+        air_body.push(Arc::new(StmtX::Snapshot(snap_id)));
+    }
+
+    let cond_stmts = cond_stm.map(|s| stm_to_stmts(ctx, state, s)).transpose()?;
+    if let Some(cond_stmts) = &cond_stmts {
+        assert!(loop_isolation);
+        air_body.append(&mut cond_stmts.clone());
+    }
+    if let Some(pos_assume) = pos_assume {
+        assert!(loop_isolation);
+        air_body.push(pos_assume);
+    }
+    let air_break_label = crate::def::break_label(id);
+    let loop_info = LoopInfo {
+        loop_isolation,
+        is_for_loop,
+        label: label.clone(),
+        loop_id: id,
+        air_break_label: air_break_label.clone(),
+        some_cond: cond.is_some(),
+        invs_entry: invs_entry.clone(),
+        invs_exit: invs_exit.clone(),
+        decrease: decrease.clone(),
+        temporal_invs: temporal_invs.clone(),
+    };
+    state.loop_infos.push(loop_info);
+    air_body.append(&mut stm_to_stmts(ctx, state, body)?);
+    state.loop_infos.pop();
+
+    if !ctx.checking_spec_preconditions() {
+        for (span, inv, msg, _) in invs_entry.iter() {
+            let mut error = error(span, crate::def::INV_FAIL_LOOP_END);
+            if let Some(msg) = msg {
+                error = error.secondary_label(span, &**msg);
+            }
+            let inv_stmt = StmtX::Assert(None, error, None, inv.clone());
+            air_body.push(Arc::new(inv_stmt));
+        }
+        if decrease.len() > 0 {
+            let dec_exp = crate::recursion::check_decrease(
+                ctx,
+                &stm.span,
+                Some(id),
+                decrease,
+                decrease.len(),
+            )?;
+            let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
+
+            // TICL rule: aul_cprog_while — weaken decreases to goal || (m decreased)
+            // for ALL Until obligations, including af(Q) = Until(true, Q).
+            // For Now goals: use ghost accumulator (tracks Q at any intermediate state).
+            // For Done goals: use Q evaluated at body end (current state).
+            let au_goals: Vec<(&Exp, &GoalKind)> = if !temporal_invs.is_empty() {
+                state
+                    .wp
+                    .obligations
+                    .propositions
+                    .propositions
+                    .iter()
+                    .filter_map(|o| match o {
+                        Proposition::Until { goal, goal_kind, .. } => Some((goal, goal_kind)),
+                        _ => None,
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
+            if !au_goals.is_empty() {
+                let mut disjuncts = vec![dec_expr.clone()];
+                let mut now_acc_idx = 0usize; // index into now_goal_accumulators
+                for (goal, goal_kind) in &au_goals {
+                    match goal_kind {
+                        GoalKind::Now => {
+                            // For now() goals, use the ghost accumulator variable.
+                            // It tracks whether Q held at ANY intermediate state
+                            // during this loop body iteration (including body start).
+                            // Each Now goal has its own accumulator, matched by index.
+                            if now_acc_idx < state.wp.runtime.now_goal_accumulators.len() {
+                                let (_, acc_var) =
+                                    &state.wp.runtime.now_goal_accumulators[now_acc_idx];
+                                disjuncts.push(ident_var(acc_var));
+                                now_acc_idx += 1;
+                            } else {
+                                // Fallback: evaluate Q at current state
+                                let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                                disjuncts.push(psi);
+                            }
+                        }
+                        GoalKind::Done => {
+                            // For done() goals, evaluate Q at the current (body end) state.
+                            let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
+                            disjuncts.push(psi);
+                        }
+                    }
+                }
+                let weakened = mk_or(&disjuncts);
+                let error = error(
+                    &stm.span,
+                    "temporal AU: goal not reached and no progress (decreases not satisfied)",
+                );
+                let dec_stmt = StmtX::Assert(None, error, None, weakened);
+                air_body.push(Arc::new(dec_stmt));
+            } else {
+                let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_END);
+                let dec_stmt = StmtX::Assert(None, error, None, dec_expr);
+                air_body.push(Arc::new(dec_stmt));
+            }
+        }
+    }
+    if !loop_isolation {
+        let loop_end = StmtX::Assume(air::ast_util::mk_false());
+        air_body.push(Arc::new(loop_end));
+    }
+    let assertion = one_stmt(air_body);
+
+    let assertion = if !ctx.debug {
+        assertion
+    } else {
+        // Update the snap_map to associate the start of the while loop with the new snapshot
+        let entry_snap_id = entry_snap_id.unwrap(); // Always Some if ctx.debug
+        let snapshot: Stmt = Arc::new(StmtX::Snapshot(entry_snap_id.clone()));
+        state.map_span(&body, SpanKind::Start);
+        let block_contents: Vec<Stmt> = vec![snapshot, assertion];
+        Arc::new(StmtX::Block(Arc::new(block_contents)))
+    };
+    if loop_isolation {
+        let assertion = assertion.clone();
+        let query = Arc::new(QueryX { local: Arc::new(local), assertion });
+        let loop_cmd_context = CommandsWithContextX::new(
+            ctx.fun.as_ref().expect("asserts are expected to be in a function").current_fun.clone(),
+            stm.span.clone(),
+            "while loop".to_string(),
+            Arc::new(vec![Arc::new(CommandX::CheckValid(query))]),
+            ProverChoice::DefaultProver,
+            false,
+        );
+        {
+            let mut guard =
+                loop_cmd_context.hint_upon_failure.lock().expect("we abort on poisoning");
+            *guard = hint_message;
+        }
+        state.commands.push(loop_cmd_context);
+    }
+
+    // At original site of while loop, assert invariant, havoc, assume invariant + neg_cond
+    let mut stmts: Vec<Stmt> = Vec::new();
+    if !ctx.checking_spec_preconditions() {
+        for (span, inv, msg, _) in invs_entry.iter() {
+            let mut error = error(span, crate::def::INV_FAIL_LOOP_FRONT);
+            if let Some(msg) = msg {
+                error = error.secondary_label(span, &**msg);
+            }
+            let inv_stmt = StmtX::Assert(None, error, None, inv.clone());
+            stmts.push(Arc::new(inv_stmt));
+        }
+        // Note: temporal invariant entry check is handled by the standard invariant
+        // entry check above (temporal_invs are populated from regular invs_entry).
+    }
+    if !loop_isolation {
+        let break_label = air_break_label.clone();
+        let loop_breakable = Arc::new(StmtX::Breakable(break_label, assertion));
+        stmts.push(loop_breakable);
+    }
+    if loop_isolation {
+        stmts.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_LOOP))));
+        modified_vars.emit_havocs(ctx, SNAPSHOT_LOOP, &mut stmts);
+        for (_, inv, _, _) in invs_exit.iter() {
+            let inv_stmt = StmtX::Assume(inv.clone());
+            stmts.push(Arc::new(inv_stmt));
+        }
+        // Temporal invariants hold after loop exit (preserved by every iteration)
+        for (_, r_expr) in temporal_invs.iter() {
+            stmts.push(Arc::new(StmtX::Assume(r_expr.clone())));
+        }
+    }
+    if let Some(cond_stmts) = &cond_stmts {
+        assert!(loop_isolation);
+        stmts.append(&mut cond_stmts.clone());
+    }
+    if let Some(neg_assume) = neg_assume {
+        assert!(loop_isolation);
+        stmts.push(neg_assume);
+
+        // TICL ag_cprog_while: AG and AG(AF) loops must never exit.
+        // After assuming !condition, assert false so the exit path is
+        // unreachable. This catches while-condition exits for AG loops.
+        // (Explicit break exits are caught by the break handler above.)
+        if !temporal_invs.is_empty() && state.wp.obligations.propositions.has_always() {
+            let error = error_with_label(
+                &stm.span,
+                "AG temporal property requires the loop to never exit \
+                 (TICL ag_cprog_while: condition must always be true)",
+                "loop must not exit here",
+            );
+            stmts.push(Arc::new(StmtX::Assert(None, error, None, air::ast_util::mk_false())));
+        }
+    }
+    if ctx.debug {
+        // Add a snapshot for the state after we emerge from the while loop
+        let sid = state.update_current_sid(SUFFIX_SNAP_WHILE_END);
+        // Update the snap_map so that it reflects the state _after_ the
+        // statement takes effect.
+        state.map_span(&stm, SpanKind::End);
+        let snapshot = Arc::new(StmtX::Snapshot(sid));
+        stmts.push(snapshot);
+    }
+    state.wp.runtime.in_loop_depth -= 1;
+    // Restore the loop-scoped temporal state (AG/AU obligations,
+    // now accumulators, inside_ag_loop flag). See LoopStateSnapshot.
+    loop_state_snapshot.restore(&mut state.wp);
+    Ok(stmts)
+}
+
 fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stmt>, VirErr> {
     let typ_to_ids = |typ| typ_to_ids(ctx, typ);
     let expr_ctxt = &ExprCtxt::new();
@@ -3224,573 +3731,23 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
             typ_inv_vars,
             modified_vars,
             pre_modified_params,
-        } => {
-            let loop_isolation = *loop_isolation;
-            state.wp.runtime.in_loop_depth += 1;
-            let (cond_stm, pos_assume, neg_assume) = if let Some((cond_stm, cond_exp)) = cond {
-                let pos_cond = exp_to_expr(ctx, &cond_exp, expr_ctxt)?;
-                let neg_cond = Arc::new(ExprX::Unary(air::ast::UnaryOp::Not, pos_cond.clone()));
-                let pos_assume = Arc::new(StmtX::Assume(pos_cond));
-                let neg_assume = Arc::new(StmtX::Assume(neg_cond));
-                (Some(cond_stm), Some(pos_assume), Some(neg_assume))
-            } else {
-                (None, None, None)
-            };
-            let mut invs_entry: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
-            let mut invs_exit: Vec<(Span, Expr, Option<Arc<String>>, bool)> = Vec::new();
-            let mut temporal_invs: Vec<(Span, Expr)> = Vec::new();
-            let mut hint_message = None;
-            let modified_vars = modified_vars.as_ref().unwrap();
-            for inv in invs.iter() {
-                let inv_exp = crate::loop_inference::finalize_inv(
-                    &modified_vars,
-                    &inv.inv,
-                    &mut hint_message,
-                );
-                let msg_opt = exp_get_custom_err(&inv_exp);
-                let expr = exp_to_expr(ctx, &inv_exp, expr_ctxt)?;
-                if cond.is_some() {
-                    assert!(inv.at_entry);
-                    assert!(inv.at_exit);
-                }
-                let both = inv.at_entry && inv.at_exit;
-                if inv.at_entry {
-                    invs_entry.push((inv.inv.span.clone(), expr.clone(), msg_opt.clone(), both));
-                }
-                if inv.at_exit {
-                    invs_exit.push((inv.inv.span.clone(), expr.clone(), msg_opt.clone(), both));
-                }
-            }
-            let mut invs_entry = Arc::new(invs_entry);
-            let mut invs_exit = Arc::new(invs_exit);
-
-            // Save loop-scoped temporal state. Inner loops INHERIT parent AG/AU
-            // obligations but must not leak their own extensions or now()
-            // accumulators into the parent scope. See LoopStateSnapshot for
-            // the exact set of fields.
-            let loop_state_snapshot = state.wp.snapshot_loop_state();
-
-            // Temporal loop detection: when the function has temporal ensures (AG/AF/AU),
-            // the loop's regular invariants serve as the temporal refinement mapping R.
-            // No separate temporal_invariant annotation needed. See `LoopTemporalRole`
-            // in wp_context.rs for the classification rules.
-            let role = state.wp.obligations.propositions.classify_loop(
-                decrease.len() > 0,
-                *is_for_loop,
-                state.wp.runtime.inside_ag_loop,
-            );
-            let is_utility_loop_in_temporal = role == LoopTemporalRole::Utility;
-
-            if role.is_temporal() {
-                for (span, inv, _, _) in invs_entry.iter() {
-                    temporal_invs.push((span.clone(), inv.clone()));
-                }
-            }
-
-            // AG soundness: collect AG properties for intermediate state checking.
-            // Inside an AG or AG(AF) loop body, every intermediate state must satisfy φ
-            // for any Always obligations.
-            if role.carries_ag() {
-                let ag_props: Vec<Exp> = state
-                    .wp
-                    .obligations
-                    .propositions
-                    .propositions
-                    .iter()
-                    .filter_map(|o| o.as_always().map(|(p, _)| p.clone()))
-                    .collect();
-                // Extend (not replace) — nested AG loops inherit parent AG obligations
-                state.wp.runtime.ag_state_obligations.extend(ag_props);
-            }
-
-            // AU soundness: collect AU path+goal pairs for intermediate state checking.
-            // Inside an AU or AG(AF/AU) loop body, every intermediate state must satisfy
-            // φ ∨ ψ (path holds OR goal already reached) for any Until obligations.
-            if role.carries_au() {
-                let au_pairs: Vec<(Exp, Exp)> = state
-                    .wp
-                    .obligations
-                    .propositions
-                    .propositions
-                    .iter()
-                    .filter_map(|o| o.as_until().map(|(p, g, _, _)| (p.clone(), g.clone())))
-                    .collect();
-                state.wp.runtime.au_path_obligations.extend(au_pairs);
-            }
-
-            // Now() goal accumulators: for AG(AF(now(Q))) goals, create a ghost
-            // boolean accumulator that tracks whether Q held at any intermediate
-            // state during the loop body. This is needed because now() goals are
-            // state predicates — Q might hold at body START (when x is at the front
-            // of the queue) but not at body END (after x moves to the back).
-            // The accumulator replaces Q in the weakened decreases check.
-            if role.allocates_now_accumulators() {
-                let mut now_accs: Vec<(Exp, Ident)> = Vec::new();
-                for o in state.wp.obligations.propositions.propositions.iter() {
-                    if let Proposition::Until {
-                        goal,
-                        goal_kind: GoalKind::Now,
-                        requires_invariance: true,
-                        ..
-                    } = o
-                    {
-                        state.wp.runtime.now_reached_counter += 1;
-                        let acc_var = Arc::new(format!(
-                            "now_reached_{}",
-                            state.wp.runtime.now_reached_counter
-                        ));
-                        now_accs.push((goal.clone(), acc_var));
-                    }
-                }
-                state.wp.runtime.now_goal_accumulators = now_accs;
-            }
-
-            // Per TICL ag_cprog_while: once inside an AG or AG(AF) loop body,
-            // inner loops are AU (the AG is discharged by the outer loop structure).
-            if role.enters_ag_scope() {
-                state.wp.runtime.inside_ag_loop = true;
-            }
-
-            // TICL ag_seq/aul_seq: utility loops in temporal context must maintain
-            // the prefix temporal property φ. Add φ as additional loop invariant
-            // so standard invariant checking covers the AU-prefix requirement.
-            if is_utility_loop_in_temporal && !state.wp.obligations.prefix.is_empty() {
-                let mut entry_ext: Vec<_> = (*invs_entry).clone();
-                let mut exit_ext: Vec<_> = (*invs_exit).clone();
-                for prefix_exp in &state.wp.obligations.prefix {
-                    let prefix_expr = exp_to_expr(ctx, prefix_exp, expr_ctxt)?;
-                    entry_ext.push((prefix_exp.span.clone(), prefix_expr.clone(), None, true));
-                    exit_ext.push((prefix_exp.span.clone(), prefix_expr, None, true));
-                }
-                invs_entry = Arc::new(entry_ext);
-                invs_exit = Arc::new(exit_ext);
-            }
-
-            // Track that this loop discharges temporal obligations.
-            if !temporal_invs.is_empty()
-                && !state.wp.obligations.propositions.propositions.is_empty()
-            {
-                state.wp.runtime.discharged = true;
-                // AG and AG(AF) loops are both semantically infinite:
-                // - AG: no decreases, loop runs forever
-                // - AG(AF): has decreases for liveness progress, but the weakened
-                //   check (Q ∨ m↓) allows the metric to not decrease when Q holds,
-                //   so the loop can run forever.
-                if decrease.len() == 0 || state.wp.obligations.propositions.has_invariance_until() {
-                    state.wp.runtime.has_infinite_loop = true;
-                }
-            }
-
-            // AG(AF) / AG(AU) soundness: require decreases for liveness progress.
-            // Without decreases, there's no proof that the AF/AU goal is ever reached.
-            // This prevents unsound proofs like ag(af(false)) from passing.
-            if !temporal_invs.is_empty()
-                && state.wp.obligations.propositions.has_invariance_until()
-                && decrease.len() == 0
-            {
-                return Err(error(
-                    &stm.span,
-                    "AG(AF) temporal property requires a decreases clause for liveness progress",
-                )
-                .help("add a `decreases` clause that measures progress toward the AF/AU goal"));
-            }
-
-            // TICL: AU obligations (excluding af(Q) = Until(true, Q)) require a
-            // decreases clause for progress. A non-for loop without decreases that
-            // has genuine AU(φ, ψ) with non-trivial path must error.
-            // af(Q) alone with no decreases is fine: it's standard Hoare postcondition
-            // semantics — Q is checked at return, no temporal progress needed.
-            if !temporal_invs.is_empty() && decrease.len() == 0 {
-                let has_nontrivial_au =
-                    state.wp.obligations.propositions.propositions.iter().any(|o| match o {
-                        Proposition::Until { path, .. } => !path.x.is_trivially_true(),
-                        _ => false,
-                    });
-                if has_nontrivial_au {
-                    return Err(error(&stm.span,
-                        "AU temporal property requires a decreases clause to prove progress toward the goal")
-                        .help("add a `decreases` clause to this loop, or use AG if the loop is intentionally infinite"));
-                }
-            }
-
-            let (_, decrease_init) =
-                crate::recursion::mk_decreases_at_entry(ctx, &stm.span, Some(*id), &decrease)?;
-
-            let entry_snap_id = if ctx.debug {
-                // Add a snapshot to capture the start of the while loop
-                // We add the snapshot via Block to avoid copying the entire AST of the loop body
-                let entry_snap = state.update_current_sid(SUFFIX_SNAP_WHILE_BEGIN);
-                Some(entry_snap)
-            } else {
-                None
-            };
-
-            /*
-            When loop_isolation = true:
-            Generate a separate SMT query for the loop body.
-            Rationale: large functions with while loops tend to be slow to verify.
-            Therefore, it's good to try to factor large functions
-            into smaller, easier-to-verify pieces.
-            Since we have programmer-supplied invariants anyway,
-            this is a good place for such refactoring.
-            This isn't necessarily a benefit for small functions or small loops,
-            but in practice, verification for large functions and large loops are slow
-            enough that programmers often do this refactoring by hand anyway,
-            so it's a benefit when verification gets hard, which is arguably what matters most.
-            (The downside: the programmer might have to write more complete invariants,
-            but this is part of the point: the invariants specify a precise interface
-            between the outer function and the inner loop body, so we don't have to import
-            the outer function's entire context into the verification of the loop body,
-            which would slow verification of the loop body.)
-            */
-
-            /*
-            Suppose we have:
-                loop invs { body }
-            When loop_isolation = false, we generate this AIR:
-                assert invs
-                breakable(break_label) {
-                    havoc modified_vars
-                    assume typ_inv(modified_vars)
-                    assume invs
-                    body // "break" inside body turns into break(break_label)
-                    assert invs
-                    assume false
-                }
-                // note that we don't assume the invs after the loop,
-                // because we may have come from a break statement where the invs don't hold
-            When loop_isolation = true:
-                We generate this AIR in the outer query:
-                    assert invs
-                    havoc modified_vars
-                    assume typ_invs(modified_vars)
-                    assume invs_exit
-                We generate this AIR in the spun-off loop query:
-                    axiom typ_invs(all_used_vars)
-                    assume invs_entry
-                    body // "break" inside body turns into assert invs_exit; assume false
-                    assert invs_entry
-            Suppose we have:
-                while cond invs { body }
-            When loop_isolation = false, this is represented as a "loop"; see the case above.
-            When loop_isolation = true:
-                We generate this AIR in the outer query:
-                    assert invs
-                    havoc modified_vars
-                    assume typ_invs(modified_vars)
-                    assume invs_exit
-                    cond_stm
-                    assume !cond_exp
-                We generate this AIR in the spun-off loop query:
-                    axiom typ_invs(all_used_vars)
-                    assume invs_entry
-                    cond_stm
-                    assume cond_exp
-                    body // "break" inside body turns into assert invs_exit; assume false
-                    assert invs_entry
-            */
-
-            let mut air_body: Vec<Stmt> = state.static_prelude.clone();
-            if !loop_isolation {
-                air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_LOOP))));
-                modified_vars.emit_havocs(ctx, SNAPSHOT_LOOP, &mut air_body);
-            }
-
-            let mut local = state.local_shared.clone();
-            // Declare ghost accumulator variables for now() goals.
-            // These are mutable booleans that track whether Q held at any intermediate state.
-            for (_, acc_var) in &state.wp.runtime.now_goal_accumulators {
-                local.push(Arc::new(DeclX::Var(acc_var.clone(), bool_typ())));
-            }
-            if loop_isolation {
-                for (x, typ) in typ_inv_vars.iter() {
-                    let typ_inv = typ_invariant(ctx, typ, &ident_var(&suffix_local_unique_id(x)));
-                    if let Some(expr) = typ_inv {
-                        local.push(mk_unnamed_axiom(expr));
-                    }
-                }
-
-                // For any mutable param `x` to the function, we might refer to either
-                // *x or *old(x) within the loop body or invariants.
-                // (This could either be because the user uses `old`, or because of expressions
-                // derived from the specification, which refer to params at input time).
-                // Thus we need to create the "pre" snapshot so that `old` has something to refer to.
-                air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_PRE))));
-
-                for exp in state.local_decls_decreases_init.clone().iter() {
-                    air_body.append(&mut stm_to_stmts(ctx, state, exp)?);
-                }
-
-                // For any variable that might have been mutated since the beginning of the
-                // function, we need to havoc it, in order to create a difference between
-                // the "current" value and the "pre-state" value.
-                let pre_modified_params = pre_modified_params.as_ref().unwrap();
-                pre_modified_params.emit_havocs(ctx, SNAPSHOT_PRE, &mut air_body);
-            }
-
-            // Assume invariants for the beginning of the loop body.
-            // (These need to go after the above Havoc statements.)
-            for (_, inv, _, _) in invs_entry.iter() {
-                air_body.push(Arc::new(StmtX::Assume(inv.clone())));
-            }
-            // TICL rule: ag_cprog_while — R(state) → φ(state) for each AG obligation
-            // Only fire for loops in temporal context (utility loops skip this)
-            if !state.wp.obligations.propositions.propositions.is_empty()
-                && !temporal_invs.is_empty()
-            {
-                air_body.extend(temporal_loop_assertions(
-                    ctx,
-                    state,
-                    &stm.span,
-                    expr_ctxt,
-                    &temporal_invs,
-                )?);
-            }
-            for dec in decrease_init.iter() {
-                air_body.append(&mut stm_to_stmts(ctx, state, dec)?);
-            }
-
-            // Initialize now() goal accumulators at loop body start.
-            // After invariants are assumed and decreases are initialized,
-            // evaluate Q and set now_reached = Q (Q might already hold at entry).
-            // Take a snapshot so the first update_now_accumulators call can
-            // reference the initial accumulator value.
-            if !state.wp.runtime.now_goal_accumulators.is_empty() {
-                for (goal_exp, acc_var) in &state.wp.runtime.now_goal_accumulators {
-                    // Havoc the accumulator variable (creates it in AIR scope)
-                    air_body.push(Arc::new(StmtX::Havoc(acc_var.clone())));
-                    let q_init = exp_to_expr(ctx, goal_exp, expr_ctxt)?;
-                    // assume(now_reached == Q_at_entry)
-                    air_body.push(Arc::new(StmtX::Assume(mk_eq(&ident_var(acc_var), &q_init))));
-                }
-                // Take initial snapshot for the first accumulator update
-                let snap_id = {
-                    state.wp.runtime.now_acc_snapshot_counter += 1;
-                    Arc::new(format!("now_acc_{}", state.wp.runtime.now_acc_snapshot_counter))
-                };
-                air_body.push(Arc::new(StmtX::Snapshot(snap_id)));
-            }
-
-            let cond_stmts = cond_stm.map(|s| stm_to_stmts(ctx, state, s)).transpose()?;
-            if let Some(cond_stmts) = &cond_stmts {
-                assert!(loop_isolation);
-                air_body.append(&mut cond_stmts.clone());
-            }
-            if let Some(pos_assume) = pos_assume {
-                assert!(loop_isolation);
-                air_body.push(pos_assume);
-            }
-            let air_break_label = crate::def::break_label(*id);
-            let loop_info = LoopInfo {
-                loop_isolation,
-                is_for_loop: *is_for_loop,
-                label: label.clone(),
-                loop_id: *id,
-                air_break_label: air_break_label.clone(),
-                some_cond: cond.is_some(),
-                invs_entry: invs_entry.clone(),
-                invs_exit: invs_exit.clone(),
-                decrease: decrease.clone(),
-                temporal_invs: temporal_invs.clone(),
-            };
-            state.loop_infos.push(loop_info);
-            air_body.append(&mut stm_to_stmts(ctx, state, body)?);
-            state.loop_infos.pop();
-
-            if !ctx.checking_spec_preconditions() {
-                for (span, inv, msg, _) in invs_entry.iter() {
-                    let mut error = error(span, crate::def::INV_FAIL_LOOP_END);
-                    if let Some(msg) = msg {
-                        error = error.secondary_label(span, &**msg);
-                    }
-                    let inv_stmt = StmtX::Assert(None, error, None, inv.clone());
-                    air_body.push(Arc::new(inv_stmt));
-                }
-                if decrease.len() > 0 {
-                    let dec_exp = crate::recursion::check_decrease(
-                        ctx,
-                        &stm.span,
-                        Some(*id),
-                        decrease,
-                        decrease.len(),
-                    )?;
-                    let dec_expr = exp_to_expr(ctx, &dec_exp, expr_ctxt)?;
-
-                    // TICL rule: aul_cprog_while — weaken decreases to goal || (m decreased)
-                    // for ALL Until obligations, including af(Q) = Until(true, Q).
-                    // For Now goals: use ghost accumulator (tracks Q at any intermediate state).
-                    // For Done goals: use Q evaluated at body end (current state).
-                    let au_goals: Vec<(&Exp, &GoalKind)> = if !temporal_invs.is_empty() {
-                        state
-                            .wp
-                            .obligations
-                            .propositions
-                            .propositions
-                            .iter()
-                            .filter_map(|o| match o {
-                                Proposition::Until { goal, goal_kind, .. } => {
-                                    Some((goal, goal_kind))
-                                }
-                                _ => None,
-                            })
-                            .collect()
-                    } else {
-                        vec![]
-                    };
-                    if !au_goals.is_empty() {
-                        let mut disjuncts = vec![dec_expr.clone()];
-                        let mut now_acc_idx = 0usize; // index into now_goal_accumulators
-                        for (goal, goal_kind) in &au_goals {
-                            match goal_kind {
-                                GoalKind::Now => {
-                                    // For now() goals, use the ghost accumulator variable.
-                                    // It tracks whether Q held at ANY intermediate state
-                                    // during this loop body iteration (including body start).
-                                    // Each Now goal has its own accumulator, matched by index.
-                                    if now_acc_idx < state.wp.runtime.now_goal_accumulators.len() {
-                                        let (_, acc_var) =
-                                            &state.wp.runtime.now_goal_accumulators[now_acc_idx];
-                                        disjuncts.push(ident_var(acc_var));
-                                        now_acc_idx += 1;
-                                    } else {
-                                        // Fallback: evaluate Q at current state
-                                        let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
-                                        disjuncts.push(psi);
-                                    }
-                                }
-                                GoalKind::Done => {
-                                    // For done() goals, evaluate Q at the current (body end) state.
-                                    let psi = exp_to_expr(ctx, goal, expr_ctxt)?;
-                                    disjuncts.push(psi);
-                                }
-                            }
-                        }
-                        let weakened = mk_or(&disjuncts);
-                        let error = error(
-                            &stm.span,
-                            "temporal AU: goal not reached and no progress (decreases not satisfied)",
-                        );
-                        let dec_stmt = StmtX::Assert(None, error, None, weakened);
-                        air_body.push(Arc::new(dec_stmt));
-                    } else {
-                        let error = error(&stm.span, crate::def::DEC_FAIL_LOOP_END);
-                        let dec_stmt = StmtX::Assert(None, error, None, dec_expr);
-                        air_body.push(Arc::new(dec_stmt));
-                    }
-                }
-            }
-            if !loop_isolation {
-                let loop_end = StmtX::Assume(air::ast_util::mk_false());
-                air_body.push(Arc::new(loop_end));
-            }
-            let assertion = one_stmt(air_body);
-
-            let assertion = if !ctx.debug {
-                assertion
-            } else {
-                // Update the snap_map to associate the start of the while loop with the new snapshot
-                let entry_snap_id = entry_snap_id.unwrap(); // Always Some if ctx.debug
-                let snapshot: Stmt = Arc::new(StmtX::Snapshot(entry_snap_id.clone()));
-                state.map_span(&body, SpanKind::Start);
-                let block_contents: Vec<Stmt> = vec![snapshot, assertion];
-                Arc::new(StmtX::Block(Arc::new(block_contents)))
-            };
-            if loop_isolation {
-                let assertion = assertion.clone();
-                let query = Arc::new(QueryX { local: Arc::new(local), assertion });
-                let loop_cmd_context = CommandsWithContextX::new(
-                    ctx.fun
-                        .as_ref()
-                        .expect("asserts are expected to be in a function")
-                        .current_fun
-                        .clone(),
-                    stm.span.clone(),
-                    "while loop".to_string(),
-                    Arc::new(vec![Arc::new(CommandX::CheckValid(query))]),
-                    ProverChoice::DefaultProver,
-                    false,
-                );
-                {
-                    let mut guard =
-                        loop_cmd_context.hint_upon_failure.lock().expect("we abort on poisoning");
-                    *guard = hint_message;
-                }
-                state.commands.push(loop_cmd_context);
-            }
-
-            // At original site of while loop, assert invariant, havoc, assume invariant + neg_cond
-            let mut stmts: Vec<Stmt> = Vec::new();
-            if !ctx.checking_spec_preconditions() {
-                for (span, inv, msg, _) in invs_entry.iter() {
-                    let mut error = error(span, crate::def::INV_FAIL_LOOP_FRONT);
-                    if let Some(msg) = msg {
-                        error = error.secondary_label(span, &**msg);
-                    }
-                    let inv_stmt = StmtX::Assert(None, error, None, inv.clone());
-                    stmts.push(Arc::new(inv_stmt));
-                }
-                // Note: temporal invariant entry check is handled by the standard invariant
-                // entry check above (temporal_invs are populated from regular invs_entry).
-            }
-            if !loop_isolation {
-                let break_label = air_break_label.clone();
-                let loop_breakable = Arc::new(StmtX::Breakable(break_label, assertion));
-                stmts.push(loop_breakable);
-            }
-            if loop_isolation {
-                stmts.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_LOOP))));
-                modified_vars.emit_havocs(ctx, SNAPSHOT_LOOP, &mut stmts);
-                for (_, inv, _, _) in invs_exit.iter() {
-                    let inv_stmt = StmtX::Assume(inv.clone());
-                    stmts.push(Arc::new(inv_stmt));
-                }
-                // Temporal invariants hold after loop exit (preserved by every iteration)
-                for (_, r_expr) in temporal_invs.iter() {
-                    stmts.push(Arc::new(StmtX::Assume(r_expr.clone())));
-                }
-            }
-            if let Some(cond_stmts) = &cond_stmts {
-                assert!(loop_isolation);
-                stmts.append(&mut cond_stmts.clone());
-            }
-            if let Some(neg_assume) = neg_assume {
-                assert!(loop_isolation);
-                stmts.push(neg_assume);
-
-                // TICL ag_cprog_while: AG and AG(AF) loops must never exit.
-                // After assuming !condition, assert false so the exit path is
-                // unreachable. This catches while-condition exits for AG loops.
-                // (Explicit break exits are caught by the break handler above.)
-                if !temporal_invs.is_empty() && state.wp.obligations.propositions.has_always() {
-                    let error = error_with_label(
-                        &stm.span,
-                        "AG temporal property requires the loop to never exit \
-                         (TICL ag_cprog_while: condition must always be true)",
-                        "loop must not exit here",
-                    );
-                    stmts.push(Arc::new(StmtX::Assert(
-                        None,
-                        error,
-                        None,
-                        air::ast_util::mk_false(),
-                    )));
-                }
-            }
-            if ctx.debug {
-                // Add a snapshot for the state after we emerge from the while loop
-                let sid = state.update_current_sid(SUFFIX_SNAP_WHILE_END);
-                // Update the snap_map so that it reflects the state _after_ the
-                // statement takes effect.
-                state.map_span(&stm, SpanKind::End);
-                let snapshot = Arc::new(StmtX::Snapshot(sid));
-                stmts.push(snapshot);
-            }
-            state.wp.runtime.in_loop_depth -= 1;
-            // Restore the loop-scoped temporal state (AG/AU obligations,
-            // now accumulators, inside_ag_loop flag). See LoopStateSnapshot.
-            loop_state_snapshot.restore(&mut state.wp);
-            stmts
-        }
+        } => emit_loop(
+            ctx,
+            state,
+            expr_ctxt,
+            stm,
+            *loop_isolation,
+            *is_for_loop,
+            *id,
+            label,
+            cond,
+            body,
+            invs,
+            decrease,
+            typ_inv_vars,
+            modified_vars,
+            pre_modified_params,
+        )?,
         StmX::OpenInvariant(body_stm) => {
             let mut stmts = vec![];
 
