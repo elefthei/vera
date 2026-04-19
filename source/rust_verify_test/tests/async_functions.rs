@@ -715,3 +715,39 @@ test_verify_one_file! {
         }
     } => Err(_err) => ()
 }
+
+// Regression: async-move block with a `let` stmt referenced from a nested
+// branched block used to ICE in modes.rs ("missing mode") because the outer
+// HIR block's `stmts` were silently dropped.
+test_verify_one_file! {
+    #[test] test_async_move_let_in_nested_if_regression verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor) {
+            exec.spawn(async move {
+                let h: u64 = 5;
+                if true {
+                    let _ = h;
+                }
+            });
+        }
+    } => Ok(())
+}
+
+test_verify_one_file! {
+    #[test] test_async_move_let_in_nested_match_regression verus_code! {
+        use vstd::prelude::*;
+        use vstd::spawn::*;
+
+        fn system(exec: &mut impl Executor) {
+            exec.spawn(async move {
+                let h: u64 = 5;
+                match h {
+                    0 => {}
+                    _ => { let _ = h; }
+                }
+            });
+        }
+    } => Ok(())
+}

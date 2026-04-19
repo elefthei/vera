@@ -3835,19 +3835,6 @@ fn async_block_to_vir<'tcx>(
     let tcx = bctx.ctxt.tcx;
     let body = tcx.hir_body(*body_id);
 
-    // Extract the actual user body from async block desugaring.
-    // Structure: Block → DropTemps → actual user code
-    let actual_body_expr = match body.value.kind {
-        ExprKind::Block(block, ..) => match block.expr {
-            Some(e) => match e.kind {
-                ExprKind::DropTemps(inner) => inner,
-                _ => e,
-            },
-            None => &body.value,
-        },
-        _ => &body.value,
-    };
-
     // Create BodyCtxt for the async block's body (it has its own TypeckResults)
     let types = tcx.typeck(*def_id);
     let async_bctx = BodyCtxt {
@@ -3874,7 +3861,77 @@ fn async_block_to_vir<'tcx>(
         external_opaque_type_map: None,
     };
 
-    let mut vir_body = expr_to_vir_consume(&async_bctx, actual_body_expr, modifier)?;
+    // Async block desugaring shape:
+    //   body.value = Block { stmts: outer_stmts, expr: Some(DropTemps(inner)) }
+    // where `inner` is typically another Block containing macro-injected header
+    // calls (`requires`/`ensures`) followed by the user's body.
+    //
+    // Historically we only translated the DropTemps-stripped tail (`inner`),
+    // silently dropping `outer_stmts`.  That caused a mode ICE when the user
+    // wrote e.g. `async move { let h = 5; if c { ... h ... } }` — `let h` was
+    // lost.  We now translate both sides and flatten them into a single VIR
+    // Block so `read_header` still sees the header calls in their original
+    // position.
+    let body_span = body.value.span;
+    let body_typ = async_bctx.mid_ty_to_vir(
+        body_span,
+        &async_bctx.types.node_type(body.value.hir_id),
+        false,
+    )?;
+    // Async block desugaring shape:
+    //   body.value = Block { stmts: outer_stmts, expr: Some(DropTemps(inner)) }
+    //
+    // Historically we only translated the DropTemps-stripped tail (`inner`),
+    // silently dropping `outer_stmts`.  That caused a mode ICE when a
+    // statement inside the async block declared a variable referenced from a
+    // nested branched block (e.g. `async move { let h = 5; if c { ... h ... } }`)
+    // AND it silently discarded the `requires`/`ensures` header stmts that the
+    // `async requires/ensures` macro injects at the head of the outer block.
+    //
+    // We now translate the whole outer block via `block_to_vir` (preserving
+    // `outer_stmts`), then flatten one level of VIR nesting so macro-injected
+    // headers stay visible to `read_header`.
+    let body_span = body.value.span;
+    let body_typ = async_bctx.mid_ty_to_vir(
+        body_span,
+        &async_bctx.types.node_type(body.value.hir_id),
+        false,
+    )?;
+    let mut vir_body = match body.value.kind {
+        ExprKind::Block(block, _label) => {
+            let stripped_tail = block.expr.map(|e| match e.kind {
+                ExprKind::DropTemps(inner) => inner,
+                _ => e,
+            });
+            let new_block = rustc_hir::Block {
+                stmts: block.stmts,
+                expr: stripped_tail,
+                hir_id: block.hir_id,
+                rules: block.rules,
+                span: block.span,
+                targeted_by_break: block.targeted_by_break,
+            };
+            let translated =
+                block_to_vir(&async_bctx, &new_block, &body_span, &body_typ, modifier)?;
+            // Flatten one level of nested VIR Block so any macro-injected
+            // headers sitting inside the translated tail remain direct
+            // children of the outer VIR Block (required for `read_header`).
+            match &translated.x {
+                vir::ast::ExprX::Block(outer_stmts, Some(tail_expr)) => {
+                    if let vir::ast::ExprX::Block(inner_stmts, inner_tail) = &tail_expr.x {
+                        let mut merged: Vec<_> = (**outer_stmts).iter().cloned().collect();
+                        merged.extend((**inner_stmts).iter().cloned());
+                        translated
+                            .new_x(vir::ast::ExprX::Block(Arc::new(merged), inner_tail.clone()))
+                    } else {
+                        translated.clone()
+                    }
+                }
+                _ => translated,
+            }
+        }
+        _ => expr_to_vir_consume(&async_bctx, &body.value, modifier)?,
+    };
     // Extract specs injected as header statements by the macro.
     let header = vir::headers::read_header(&mut vir_body, &vir::headers::HeaderAllows::Closure)?;
     let vir::headers::Header { require, ensure, .. } = header;

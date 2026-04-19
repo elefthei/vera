@@ -109,9 +109,6 @@ Why this works:
   (progress, ordering, history).
 
 Limitations / workarounds:
-- Inlining `.acquire_write()` directly inside `async move { ... }`
-  currently triggers an ICE in `vir/src/modes.rs:730`. Wrap lock
-  operations in a helper `fn` taking `&Arc<RwLock<...>>` until fixed.
 - `RwLock<V, Pred>` exposes `inv(v)` but no `lock@` view, so temporal
   formulas like `ag(lock@ <= N)` aren't directly expressible. For
   R-G-style temporal reasoning over shared state, use the `&mut T`

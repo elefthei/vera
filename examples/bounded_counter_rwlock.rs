@@ -7,7 +7,7 @@
 //
 //   1. Yes — `Arc<RwLock<u64, Pred>>` verifies out of the box with the
 //      current spawn infrastructure. Each process clones the Arc and
-//      calls helper functions that acquire/release.
+//      inlines the lock ops directly inside `async move { ... }`.
 //
 //   2. Because `Pred::inv` is enforced on every `release_write`, the
 //      safety invariant `v <= N` is guaranteed by the lock's own type
@@ -15,13 +15,7 @@
 //      counter-style properties. R-G is only needed for properties that
 //      `Pred` cannot express (e.g., progress, ordering, history).
 //
-//   3. LIMITATION: inlining `.acquire_write()` directly inside an
-//      `async move { ... }` body triggers an ICE in `vir/src/modes.rs`
-//      (`internal error: missing mode` at line 730). The workaround is
-//      to wrap the lock operation in a helper `fn` that takes the Arc
-//      by reference — modes are correctly inferred there.
-//
-//   4. `RwLock<V, Pred>` has no natural "current value" view exposed to
+//   3. `RwLock<V, Pred>` has no natural "current value" view exposed to
 //      temporal logic. Temporal R-G formulas over the lock's current
 //      state (`ag(lock@ <= N)`) are not directly expressible with this
 //      API. For R-G-style temporal reasoning, the existing `&mut T`
@@ -32,8 +26,7 @@
 //
 //   - Wrap shared state in `Arc<RwLock<V, Pred>>`.
 //   - Each async task gets a cloned Arc.
-//   - Writes go through helper `fn` that acquires, mutates, and releases
-//     (inline acquire_write inside `async move` is not yet supported).
+//   - Each task calls `acquire_write` / `release_write` inline.
 //   - Predicate `Pred::inv` enforces the safety invariant at every write.
 
 use vstd::prelude::*;
@@ -53,39 +46,28 @@ impl RwLockPredicate<u64> for BoundedByN {
     }
 }
 
-/// Increment the counter if below N, otherwise leave it unchanged.
-/// `Pred::inv` is re-established at `release_write`.
-fn bump_up(lock: &Arc<RwLock<u64, BoundedByN>>) {
-    let (v, h) = lock.acquire_write();
-    if v < N {
-        h.release_write(v + 1);
-    } else {
-        h.release_write(v);
-    }
-}
-
-/// Decrement the counter if positive, otherwise leave it unchanged.
-fn bump_down(lock: &Arc<RwLock<u64, BoundedByN>>) {
-    let (v, h) = lock.acquire_write();
-    if v > 0 {
-        h.release_write(v - 1);
-    } else {
-        h.release_write(v);
-    }
-}
-
 fn system(exec: &mut impl Executor) {
     let lock: Arc<RwLock<u64, BoundedByN>> =
         Arc::new(RwLock::new(0u64, Ghost(BoundedByN)));
 
     let lock_a = lock.clone();
     exec.spawn(async move {
-        bump_up(&lock_a);
+        let (v, h) = lock_a.acquire_write();
+        if v < N {
+            h.release_write(v + 1);
+        } else {
+            h.release_write(v);
+        }
     });
 
     let lock_b = lock.clone();
     exec.spawn(async move {
-        bump_down(&lock_b);
+        let (v, h) = lock_b.acquire_write();
+        if v > 0 {
+            h.release_write(v - 1);
+        } else {
+            h.release_write(v);
+        }
     });
 }
 

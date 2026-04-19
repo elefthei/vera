@@ -881,11 +881,13 @@ fn expr_get_call(
                                     let mut req_exps = Vec::new();
                                     for r in requires.iter() {
                                         let (_, exp) = expr_to_pure_exp_check(ctx, state, r)?;
+                                        let exp = state.finalize_exp(ctx, &exp)?;
                                         req_exps.push(exp);
                                     }
                                     let mut ens_exps = Vec::new();
                                     for e in ensures.iter() {
                                         let (_, exp) = expr_to_pure_exp_check(ctx, state, e)?;
+                                        let exp = state.finalize_exp(ctx, &exp)?;
                                         ens_exps.push(exp);
                                     }
                                     state.spawned_closures.push(
