@@ -63,6 +63,8 @@ pub mod proph;
 pub mod raw_ptr;
 pub mod relations;
 pub mod rwlock;
+#[cfg(feature = "std")]
+pub mod sync;
 pub mod seq;
 pub mod seq_lib;
 pub mod set;
