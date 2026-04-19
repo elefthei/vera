@@ -117,6 +117,43 @@ impl Proposition {
             | Proposition::Until { requires_invariance, .. } => *requires_invariance,
         }
     }
+
+    /// The "observable" predicate of this obligation — the expression an
+    /// outside observer (e.g., a parallel process's rely, or a global
+    /// temporal ensures) sees this obligation as guaranteeing:
+    ///
+    /// - `Always { property }`   → `property`   (φ holds forever)
+    /// - `Until  { goal, .. }`   → `goal`       (eventual ψ)
+    ///
+    /// Centralizes the Always→property / Until→goal extraction used by
+    /// the R-G pairwise/global checks and by other consumers that don't
+    /// care about the path predicate.
+    pub fn observable(&self) -> &Exp {
+        match self {
+            Proposition::Always { property, .. } => property,
+            Proposition::Until { goal, .. } => goal,
+        }
+    }
+
+    /// If `Always`, return `(property, requires_invariance)`; else `None`.
+    pub fn as_always(&self) -> Option<(&Exp, bool)> {
+        match self {
+            Proposition::Always { property, requires_invariance } => {
+                Some((property, *requires_invariance))
+            }
+            _ => None,
+        }
+    }
+
+    /// If `Until`, return `(path, goal, goal_kind, requires_invariance)`; else `None`.
+    pub fn as_until(&self) -> Option<(&Exp, &Exp, GoalKind, bool)> {
+        match self {
+            Proposition::Until { path, goal, goal_kind, requires_invariance } => {
+                Some((path, goal, *goal_kind, *requires_invariance))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Collection of temporal obligations for the current function.

@@ -2319,10 +2319,7 @@ fn emit_rely_guarantee_checks(
     let mut all_relies: Vec<(usize, Expr)> = Vec::new();
     for (i, proc) in processes.iter().enumerate() {
         for prop in &proc.propositions {
-            let g_expr = match prop {
-                Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt)?,
-                Proposition::Until { goal, .. } => exp_to_expr(ctx, goal, expr_ctxt)?,
-            };
+            let g_expr = exp_to_expr(ctx, prop.observable(), expr_ctxt)?;
             all_guarantees.push((i, g_expr));
         }
         // Rely = the process's requires (stored directly in SpawnedProcess)
@@ -2355,10 +2352,7 @@ fn emit_rely_guarantee_checks(
         let g_exprs: Vec<Expr> = all_guarantees.iter().map(|(_, e)| e.clone()).collect();
         let conjunction = mk_and(&g_exprs);
         for prop in &state.wp.obligations.propositions.propositions {
-            let global_expr = match prop {
-                Proposition::Always { property, .. } => exp_to_expr(ctx, property, expr_ctxt).ok(),
-                Proposition::Until { goal, .. } => exp_to_expr(ctx, goal, expr_ctxt).ok(),
-            };
+            let global_expr = exp_to_expr(ctx, prop.observable(), expr_ctxt).ok();
             if let Some(global) = global_expr {
                 let implication = mk_implies(&conjunction, &global);
                 let err = error(
@@ -3303,10 +3297,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     .propositions
                     .propositions
                     .iter()
-                    .filter_map(|o| match o {
-                        Proposition::Always { property, .. } => Some(property.clone()),
-                        _ => None,
-                    })
+                    .filter_map(|o| o.as_always().map(|(p, _)| p.clone()))
                     .collect();
                 // Extend (not replace) — nested AG loops inherit parent AG obligations
                 state.wp.runtime.ag_state_obligations.extend(ag_props);
@@ -3322,10 +3313,7 @@ fn stm_to_stmts_inner(ctx: &Ctx, state: &mut State, stm: &Stm) -> Result<Vec<Stm
                     .propositions
                     .propositions
                     .iter()
-                    .filter_map(|o| match o {
-                        Proposition::Until { path, goal, .. } => Some((path.clone(), goal.clone())),
-                        _ => None,
-                    })
+                    .filter_map(|o| o.as_until().map(|(p, g, _, _)| (p.clone(), g.clone())))
                     .collect();
                 state.wp.runtime.au_path_obligations.extend(au_pairs);
             }
